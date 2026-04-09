@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
-interface User { id: number; role: 'husband' | 'wife'; name: string; email: string; }
+interface User { id: number; role: 'husband' | 'wife'; name: string; username: string; }
 interface Transaction {
   id: number; payer: 'husband' | 'wife'; amount: number; memo: string;
   date: string; status: 'pending' | 'approved' | 'rejected'; created_by: 'husband' | 'wife'; created_at: string;
@@ -36,7 +36,7 @@ const T = {
     emptySub: '위 버튼으로 첫 거래를 추가해보세요',
     husband: '남편', wife: '아내', husbandInitial: '남', wifeInitial: '아',
     modalTitle: '거래 추가', whoLabel: '누가 지불했나요?',
-    amountLabel: '금액 (원)', amountPlaceholder: '예: 50,000',
+    amountLabel: '금액 (₫)', amountPlaceholder: '예: 50,000',
     memoLabel: '내용', memoPlaceholder: '예: 마트 장보기, 식사비 등',
     dateLabel: '날짜', saving: '저장 중...', save: '저장',
     deleteTitle: '삭제 요청', deleteConfirm: '파트너의 동의를 받은 후 삭제됩니다. 요청할까요?',
@@ -66,7 +66,7 @@ const T = {
     emptySub: 'Nhấn nút trên để thêm giao dịch đầu tiên',
     husband: 'Chồng', wife: 'Vợ', husbandInitial: 'C', wifeInitial: 'V',
     modalTitle: 'Thêm giao dịch', whoLabel: 'Ai đã trả tiền?',
-    amountLabel: 'Số tiền (won)', amountPlaceholder: 'Ví dụ: 50,000',
+    amountLabel: 'Số tiền (₫)', amountPlaceholder: 'Ví dụ: 50,000',
     memoLabel: 'Nội dung', memoPlaceholder: 'Ví dụ: đi chợ, ăn uống...',
     dateLabel: 'Ngày', saving: 'Đang lưu...', save: 'Lưu',
     deleteTitle: 'Yêu cầu xóa', deleteConfirm: 'Bạn đời cần đồng ý thì mới xóa được. Gửi yêu cầu?',
@@ -79,8 +79,8 @@ const T = {
 };
 type Lang = 'ko' | 'vi';
 
-function formatAmt(amount: number, lang: Lang) {
-  return lang === 'vi' ? '₩' + amount.toLocaleString('ko-KR') : amount.toLocaleString('ko-KR') + '원';
+function formatAmt(amount: number, _lang?: Lang) {
+  return amount.toLocaleString('ko-KR') + ' ₫';
 }
 function fmtDate(d: string) {
   const [y, m, dd] = d.split('-');

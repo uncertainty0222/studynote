@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
 import path from 'path';
 import fs from 'fs';
 
@@ -12,12 +13,18 @@ export function getDb(): Database.Database {
   if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
   db = new Database(DB_PATH);
 
+  // Migration: if users table has old 'email' column, drop and recreate auth tables
+  const userCols = (db.pragma('table_info(users)') as Array<{ name: string }>).map(c => c.name);
+  if (userCols.length > 0 && userCols.includes('email')) {
+    db.exec('DROP TABLE IF EXISTS sessions; DROP TABLE IF EXISTS users;');
+  }
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       role TEXT NOT NULL CHECK(role IN ('husband', 'wife')),
       name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
+      username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL
     );
 
@@ -56,6 +63,14 @@ export function getDb(): Database.Database {
     db.exec("ALTER TABLE transactions ADD COLUMN created_by TEXT NOT NULL DEFAULT 'husband'");
   }
 
+  // Seed pre-configured accounts if empty
+  const count = (db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c;
+  if (count === 0) {
+    const pw = bcrypt.hashSync('1', 10);
+    db.prepare('INSERT INTO users (role, name, username, password_hash) VALUES (?, ?, ?, ?)').run('husband', 'INHWA', 'INHWA', pw);
+    db.prepare('INSERT INTO users (role, name, username, password_hash) VALUES (?, ?, ?, ?)').run('wife', 'NHI', 'NHI', pw);
+  }
+
   return db;
 }
 
@@ -65,7 +80,7 @@ export interface User {
   id: number;
   role: 'husband' | 'wife';
   name: string;
-  email: string;
+  username: string;
   password_hash: string;
 }
 
@@ -86,7 +101,6 @@ export interface DeletionRequest {
   requested_by: 'husband' | 'wife';
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
-  // joined fields
   payer?: 'husband' | 'wife';
   amount?: number;
   memo?: string;
@@ -101,24 +115,12 @@ export interface Balance {
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
-export function getUserCount(): number {
-  return (getDb().prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
-}
-
-export function getUserByEmail(email: string): User | null {
-  return getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as User | null;
+export function getUserByUsername(username: string): User | null {
+  return getDb().prepare('SELECT * FROM users WHERE username = ?').get(username) as User | null;
 }
 
 export function getUserById(id: number): User | null {
   return getDb().prepare('SELECT * FROM users WHERE id = ?').get(id) as User | null;
-}
-
-export function createUser(data: Omit<User, 'id'>): User {
-  const db = getDb();
-  const r = db.prepare(
-    'INSERT INTO users (role, name, email, password_hash) VALUES (?, ?, ?, ?)'
-  ).run(data.role, data.name, data.email, data.password_hash);
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(r.lastInsertRowid) as User;
 }
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
