@@ -30,7 +30,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 pt-[env(safe-area-inset-top)]">
       <div className="bg-white rounded-2xl shadow-sm w-full max-w-sm p-6">
         <div className="text-center mb-6">
           <p className="text-3xl mb-2">💑</p>
