@@ -262,7 +262,7 @@ export default function Home() {
                   value={amount}
                   onChange={(e) => handleAmountChange(e.target.value)}
                   placeholder="예: 50,000"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
                   required
                 />
               </div>
@@ -275,7 +275,7 @@ export default function Home() {
                   value={memo}
                   onChange={(e) => setMemo(e.target.value)}
                   placeholder="예: 마트 장보기, 식사비 등"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
                   required
                 />
               </div>
@@ -287,7 +287,7 @@ export default function Home() {
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
                   required
                 />
               </div>
