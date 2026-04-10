@@ -5,6 +5,6 @@ export async function GET() {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const requests = getPendingDeletionRequests();
+  const requests = await getPendingDeletionRequests();
   return Response.json({ requests });
 }

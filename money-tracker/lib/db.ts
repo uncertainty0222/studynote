@@ -1,77 +1,83 @@
-import Database from 'better-sqlite3';
+import postgres from 'postgres';
 import bcrypt from 'bcryptjs';
-import path from 'path';
-import fs from 'fs';
 
-const DB_DIR = path.join(process.cwd(), 'data');
-const DB_PATH = path.join(DB_DIR, 'money.db');
+type Sql = ReturnType<typeof postgres>;
 
-let db: Database.Database | null = null;
+let _sql: Sql | null = null;
+let _initialized = false;
+let _initPromise: Promise<void> | null = null;
 
-export function getDb(): Database.Database {
-  if (db) return db;
-  if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
-  db = new Database(DB_PATH);
+function getSql(): Sql {
+  if (_sql) return _sql;
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL 환경 변수가 필요합니다');
+  _sql = postgres(url, {
+    ssl: process.env.NODE_ENV === 'production' ? 'require' : false,
+    max: 10,
+  });
+  return _sql;
+}
 
-  // Migration: if users table has old 'email' column, drop and recreate auth tables
-  const userCols = (db.pragma('table_info(users)') as Array<{ name: string }>).map(c => c.name);
-  if (userCols.length > 0 && userCols.includes('email')) {
-    db.exec('DROP TABLE IF EXISTS sessions; DROP TABLE IF EXISTS users;');
-  }
+export async function initDb(): Promise<void> {
+  if (_initialized) return;
+  if (_initPromise) return _initPromise;
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      role TEXT NOT NULL CHECK(role IN ('husband', 'wife')),
-      name TEXT NOT NULL,
-      username TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL
-    );
+  _initPromise = (async () => {
+    const sql = getSql();
 
-    CREATE TABLE IF NOT EXISTS sessions (
-      token TEXT PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    );
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        role TEXT NOT NULL CHECK(role IN ('husband', 'wife')),
+        name TEXT NOT NULL,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL
+      )
+    `;
 
-    CREATE TABLE IF NOT EXISTS transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      payer TEXT NOT NULL CHECK(payer IN ('husband', 'wife')),
-      amount INTEGER NOT NULL CHECK(amount > 0),
-      memo TEXT NOT NULL,
-      date TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
-      created_by TEXT NOT NULL DEFAULT 'husband' CHECK(created_by IN ('husband', 'wife')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    );
+    await sql`
+      CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
 
-    CREATE TABLE IF NOT EXISTS deletion_requests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
-      requested_by TEXT NOT NULL CHECK(requested_by IN ('husband', 'wife')),
-      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
-    );
-  `);
+    await sql`
+      CREATE TABLE IF NOT EXISTS transactions (
+        id SERIAL PRIMARY KEY,
+        payer TEXT NOT NULL CHECK(payer IN ('husband', 'wife')),
+        amount INTEGER NOT NULL CHECK(amount > 0),
+        memo TEXT NOT NULL,
+        date TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+        created_by TEXT NOT NULL DEFAULT 'husband' CHECK(created_by IN ('husband', 'wife')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
 
-  // Migration: add new columns to existing transactions table if missing
-  const txCols = (db.pragma('table_info(transactions)') as Array<{ name: string }>).map(c => c.name);
-  if (!txCols.includes('status')) {
-    db.exec("ALTER TABLE transactions ADD COLUMN status TEXT NOT NULL DEFAULT 'approved'");
-  }
-  if (!txCols.includes('created_by')) {
-    db.exec("ALTER TABLE transactions ADD COLUMN created_by TEXT NOT NULL DEFAULT 'husband'");
-  }
+    await sql`
+      CREATE TABLE IF NOT EXISTS deletion_requests (
+        id SERIAL PRIMARY KEY,
+        transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+        requested_by TEXT NOT NULL CHECK(requested_by IN ('husband', 'wife')),
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
 
-  // Seed pre-configured accounts if empty
-  const count = (db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c;
-  if (count === 0) {
-    const pw = bcrypt.hashSync('1', 10);
-    db.prepare('INSERT INTO users (role, name, username, password_hash) VALUES (?, ?, ?, ?)').run('husband', 'INHWA', 'INHWA', pw);
-    db.prepare('INSERT INTO users (role, name, username, password_hash) VALUES (?, ?, ?, ?)').run('wife', 'NHI', 'NHI', pw);
-  }
+    // Seed pre-configured accounts
+    const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(*)::int AS count FROM users`;
+    if (count === 0) {
+      const pw = await bcrypt.hash('1', 10);
+      await sql`INSERT INTO users (role, name, username, password_hash) VALUES ('husband', 'INHWA', 'INHWA', ${pw}) ON CONFLICT DO NOTHING`;
+      await sql`INSERT INTO users (role, name, username, password_hash) VALUES ('wife', 'NHI', 'NHI', ${pw}) ON CONFLICT DO NOTHING`;
+    }
 
-  return db;
+    _initialized = true;
+  })();
+
+  return _initPromise;
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -115,132 +121,180 @@ export interface Balance {
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 
-export function getUserByUsername(username: string): User | null {
-  return getDb().prepare('SELECT * FROM users WHERE username = ?').get(username) as User | null;
+export async function getUserByUsername(username: string): Promise<User | null> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<User[]>`SELECT * FROM users WHERE username = ${username}`;
+  return rows[0] ?? null;
 }
 
-export function getUserById(id: number): User | null {
-  return getDb().prepare('SELECT * FROM users WHERE id = ?').get(id) as User | null;
+export async function getUserById(id: number): Promise<User | null> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<User[]>`SELECT * FROM users WHERE id = ${id}`;
+  return rows[0] ?? null;
 }
 
 // ─── Sessions ────────────────────────────────────────────────────────────────
 
-export function createSession(userId: number): string {
+export async function createSession(userId: number): Promise<string> {
+  await initDb();
+  const sql = getSql();
   const token = crypto.randomUUID();
-  getDb().prepare('INSERT INTO sessions (token, user_id) VALUES (?, ?)').run(token, userId);
+  await sql`INSERT INTO sessions (token, user_id) VALUES (${token}, ${userId})`;
   return token;
 }
 
-export function getSessionUser(token: string): User | null {
-  return getDb().prepare(
-    'SELECT users.* FROM sessions JOIN users ON sessions.user_id = users.id WHERE sessions.token = ?'
-  ).get(token) as User | null;
+export async function getSessionUser(token: string): Promise<User | null> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<User[]>`
+    SELECT users.* FROM sessions
+    JOIN users ON sessions.user_id = users.id
+    WHERE sessions.token = ${token}
+  `;
+  return rows[0] ?? null;
 }
 
-export function deleteSession(token: string): void {
-  getDb().prepare('DELETE FROM sessions WHERE token = ?').run(token);
+export async function deleteSession(token: string): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`DELETE FROM sessions WHERE token = ${token}`;
 }
 
 // ─── Transactions ─────────────────────────────────────────────────────────────
 
-export function getTransactions(): Transaction[] {
-  return getDb().prepare(
-    "SELECT * FROM transactions WHERE status != 'rejected' ORDER BY date DESC, created_at DESC"
-  ).all() as Transaction[];
+export async function getTransactions(): Promise<Transaction[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<Transaction[]>`
+    SELECT * FROM transactions WHERE status != 'rejected'
+    ORDER BY date DESC, created_at DESC
+  `;
 }
 
-export function getTransactionById(id: number): Transaction | null {
-  return getDb().prepare('SELECT * FROM transactions WHERE id = ?').get(id) as Transaction | null;
+export async function getTransactionById(id: number): Promise<Transaction | null> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<Transaction[]>`SELECT * FROM transactions WHERE id = ${id}`;
+  return rows[0] ?? null;
 }
 
-export function createTransaction(data: {
+export async function createTransaction(data: {
   payer: 'husband' | 'wife';
   amount: number;
   memo: string;
   date: string;
   created_by: 'husband' | 'wife';
-}): Transaction {
-  const db = getDb();
-  const r = db.prepare(
-    'INSERT INTO transactions (payer, amount, memo, date, status, created_by) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(data.payer, data.amount, data.memo, data.date, 'pending', data.created_by);
-  return db.prepare('SELECT * FROM transactions WHERE id = ?').get(r.lastInsertRowid) as Transaction;
+}): Promise<Transaction> {
+  await initDb();
+  const sql = getSql();
+  const [row] = await sql<Transaction[]>`
+    INSERT INTO transactions (payer, amount, memo, date, status, created_by)
+    VALUES (${data.payer}, ${data.amount}, ${data.memo}, ${data.date}, 'pending', ${data.created_by})
+    RETURNING *
+  `;
+  return row;
 }
 
-export function approveTransaction(id: number): boolean {
-  return getDb().prepare(
-    "UPDATE transactions SET status = 'approved' WHERE id = ? AND status = 'pending'"
-  ).run(id).changes > 0;
+export async function approveTransaction(id: number): Promise<boolean> {
+  await initDb();
+  const sql = getSql();
+  const result = await sql`
+    UPDATE transactions SET status = 'approved' WHERE id = ${id} AND status = 'pending'
+  `;
+  return result.count > 0;
 }
 
-export function rejectTransaction(id: number): boolean {
-  return getDb().prepare(
-    "UPDATE transactions SET status = 'rejected' WHERE id = ? AND status = 'pending'"
-  ).run(id).changes > 0;
+export async function rejectTransaction(id: number): Promise<boolean> {
+  await initDb();
+  const sql = getSql();
+  const result = await sql`
+    UPDATE transactions SET status = 'rejected' WHERE id = ${id} AND status = 'pending'
+  `;
+  return result.count > 0;
 }
 
 // ─── Deletion Requests ────────────────────────────────────────────────────────
 
-export function createDeletionRequest(transactionId: number, requestedBy: 'husband' | 'wife'): DeletionRequest {
-  const db = getDb();
-  const existing = db.prepare(
-    "SELECT * FROM deletion_requests WHERE transaction_id = ? AND status = 'pending'"
-  ).get(transactionId) as DeletionRequest | null;
-  if (existing) return existing;
+export async function createDeletionRequest(transactionId: number, requestedBy: 'husband' | 'wife'): Promise<DeletionRequest> {
+  await initDb();
+  const sql = getSql();
+  const existing = await sql<DeletionRequest[]>`
+    SELECT * FROM deletion_requests WHERE transaction_id = ${transactionId} AND status = 'pending'
+  `;
+  if (existing[0]) return existing[0];
 
-  const r = db.prepare(
-    'INSERT INTO deletion_requests (transaction_id, requested_by) VALUES (?, ?)'
-  ).run(transactionId, requestedBy);
-  return db.prepare('SELECT * FROM deletion_requests WHERE id = ?').get(r.lastInsertRowid) as DeletionRequest;
+  const [row] = await sql<DeletionRequest[]>`
+    INSERT INTO deletion_requests (transaction_id, requested_by)
+    VALUES (${transactionId}, ${requestedBy})
+    RETURNING *
+  `;
+  return row;
 }
 
-export function getPendingDeletionRequests(): DeletionRequest[] {
-  return getDb().prepare(`
+export async function getPendingDeletionRequests(): Promise<DeletionRequest[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<DeletionRequest[]>`
     SELECT dr.*, t.payer, t.amount, t.memo, t.date
     FROM deletion_requests dr
     JOIN transactions t ON dr.transaction_id = t.id
     WHERE dr.status = 'pending'
     ORDER BY dr.created_at DESC
-  `).all() as DeletionRequest[];
+  `;
 }
 
-export function getDeletionRequestById(id: number): DeletionRequest | null {
-  return getDb().prepare('SELECT * FROM deletion_requests WHERE id = ?').get(id) as DeletionRequest | null;
+export async function getDeletionRequestById(id: number): Promise<DeletionRequest | null> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<DeletionRequest[]>`SELECT * FROM deletion_requests WHERE id = ${id}`;
+  return rows[0] ?? null;
 }
 
-export function approveDeletion(id: number): boolean {
-  const db = getDb();
-  const req = db.prepare('SELECT * FROM deletion_requests WHERE id = ?').get(id) as DeletionRequest | null;
+export async function approveDeletion(id: number): Promise<boolean> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<DeletionRequest[]>`SELECT * FROM deletion_requests WHERE id = ${id}`;
+  const req = rows[0];
   if (!req || req.status !== 'pending') return false;
-  db.prepare("UPDATE deletion_requests SET status = 'approved' WHERE id = ?").run(id);
-  db.prepare('DELETE FROM transactions WHERE id = ?').run(req.transaction_id);
+
+  await sql`UPDATE deletion_requests SET status = 'approved' WHERE id = ${id}`;
+  await sql`DELETE FROM transactions WHERE id = ${req.transaction_id}`;
   return true;
 }
 
-export function rejectDeletion(id: number): boolean {
-  return getDb().prepare(
-    "UPDATE deletion_requests SET status = 'rejected' WHERE id = ? AND status = 'pending'"
-  ).run(id).changes > 0;
+export async function rejectDeletion(id: number): Promise<boolean> {
+  await initDb();
+  const sql = getSql();
+  const result = await sql`
+    UPDATE deletion_requests SET status = 'rejected' WHERE id = ${id} AND status = 'pending'
+  `;
+  return result.count > 0;
 }
 
 // ─── Balance ──────────────────────────────────────────────────────────────────
 
-export function getBalance(): Balance {
-  const rows = getDb().prepare(
-    "SELECT payer, SUM(amount) as total FROM transactions WHERE status = 'approved' GROUP BY payer"
-  ).all() as { payer: string; total: number }[];
+export async function getBalance(): Promise<Balance> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<{ payer: string; total: number }[]>`
+    SELECT payer, SUM(amount)::int AS total FROM transactions
+    WHERE status = 'approved' GROUP BY payer
+  `;
   const husbandTotal = rows.find(r => r.payer === 'husband')?.total ?? 0;
   const wifeTotal = rows.find(r => r.payer === 'wife')?.total ?? 0;
   return { husbandOwes: wifeTotal - husbandTotal, husbandTotal, wifeTotal };
 }
 
-export function getPendingCountForRole(role: 'husband' | 'wife'): number {
-  const db = getDb();
-  const pendingTx = (db.prepare(
-    "SELECT COUNT(*) as count FROM transactions WHERE status = 'pending' AND created_by != ?"
-  ).get(role) as { count: number }).count;
-  const pendingDel = (db.prepare(
-    "SELECT COUNT(*) as count FROM deletion_requests WHERE status = 'pending' AND requested_by != ?"
-  ).get(role) as { count: number }).count;
-  return pendingTx + pendingDel;
+export async function getPendingCountForRole(role: 'husband' | 'wife'): Promise<number> {
+  await initDb();
+  const sql = getSql();
+  const [a] = await sql<[{ count: number }]>`
+    SELECT COUNT(*)::int AS count FROM transactions WHERE status = 'pending' AND created_by != ${role}
+  `;
+  const [b] = await sql<[{ count: number }]>`
+    SELECT COUNT(*)::int AS count FROM deletion_requests WHERE status = 'pending' AND requested_by != ${role}
+  `;
+  return a.count + b.count;
 }

@@ -5,9 +5,11 @@ export async function GET() {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const transactions = getTransactions();
-  const balance = getBalance();
-  const pendingCount = getPendingCountForRole(user.role);
+  const [transactions, balance, pendingCount] = await Promise.all([
+    getTransactions(),
+    getBalance(),
+    getPendingCountForRole(user.role),
+  ]);
 
   return Response.json({ transactions, balance, pendingCount });
 }
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
     return Response.json({ error: '날짜를 선택해주세요' }, { status: 400 });
   }
 
-  const transaction = createTransaction({
+  const transaction = await createTransaction({
     payer,
     amount: Math.round(Number(amount)),
     memo: memo.trim(),

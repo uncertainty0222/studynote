@@ -21,5 +21,5 @@ export async function getAuthUser(): Promise<User | null> {
 export async function clearSession(): Promise<void> {
   const cookieStore = await cookies();
   const token = cookieStore.get('session')?.value;
-  if (token) deleteSession(token);
+  if (token) await deleteSession(token);
 }
