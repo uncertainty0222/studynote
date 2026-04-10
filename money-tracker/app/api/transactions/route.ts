@@ -1,5 +1,7 @@
 import { getAuthUser } from '@/lib/auth';
 import { getTransactions, createTransaction, getBalance, getPendingCountForRole } from '@/lib/db';
+import { broadcastUpdate } from '@/lib/broadcast';
+import { sendPushToRole } from '@/lib/push';
 
 export async function GET() {
   const user = await getAuthUser();
@@ -40,6 +42,11 @@ export async function POST(request: Request) {
     date,
     created_by: user.role,
   });
+
+  broadcastUpdate();
+  const partnerRole: 'husband' | 'wife' = user.role === 'husband' ? 'wife' : 'husband';
+  const senderName = user.role === 'husband' ? '남편' : '아내';
+  sendPushToRole(partnerRole, '우리 가계부 🔔', `${senderName}이(가) 새 거래를 요청했어요\n${memo.trim()} — ${Number(amount).toLocaleString('ko-KR')}₫`).catch(() => {});
 
   return Response.json(transaction, { status: 201 });
 }

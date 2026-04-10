@@ -66,6 +66,22 @@ export async function initDb(): Promise<void> {
       )
     `;
 
+    await sql`
+      CREATE TABLE IF NOT EXISTS config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        endpoint TEXT PRIMARY KEY,
+        role TEXT NOT NULL CHECK(role IN ('husband', 'wife')),
+        subscription TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
     // Seed pre-configured accounts
     const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(*)::int AS count FROM users`;
     if (count === 0) {
@@ -271,6 +287,47 @@ export async function rejectDeletion(id: number): Promise<boolean> {
     UPDATE deletion_requests SET status = 'rejected' WHERE id = ${id} AND status = 'pending'
   `;
   return result.count > 0;
+}
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+
+export async function getConfigValue(key: string): Promise<string | null> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<{ value: string }[]>`SELECT value FROM config WHERE key = ${key}`;
+  return rows[0]?.value ?? null;
+}
+
+export async function setConfigValue(key: string, value: string): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`INSERT INTO config (key, value) VALUES (${key}, ${value}) ON CONFLICT (key) DO UPDATE SET value = ${value}`;
+}
+
+// ─── Push Subscriptions ───────────────────────────────────────────────────────
+
+export async function upsertPushSubscription(role: 'husband' | 'wife', endpoint: string, subscription: string): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`
+    INSERT INTO push_subscriptions (endpoint, role, subscription)
+    VALUES (${endpoint}, ${role}, ${subscription})
+    ON CONFLICT (endpoint) DO UPDATE SET role = ${role}, subscription = ${subscription}
+  `;
+}
+
+export async function getPushSubscriptionsForRole(role: 'husband' | 'wife'): Promise<{ endpoint: string; subscription: string }[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<{ endpoint: string; subscription: string }[]>`
+    SELECT endpoint, subscription FROM push_subscriptions WHERE role = ${role}
+  `;
+}
+
+export async function deletePushSubscription(endpoint: string): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
 }
 
 // ─── Balance ──────────────────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 import { getAuthUser } from '@/lib/auth';
 import { getDeletionRequestById, approveDeletion, rejectDeletion } from '@/lib/db';
+import { broadcastUpdate } from '@/lib/broadcast';
+import { sendPushToRole } from '@/lib/push';
 
 export async function PATCH(
   request: Request,
@@ -20,7 +22,17 @@ export async function PATCH(
   }
 
   const { action } = await request.json();
-  if (action === 'approve') { await approveDeletion(numId); return Response.json({ success: true }); }
-  if (action === 'reject') { await rejectDeletion(numId); return Response.json({ success: true }); }
+  if (action === 'approve') {
+    await approveDeletion(numId);
+    broadcastUpdate();
+    sendPushToRole(req.requested_by, '우리 가계부 ✅', '삭제 요청이 승인됐어요').catch(() => {});
+    return Response.json({ success: true });
+  }
+  if (action === 'reject') {
+    await rejectDeletion(numId);
+    broadcastUpdate();
+    sendPushToRole(req.requested_by, '우리 가계부 ❌', '삭제 요청이 거절됐어요').catch(() => {});
+    return Response.json({ success: true });
+  }
   return Response.json({ error: '올바른 action이 아닙니다' }, { status: 400 });
 }

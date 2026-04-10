@@ -1,5 +1,7 @@
 import { getAuthUser } from '@/lib/auth';
 import { getTransactionById, createDeletionRequest, approveTransaction, rejectTransaction } from '@/lib/db';
+import { broadcastUpdate } from '@/lib/broadcast';
+import { sendPushToRole } from '@/lib/push';
 
 export async function DELETE(
   _request: Request,
@@ -16,6 +18,12 @@ export async function DELETE(
   if (!tx) return Response.json({ error: '거래를 찾을 수 없습니다' }, { status: 404 });
 
   const req = await createDeletionRequest(numId, user.role);
+
+  broadcastUpdate();
+  const partnerRole: 'husband' | 'wife' = user.role === 'husband' ? 'wife' : 'husband';
+  const senderName = user.role === 'husband' ? '남편' : '아내';
+  sendPushToRole(partnerRole, '우리 가계부 🗑', `${senderName}이(가) 삭제를 요청했어요\n${tx.memo}`).catch(() => {});
+
   return Response.json({ deletionRequest: req });
 }
 
@@ -38,7 +46,17 @@ export async function PATCH(
   }
 
   const { action } = await request.json();
-  if (action === 'approve') { await approveTransaction(numId); return Response.json({ success: true }); }
-  if (action === 'reject') { await rejectTransaction(numId); return Response.json({ success: true }); }
+  if (action === 'approve') {
+    await approveTransaction(numId);
+    broadcastUpdate();
+    sendPushToRole(tx.created_by, '우리 가계부 ✅', `거래가 승인됐어요\n${tx.memo} — ${tx.amount.toLocaleString('ko-KR')}₫`).catch(() => {});
+    return Response.json({ success: true });
+  }
+  if (action === 'reject') {
+    await rejectTransaction(numId);
+    broadcastUpdate();
+    sendPushToRole(tx.created_by, '우리 가계부 ❌', `거래가 거절됐어요\n${tx.memo}`).catch(() => {});
+    return Response.json({ success: true });
+  }
   return Response.json({ error: '올바른 action이 아닙니다' }, { status: 400 });
 }

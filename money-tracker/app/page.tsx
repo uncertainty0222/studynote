@@ -79,6 +79,13 @@ const T = {
 };
 type Lang = 'ko' | 'vi';
 
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
 function formatAmt(amount: number, _lang?: Lang) {
   return amount.toLocaleString('ko-KR') + ' ₫';
 }
@@ -153,9 +160,53 @@ export default function Home() {
     if (user) fetchData();
   }, [user, fetchData]);
 
-  // Poll every 30s for updates
+  // SSE: 실시간 업데이트
   useEffect(() => {
-    const id = setInterval(() => { if (user) fetchData(); }, 30000);
+    if (!user) return;
+    const es = new EventSource('/api/sse');
+    es.onmessage = () => fetchData();
+    return () => es.close();
+  }, [user, fetchData]);
+
+  // 푸시 알림 설정
+  useEffect(() => {
+    if (!user) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+    async function setupPush() {
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        await navigator.serviceWorker.ready;
+
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') return;
+
+        const keyRes = await fetch('/api/push/vapid-key');
+        const { publicKey } = await keyRes.json();
+
+        const existing = await reg.pushManager.getSubscription();
+        const sub = existing ?? await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          applicationServerKey: urlBase64ToUint8Array(publicKey) as any,
+        });
+
+        await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sub),
+        });
+      } catch {
+        // 푸시 설정 실패해도 SSE로 실시간 업데이트는 유지됨
+      }
+    }
+
+    setupPush();
+  }, [user]);
+
+  // Poll every 2min as fallback
+  useEffect(() => {
+    const id = setInterval(() => { if (user) fetchData(); }, 120000);
     return () => clearInterval(id);
   }, [user, fetchData]);
 
