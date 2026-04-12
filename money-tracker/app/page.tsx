@@ -110,6 +110,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
+  const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
 
   // Form state
   const [payer, setPayer] = useState<'husband' | 'wife'>('husband');
@@ -168,41 +169,41 @@ export default function Home() {
     return () => es.close();
   }, [user, fetchData]);
 
-  // 푸시 알림 설정
+  // 푸시 알림 상태 확인 (자동 권한 요청 안 함 - iOS는 사용자 탭 필요)
   useEffect(() => {
     if (!user) return;
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-
-    async function setupPush() {
-      try {
-        const reg = await navigator.serviceWorker.register('/sw.js');
-        await navigator.serviceWorker.ready;
-
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') return;
-
-        const keyRes = await fetch('/api/push/vapid-key');
-        const { publicKey } = await keyRes.json();
-
-        const existing = await reg.pushManager.getSubscription();
-        const sub = existing ?? await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          applicationServerKey: urlBase64ToUint8Array(publicKey) as any,
-        });
-
-        await fetch('/api/push/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(sub),
-        });
-      } catch {
-        // 푸시 설정 실패해도 SSE로 실시간 업데이트는 유지됨
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) { setPushEnabled(false); return; }
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') { setPushEnabled(false); return; }
+    navigator.serviceWorker.register('/sw.js').then(async reg => {
+      await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        setPushEnabled(true);
+        // 서버에 구독 재등록 (DB 초기화 대비)
+        fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) }).catch(() => {});
+      } else {
+        setPushEnabled(false);
       }
-    }
-
-    setupPush();
+    }).catch(() => setPushEnabled(false));
   }, [user]);
+
+  async function enablePush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    try {
+      const reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+      const { publicKey } = await fetch('/api/push/vapid-key').then(r => r.json());
+      const existing = await reg.pushManager.getSubscription();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sub = existing ?? await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) as any });
+      await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) });
+      setPushEnabled(true);
+    } catch {
+      // 지원 안 하거나 거부
+    }
+  }
 
   // Poll every 2min as fallback
   useEffect(() => {
@@ -309,6 +310,11 @@ export default function Home() {
               <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                 {pendingCount}
               </span>
+            )}
+            {pushEnabled === false && (
+              <button onClick={enablePush} className="text-xs px-2.5 py-1.5 rounded-lg border border-amber-300 text-amber-600 hover:bg-amber-50" title={lang === 'ko' ? '알림 받기' : 'Bật thông báo'}>
+                🔕
+              </button>
             )}
             <button onClick={toggleLang} className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
               {lang === 'ko' ? '🇻🇳' : '🇰🇷'}
