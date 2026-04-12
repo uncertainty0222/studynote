@@ -205,6 +205,22 @@ export default function Home() {
     }
   }
 
+  async function disablePush() {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+      if (!reg) return;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch('/api/push/subscribe', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) });
+        await sub.unsubscribe();
+      }
+      setPushEnabled(false);
+    } catch {
+      // ignore
+    }
+  }
+
   // Poll every 2min as fallback
   useEffect(() => {
     const id = setInterval(() => { if (user) fetchData(); }, 120000);
@@ -311,9 +327,13 @@ export default function Home() {
                 {pendingCount}
               </span>
             )}
-            {pushEnabled === false && (
-              <button onClick={enablePush} className="text-xs px-2.5 py-1.5 rounded-lg border border-amber-300 text-amber-600 hover:bg-amber-50" title={lang === 'ko' ? '알림 받기' : 'Bật thông báo'}>
-                🔕
+            {pushEnabled !== null && (
+              <button
+                onClick={pushEnabled ? disablePush : enablePush}
+                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${pushEnabled ? 'border-indigo-300 text-indigo-600 hover:bg-indigo-50' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+                title={pushEnabled ? (lang === 'ko' ? '알림 끄기' : 'Tắt thông báo') : (lang === 'ko' ? '알림 켜기' : 'Bật thông báo')}
+              >
+                {pushEnabled ? '🔔' : '🔕'}
               </button>
             )}
             <button onClick={toggleLang} className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
