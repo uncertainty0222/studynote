@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface User { id: number; role: 'husband' | 'wife'; name: string; username: string; }
@@ -79,6 +79,26 @@ const T = {
 };
 type Lang = 'ko' | 'vi';
 
+function playBeep(ctx: AudioContext | null) {
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  const now = ctx.currentTime;
+  [880, 1100].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const start = now + i * 0.15;
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(0.3, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.25);
+    osc.start(start);
+    osc.stop(start + 0.26);
+  });
+}
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -111,6 +131,7 @@ export default function Home() {
   const [showForm, setShowForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Form state
   const [payer, setPayer] = useState<'husband' | 'wife'>('husband');
@@ -125,6 +146,23 @@ export default function Home() {
   useEffect(() => {
     const saved = localStorage.getItem('lang') as Lang | null;
     if (saved === 'ko' || saved === 'vi') setLang(saved);
+  }, []);
+
+  // iOS 오디오 언락 (최초 사용자 제스처에서 AudioContext 활성화)
+  useEffect(() => {
+    function unlock() {
+      if (!audioCtxRef.current) {
+        const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (AC) audioCtxRef.current = new AC();
+      }
+      audioCtxRef.current?.resume().catch(() => {});
+    }
+    document.addEventListener('touchstart', unlock, { once: true, passive: true });
+    document.addEventListener('click', unlock, { once: true });
+    return () => {
+      document.removeEventListener('touchstart', unlock);
+      document.removeEventListener('click', unlock);
+    };
   }, []);
 
   function toggleLang() {
@@ -161,11 +199,14 @@ export default function Home() {
     if (user) fetchData();
   }, [user, fetchData]);
 
-  // SSE: 실시간 업데이트
+  // SSE: 실시간 업데이트 + 인앱 알림음
   useEffect(() => {
     if (!user) return;
     const es = new EventSource('/api/sse');
-    es.onmessage = () => fetchData();
+    es.onmessage = (e) => {
+      if (e.data === 'update') playBeep(audioCtxRef.current);
+      fetchData();
+    };
     return () => es.close();
   }, [user, fetchData]);
 
