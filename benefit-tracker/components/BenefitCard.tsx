@@ -1,20 +1,45 @@
 "use client";
 
 import { Benefit, categoryColors, statusColors } from "@/data/benefits";
+import {
+  MANGO_BIRTHDAY,
+  computeBenefitStatus,
+  daysUntilDeadline,
+} from "@/lib/ageUtils";
 
 interface Props {
   benefit: Benefit;
+  ageMonths: number;
+  ageDays: number;
 }
 
-export default function BenefitCard({ benefit }: Props) {
+export default function BenefitCard({ benefit, ageMonths, ageDays }: Props) {
   const cat = categoryColors[benefit.category];
   const st = statusColors[benefit.status];
+  const computed = computeBenefitStatus(benefit, ageMonths, ageDays);
+  const daysLeft = daysUntilDeadline(benefit, MANGO_BIRTHDAY);
+  const isUrgent = daysLeft !== null && daysLeft > 0 && daysLeft <= 60;
+  const isMissed = computed === "missed";
 
   return (
-    <div className={`rounded-2xl border ${cat.border} ${cat.bg} p-5 flex flex-col gap-3 hover:shadow-md transition-shadow`}>
+    <div className={`rounded-2xl border ${cat.border} ${cat.bg} p-5 flex flex-col gap-3 hover:shadow-md transition-shadow ${isMissed ? "opacity-70" : ""}`}>
       {/* header */}
       <div className="flex items-start justify-between gap-2">
-        <h2 className="text-base font-bold text-gray-900 leading-snug">{benefit.title}</h2>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-base font-bold text-gray-900 leading-snug">{benefit.title}</h2>
+            {isMissed && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-bold">
+                기한 만료
+              </span>
+            )}
+            {isUrgent && !isMissed && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold">
+                D-{daysLeft} 마감임박!
+              </span>
+            )}
+          </div>
+        </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cat.bg} ${cat.text} border ${cat.border}`}>
             {benefit.category}
@@ -33,10 +58,8 @@ export default function BenefitCard({ benefit }: Props) {
         </div>
       )}
 
-      {/* summary */}
       <p className="text-sm text-gray-700 leading-relaxed">{benefit.summary}</p>
 
-      {/* details */}
       <dl className="text-sm space-y-1.5">
         <div className="flex gap-2">
           <dt className="shrink-0 font-medium text-gray-500 w-16">대상</dt>
@@ -49,7 +72,9 @@ export default function BenefitCard({ benefit }: Props) {
         {benefit.deadline && (
           <div className="flex gap-2">
             <dt className="shrink-0 font-medium text-gray-500 w-16">기한</dt>
-            <dd className="text-amber-700 font-medium">{benefit.deadline}</dd>
+            <dd className={`font-medium ${isUrgent ? "text-red-600" : "text-amber-700"}`}>
+              {benefit.deadline}
+            </dd>
           </div>
         )}
         {benefit.notes && (
@@ -60,7 +85,6 @@ export default function BenefitCard({ benefit }: Props) {
         )}
       </dl>
 
-      {/* tags + link */}
       <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
         <div className="flex flex-wrap gap-1">
           {benefit.tags.map((tag) => (
