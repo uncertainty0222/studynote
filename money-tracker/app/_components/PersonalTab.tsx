@@ -48,6 +48,9 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
   const [vaultOpen, setVaultOpen] = useState(false);
   const [vaultSaving, setVaultSaving] = useState(false);
 
+  // vợ chồng balance (husbandOwes: + means husband owes wife, - means wife owes husband)
+  const [husbandOwes, setHusbandOwes] = useState<number | null>(null);
+
   const fetchBinance = useCallback(async () => {
     setBinanceLoading(true); setBinanceErr('');
     const res = await fetch('/api/personal/binance');
@@ -61,8 +64,14 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
     if (res.ok) { const d = await res.json() as VaultResponse; setVaultResp(d); setVaultDraft(d.vault); }
   }, []);
 
+  const fetchBalance = useCallback(async () => {
+    const res = await fetch('/api/balance');
+    if (res.ok) { const d = await res.json(); setHusbandOwes(d.husbandOwes ?? 0); }
+  }, []);
+
   useEffect(() => { if (!binance && !binanceLoading && !binanceErr) fetchBinance(); }, [binance, binanceLoading, binanceErr, fetchBinance]);
   useEffect(() => { fetchVault(); }, [fetchVault]);
+  useEffect(() => { fetchBalance(); }, [fetchBalance]);
 
   async function saveVault() {
     if (!vaultDraft) return;
@@ -85,7 +94,10 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
 
   const vaultUsd = savedTotals?.totalUsd ?? 0;
   const binanceUsd = binance?.totalUsdt ?? 0;
-  const totalUsd = vaultUsd + binanceUsd;
+  // husbandOwes > 0: husband owes wife → subtract (his liability)
+  // husbandOwes < 0: wife owes husband → add (his receivable)
+  const balanceUsd = husbandOwes !== null ? -(husbandOwes / usdToVnd) : 0;
+  const totalUsd = vaultUsd + binanceUsd + balanceUsd;
 
   const displayTotals = vaultOpen && vaultTotals ? vaultTotals : savedTotals;
 
@@ -303,6 +315,36 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
           </div>
         )}
       </div>
+
+      {/* ── vợ chồng 가계부 잔액 ── */}
+      {husbandOwes !== null && husbandOwes !== 0 && (
+        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">
+                vợ chồng <span className="text-gray-400 font-normal text-xs">가계부 잔액</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {husbandOwes > 0
+                  ? '아내에게 줘야 할 돈 (마이너스)'
+                  : '아내가 줘야 할 돈 (플러스)'}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className={`text-lg font-bold ${balanceUsd >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {balanceUsd >= 0 ? '+' : ''}{fmtUsd(balanceUsd)}
+              </p>
+              <p className={`text-xs ${balanceUsd >= 0 ? 'text-emerald-500' : 'text-rose-400'}`}>
+                {fmtVnd(Math.abs(husbandOwes))}
+              </p>
+            </div>
+          </div>
+          <div className="mx-4 mb-3 h-1 bg-gray-100 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full ${balanceUsd >= 0 ? 'bg-emerald-400' : 'bg-rose-400'}`}
+              style={{ width: `${Math.min(100, Math.abs(balanceUsd) / (totalUsd || 1) * 100)}%` }} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
