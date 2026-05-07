@@ -27,7 +27,7 @@ interface ShoppingComment {
 // ─── Translations ──────────────────────────────────────────────────────────
 const T = {
   ko: {
-    appTitle: '우리 가계부', appSub: '부부 공유 돈 관리',
+    appTitle: 'VOCHONG', appSub: '부부 공유 돈 관리',
     addBtn: '+ 거래 추가', logout: '로그아웃',
     balanceLabel: '현재 잔액 현황', settled: '정산 완료!',
     settledSub: '서로 주고받을 돈이 없어요',
@@ -63,7 +63,7 @@ const T = {
     shopCommentCount: (n: number) => `💬 ${n}`,
   },
   vi: {
-    appTitle: 'Sổ Chi Tiêu', appSub: 'Quản lý tiền vợ chồng',
+    appTitle: 'VOCHONG', appSub: 'Quản lý tiền vợ chồng',
     addBtn: '+ Thêm giao dịch', logout: 'Đăng xuất',
     balanceLabel: 'Số dư hiện tại', settled: 'Đã thanh toán xong!',
     settledSub: 'Hiện không có tiền cần trả cho nhau',

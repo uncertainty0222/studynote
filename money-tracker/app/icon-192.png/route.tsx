@@ -9,15 +9,16 @@ export async function GET() {
         style={{
           width: 192,
           height: 192,
-          background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+          background: 'linear-gradient(135deg, #d4f1c0 0%, #a8e090 50%, #6bbf3f 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 10,
+          borderRadius: 42,
+          fontSize: 120,
+          lineHeight: 1,
         }}
       >
-        <div style={{ width: 56, height: 56, background: 'rgba(255,255,255,0.92)', borderRadius: '50%' }} />
-        <div style={{ width: 56, height: 56, background: 'rgba(255,255,255,0.92)', borderRadius: '50%' }} />
+        🥥
       </div>
     ),
     { width: 192, height: 192, fonts: [] }

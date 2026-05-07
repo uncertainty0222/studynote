@@ -9,16 +9,16 @@ export async function GET() {
         style={{
           width: 180,
           height: 180,
-          background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+          background: 'linear-gradient(135deg, #d4f1c0 0%, #a8e090 50%, #6bbf3f 100%)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 10,
+          borderRadius: 40,
+          fontSize: 112,
+          lineHeight: 1,
         }}
       >
-        {/* Two circles representing a couple */}
-        <div style={{ width: 52, height: 52, background: 'rgba(255,255,255,0.92)', borderRadius: '50%' }} />
-        <div style={{ width: 52, height: 52, background: 'rgba(255,255,255,0.92)', borderRadius: '50%' }} />
+        🥥
       </div>
     ),
     { width: 180, height: 180, fonts: [] }

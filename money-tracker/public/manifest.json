@@ -1,6 +1,6 @@
 {
-  "name": "우리 가계부",
-  "short_name": "가계부",
+  "name": "VOCHONG",
+  "short_name": "VOCHONG",
   "description": "부부 공유 돈 관리",
   "start_url": "/",
   "display": "standalone",
