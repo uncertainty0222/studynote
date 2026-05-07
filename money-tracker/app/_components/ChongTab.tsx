@@ -151,8 +151,9 @@ export default function ChongTab() {
   }
 
   async function handleDeleteExpense(id: number) {
-    await fetch(`/api/personal/expenses/${id}`, { method: 'DELETE' });
     setExpenses(prev => prev.filter(i => i.id !== id));
+    await fetch(`/api/personal/expenses/${id}`, { method: 'DELETE' });
+    await fetchExpenses();
   }
 
   const filteredIncomes = filterByPeriod(incomes, inPeriod);

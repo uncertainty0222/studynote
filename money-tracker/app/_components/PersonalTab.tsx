@@ -121,7 +121,7 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
         </div>
         {binance && (
           <p className="text-xs opacity-40 mt-3">
-            $1 = ₫{usdToVnd.toLocaleString()} / ₩{usdToKrw.toLocaleString()} · {new Date(binance.updatedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            $1 = ₫{Math.round(usdToVnd).toLocaleString()} / ₩{Math.round(usdToKrw).toLocaleString()} · {new Date(binance.updatedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </p>
         )}
       </div>
