@@ -519,6 +519,32 @@ export async function getBalance(): Promise<Balance> {
   return { husbandOwes: wifeTotal - husbandTotal, husbandTotal, wifeTotal };
 }
 
+export interface VaultData {
+  usd: Record<string, number>;
+  krw: Record<string, number>;
+  vnd: Record<string, number>;
+}
+
+const DEFAULT_VAULT: VaultData = {
+  usd: { '100': 0, '50': 0, '20': 0, '10': 0, '5': 0, '2': 0, '1': 0 },
+  krw: { '50000': 0, '10000': 0, '5000': 0, '1000': 0 },
+  vnd: { '500000': 0, '200000': 0, '100000': 0 },
+};
+
+export async function getVaultData(): Promise<VaultData> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<{ value: string }[]>`SELECT value FROM config WHERE key = 'vault_data'`;
+  if (rows.length === 0) return DEFAULT_VAULT;
+  try { return JSON.parse(rows[0].value) as VaultData; } catch { return DEFAULT_VAULT; }
+}
+
+export async function setVaultData(data: VaultData): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`INSERT INTO config (key, value) VALUES ('vault_data', ${JSON.stringify(data)}) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`;
+}
+
 export async function getPendingCountForRole(role: 'husband' | 'wife'): Promise<number> {
   await initDb();
   const sql = getSql();
