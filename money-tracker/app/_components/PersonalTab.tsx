@@ -125,7 +125,7 @@ export default function PersonalTab({ user, lang }: { user: User; lang: 'ko' | '
 
   useEffect(() => { fetchIncomes(); }, [fetchIncomes]);
   useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
-  useEffect(() => { if (subTab === 'binance' && !binance && !binanceLoading) fetchBinance(); }, [subTab, binance, binanceLoading, fetchBinance]);
+  useEffect(() => { if (subTab === 'binance' && !binance && !binanceLoading && !binanceErr) fetchBinance(); }, [subTab, binance, binanceLoading, binanceErr, fetchBinance]);
 
   // ── Income submit ──
   async function handleAddIncome(e: React.FormEvent) {
