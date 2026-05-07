@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import PersonalTab from './_components/PersonalTab';
+import ChongTab from './_components/ChongTab';
 
 interface User { id: number; role: 'husband' | 'wife'; name: string; username: string; }
 interface Transaction {
@@ -54,7 +55,7 @@ const T = {
     deletionPending: '삭제 요청 중',
     errGeneral: '오류가 발생했습니다',
     unit: '원',
-    tabMoney: 'vợ chồng ❤️', tabShopping: '장보기', tabPersonal: '자산',
+    tabMoney: 'vợ chồng ❤️', tabShopping: '장보기', tabPersonal: 'Tiền của anh! 😜', tabChong: 'chồng',
     shopPlaceholder: '쓰레기봉투, 세제 등...', shopAdd: '추가',
     shopEmpty: '필요한 물건을 추가해보세요',
     shopBoughtBy: (n: string) => `${n}이(가) 구매`,
@@ -90,7 +91,7 @@ const T = {
     deletionPending: 'Đang yêu cầu xóa',
     errGeneral: 'Đã xảy ra lỗi',
     unit: '₩',
-    tabMoney: 'vợ chồng ❤️', tabShopping: 'Mua Sắm', tabPersonal: 'Tài Sản',
+    tabMoney: 'vợ chồng ❤️', tabShopping: 'Mua Sắm', tabPersonal: 'Tiền của anh! 😜', tabChong: 'chồng',
     shopPlaceholder: 'Túi rác, xà phòng,...', shopAdd: 'Thêm',
     shopEmpty: 'Hãy thêm đồ cần mua',
     shopBoughtBy: (n: string) => `${n} đã mua`,
@@ -153,7 +154,7 @@ export default function Home() {
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const [activeTab, setActiveTab] = useState<'couple' | 'personal'>('couple');
+  const [activeTab, setActiveTab] = useState<'couple' | 'personal' | 'chong'>('couple');
   const [shopItems, setShopItems] = useState<ShoppingItem[]>([]);
   const [shopInput, setShopInput] = useState('');
   const [shopSubmitting, setShopSubmitting] = useState(false);
@@ -484,13 +485,21 @@ export default function Home() {
             {t.tabMoney}
           </button>
           <button onClick={() => setActiveTab('personal')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'personal' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
-            📊 {t.tabPersonal}
+            {t.tabPersonal}
+          </button>
+          <button onClick={() => setActiveTab('chong')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'chong' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
+            {t.tabChong}
           </button>
         </div>
 
-        {/* ── Personal Assets Tab ── */}
+        {/* ── Assets Dashboard ── */}
         {activeTab === 'personal' && user && (
           <PersonalTab user={user} lang={lang} />
+        )}
+
+        {/* ── Chong Tab (수입 + 지출) ── */}
+        {activeTab === 'chong' && (
+          <ChongTab />
         )}
 
         {/* ── Couple Tab (가계부 + 장보기 통합) ── */}

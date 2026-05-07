@@ -88,11 +88,13 @@ export async function GET() {
       }
     }
 
-    // VND exchange rate (1 USD ≈ 1 USDT)
+    // Exchange rates (1 USD ≈ 1 USDT)
     let usdToVnd = 25800;
+    let usdToKrw = 1380;
     if (fxR.status === 'fulfilled' && fxR.value.ok) {
       const fxData = await fxR.value.json() as { rates: Record<string, number> };
       usdToVnd = fxData.rates['VND'] || 25800;
+      usdToKrw = fxData.rates['KRW'] || 1380;
     }
 
     const totalUsdt = spotUsdt + futuresUsdt + fundingUsdt;
@@ -105,6 +107,7 @@ export async function GET() {
       ],
       totalUsdt,
       usdToVnd,
+      usdToKrw,
       updatedAt: new Date().toISOString(),
     });
   } catch (e) {
