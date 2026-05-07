@@ -160,14 +160,14 @@ export default function ChongTab() {
   const filteredExpenses = filterByPeriod(expenses, exPeriod);
 
   const incomeTotal: Record<string, number> = {};
-  for (const i of filteredIncomes) incomeTotal[i.currency] = (incomeTotal[i.currency] ?? 0) + i.amount;
+  for (const i of filteredIncomes) incomeTotal[i.currency] = (incomeTotal[i.currency] ?? 0) + Number(i.amount);
 
   const expenseTotal: Record<string, number> = {};
   const expenseByCategory: Record<string, Record<string, number>> = {};
   for (const e of filteredExpenses) {
-    expenseTotal[e.currency] = (expenseTotal[e.currency] ?? 0) + e.amount;
+    expenseTotal[e.currency] = (expenseTotal[e.currency] ?? 0) + Number(e.amount);
     if (!expenseByCategory[e.currency]) expenseByCategory[e.currency] = {};
-    expenseByCategory[e.currency][e.category] = (expenseByCategory[e.currency][e.category] ?? 0) + e.amount;
+    expenseByCategory[e.currency][e.category] = (expenseByCategory[e.currency][e.category] ?? 0) + Number(e.amount);
   }
 
   return (
