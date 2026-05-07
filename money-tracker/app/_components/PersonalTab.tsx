@@ -15,12 +15,17 @@ interface ExpenseEntry {
 }
 
 interface BinanceHolding {
-  asset: string; free: number; locked: number; total: number; usdtValue: number;
+  asset: string; total: number; usdtValue: number;
+}
+
+interface BinanceSection {
+  key: string; label: string; usdt: number; holdings: BinanceHolding[];
 }
 
 interface BinanceData {
-  holdings: BinanceHolding[];
+  sections: BinanceSection[];
   totalUsdt: number;
+  usdToVnd: number;
   updatedAt: string;
 }
 
@@ -103,6 +108,7 @@ export default function PersonalTab({ user, lang }: { user: User; lang: 'ko' | '
   const [binance, setBinance] = useState<BinanceData | null>(null);
   const [binanceErr, setBinanceErr] = useState('');
   const [binanceLoading, setBinanceLoading] = useState(false);
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const fetchIncomes = useCallback(async () => {
     const res = await fetch('/api/personal/income');
@@ -466,16 +472,8 @@ export default function PersonalTab({ user, lang }: { user: User; lang: 'ko' | '
           </div>
 
           {binanceErr && (
-            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm text-amber-800 space-y-2">
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 text-sm text-amber-800">
               <p className="font-medium">⚠️ {binanceErr}</p>
-              {binanceErr.includes('BINANCE_API') && (
-                <div className="text-xs space-y-1 text-amber-700">
-                  <p>Railway 환경변수에 다음을 추가해주세요:</p>
-                  <code className="block bg-amber-100 rounded px-2 py-1 font-mono">BINANCE_API_KEY=your_key</code>
-                  <code className="block bg-amber-100 rounded px-2 py-1 font-mono">BINANCE_API_SECRET=your_secret</code>
-                  <p className="mt-1">바이낸스 → 계정 → API 관리에서 Read Only 키를 발급하세요.</p>
-                </div>
-              )}
             </div>
           )}
 
@@ -488,43 +486,77 @@ export default function PersonalTab({ user, lang }: { user: User; lang: 'ko' | '
 
           {binance && (
             <>
-              <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-4 text-white">
-                <p className="text-xs font-medium opacity-80 mb-1">총 자산 (USDT)</p>
-                <p className="text-3xl font-bold">{fmtUsdt(binance.totalUsdt)}</p>
-                <p className="text-xs opacity-60 mt-2">
-                  {new Date(binance.updatedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 기준
+              {/* 총 자산 카드 */}
+              <div className="bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl p-5 text-white">
+                <p className="text-xs font-medium opacity-75 mb-1">총 자산 (SPOT + FUTURES + FUNDING)</p>
+                <p className="text-3xl font-bold tracking-tight">{fmtUsdt(binance.totalUsdt)}</p>
+                <p className="text-sm opacity-80 mt-1">
+                  ≈ ₫{Math.round(binance.totalUsdt * binance.usdToVnd).toLocaleString('vi-VN')}
+                </p>
+                <p className="text-xs opacity-50 mt-3">
+                  환율 $1 = ₫{binance.usdToVnd.toLocaleString()} · {new Date(binance.updatedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-4 py-2.5 border-b border-gray-50">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">보유 자산</p>
-                </div>
-                <ul className="divide-y divide-gray-50">
-                  {binance.holdings.map(h => (
-                    <li key={h.asset} className="px-4 py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
-                          <span className="text-xs font-bold text-amber-700">{h.asset.slice(0, 2)}</span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{h.asset}</p>
-                          <p className="text-xs text-gray-400">
-                            {h.total.toLocaleString('en-US', { maximumSignificantDigits: 6 })}
-                            {h.locked > 0 && <span className="ml-1 text-amber-500">(잠김: {h.locked.toLocaleString('en-US', { maximumSignificantDigits: 4 })})</span>}
-                          </p>
-                        </div>
+              {/* 섹션별 비중 */}
+              {binance.sections.map(section => {
+                const pct = binance.totalUsdt > 0 ? (section.usdt / binance.totalUsdt * 100) : 0;
+                const isExpanded = expandedSection === section.key;
+                const hasHoldings = section.holdings.length > 0;
+                const sectionColors: Record<string, string> = {
+                  spot: 'bg-amber-400',
+                  futures: 'bg-blue-400',
+                  funding: 'bg-emerald-400',
+                };
+                return (
+                  <div key={section.key} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <button
+                      onClick={() => hasHoldings && setExpandedSection(isExpanded ? null : section.key)}
+                      className={`w-full px-4 py-3 flex items-center justify-between ${hasHoldings ? 'cursor-pointer' : 'cursor-default'}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${sectionColors[section.key] ?? 'bg-gray-300'}`} />
+                        <span className="text-sm font-semibold text-gray-800">{section.label}</span>
+                        <span className="text-xs text-gray-400 font-medium">{pct.toFixed(1)}%</span>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-gray-800">{fmtUsdt(h.usdtValue)}</p>
-                        {binance.totalUsdt > 0 && (
-                          <p className="text-xs text-gray-400">{((h.usdtValue / binance.totalUsdt) * 100).toFixed(1)}%</p>
-                        )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-gray-800">{fmtUsdt(section.usdt)}</span>
+                        {hasHoldings && <span className="text-gray-300 text-xs">{isExpanded ? '▲' : '▼'}</span>}
                       </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                    </button>
+
+                    {/* 비중 바 */}
+                    <div className="mx-4 mb-3 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all ${sectionColors[section.key] ?? 'bg-gray-300'}`} style={{ width: `${pct}%` }} />
+                    </div>
+
+                    {/* 보유 코인 목록 (펼치기) */}
+                    {isExpanded && (
+                      <ul className="divide-y divide-gray-50 border-t border-gray-50">
+                        {section.holdings.map(h => (
+                          <li key={h.asset} className="px-4 py-2.5 flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                <span className="text-xs font-bold text-amber-700">{h.asset.slice(0, 2)}</span>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-800">{h.asset}</p>
+                                <p className="text-xs text-gray-400">{h.total.toLocaleString('en-US', { maximumSignificantDigits: 5 })}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-semibold text-gray-800">{fmtUsdt(h.usdtValue)}</p>
+                              {section.usdt > 0 && (
+                                <p className="text-xs text-gray-400">{(h.usdtValue / section.usdt * 100).toFixed(1)}%</p>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
             </>
           )}
 
