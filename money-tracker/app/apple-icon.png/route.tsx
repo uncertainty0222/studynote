@@ -5,7 +5,7 @@ import { join } from 'path';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const img = readFileSync(join(process.cwd(), 'public/mango.jpg'));
+  const img = readFileSync(join(process.cwd(), 'public/mango2.jpg'));
   const src = `data:image/jpeg;base64,${img.toString('base64')}`;
 
   return new ImageResponse(
