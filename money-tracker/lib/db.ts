@@ -88,6 +88,33 @@ export async function initDb(): Promise<void> {
     `;
 
     await sql`
+      CREATE TABLE IF NOT EXISTS personal_income (
+        id SERIAL PRIMARY KEY,
+        amount BIGINT NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'VND',
+        category TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        date TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS personal_expenses (
+        id SERIAL PRIMARY KEY,
+        amount BIGINT NOT NULL,
+        currency TEXT NOT NULL DEFAULT 'VND',
+        category TEXT NOT NULL,
+        merchant TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '',
+        date TEXT NOT NULL,
+        receipt_image TEXT,
+        items JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await sql`
       CREATE TABLE IF NOT EXISTS config (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -399,6 +426,57 @@ export async function setConfigValue(key: string, value: string): Promise<void> 
   await initDb();
   const sql = getSql();
   await sql`INSERT INTO config (key, value) VALUES (${key}, ${value}) ON CONFLICT (key) DO UPDATE SET value = ${value}`;
+}
+
+// ─── Personal Finance ─────────────────────────────────────────────────────────
+
+export interface PersonalIncome {
+  id: number; amount: number; currency: string; category: string; description: string; date: string; created_at: string;
+}
+export interface PersonalExpense {
+  id: number; amount: number; currency: string; category: string; merchant: string; description: string;
+  date: string; receipt_image: string | null; items: { name: string; price: number }[] | null; created_at: string;
+}
+
+export async function getPersonalIncome(): Promise<PersonalIncome[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<PersonalIncome[]>`SELECT * FROM personal_income ORDER BY date DESC, created_at DESC`;
+}
+export async function createPersonalIncome(data: Omit<PersonalIncome, 'id' | 'created_at'>): Promise<PersonalIncome> {
+  await initDb();
+  const sql = getSql();
+  const [row] = await sql<PersonalIncome[]>`
+    INSERT INTO personal_income (amount, currency, category, description, date)
+    VALUES (${data.amount}, ${data.currency}, ${data.category}, ${data.description}, ${data.date}) RETURNING *
+  `;
+  return row;
+}
+export async function deletePersonalIncome(id: number): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`DELETE FROM personal_income WHERE id = ${id}`;
+}
+
+export async function getPersonalExpenses(): Promise<PersonalExpense[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<PersonalExpense[]>`SELECT * FROM personal_expenses ORDER BY date DESC, created_at DESC`;
+}
+export async function createPersonalExpense(data: Omit<PersonalExpense, 'id' | 'created_at'>): Promise<PersonalExpense> {
+  await initDb();
+  const sql = getSql();
+  const [row] = await sql<PersonalExpense[]>`
+    INSERT INTO personal_expenses (amount, currency, category, merchant, description, date, receipt_image, items)
+    VALUES (${data.amount}, ${data.currency}, ${data.category}, ${data.merchant}, ${data.description}, ${data.date},
+            ${data.receipt_image ?? null}, ${data.items ? sql.json(data.items) : null}) RETURNING *
+  `;
+  return row;
+}
+export async function deletePersonalExpense(id: number): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`DELETE FROM personal_expenses WHERE id = ${id}`;
 }
 
 // ─── Push Subscriptions ───────────────────────────────────────────────────────

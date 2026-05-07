@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import PersonalTab from './_components/PersonalTab';
 
 interface User { id: number; role: 'husband' | 'wife'; name: string; username: string; }
 interface Transaction {
@@ -53,7 +54,7 @@ const T = {
     deletionPending: '삭제 요청 중',
     errGeneral: '오류가 발생했습니다',
     unit: '원',
-    tabMoney: '가계부', tabShopping: '장보기',
+    tabMoney: '가계부', tabShopping: '장보기', tabPersonal: '자산',
     shopPlaceholder: '쓰레기봉투, 세제 등...', shopAdd: '추가',
     shopEmpty: '필요한 물건을 추가해보세요',
     shopBoughtBy: (n: string) => `${n}이(가) 구매`,
@@ -89,7 +90,7 @@ const T = {
     deletionPending: 'Đang yêu cầu xóa',
     errGeneral: 'Đã xảy ra lỗi',
     unit: '₩',
-    tabMoney: 'Sổ Chi Tiêu', tabShopping: 'Mua Sắm',
+    tabMoney: 'Sổ Chi Tiêu', tabShopping: 'Mua Sắm', tabPersonal: 'Tài Sản',
     shopPlaceholder: 'Túi rác, xà phòng,...', shopAdd: 'Thêm',
     shopEmpty: 'Hãy thêm đồ cần mua',
     shopBoughtBy: (n: string) => `${n} đã mua`,
@@ -152,7 +153,7 @@ export default function Home() {
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const [activeTab, setActiveTab] = useState<'money' | 'shop'>('money');
+  const [activeTab, setActiveTab] = useState<'money' | 'shop' | 'personal'>('money');
   const [shopItems, setShopItems] = useState<ShoppingItem[]>([]);
   const [shopInput, setShopInput] = useState('');
   const [shopSubmitting, setShopSubmitting] = useState(false);
@@ -478,12 +479,15 @@ export default function Home() {
 
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
         {/* Tab Navigation */}
-        <div className="flex rounded-xl bg-gray-100 p-1">
-          <button onClick={() => setActiveTab('money')} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${activeTab === 'money' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
+        <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
+          <button onClick={() => setActiveTab('money')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'money' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
             💰 {t.tabMoney}
           </button>
-          <button onClick={() => setActiveTab('shop')} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${activeTab === 'shop' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
+          <button onClick={() => setActiveTab('shop')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'shop' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
             🛒 {t.tabShopping}
+          </button>
+          <button onClick={() => setActiveTab('personal')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'personal' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
+            📊 {t.tabPersonal}
           </button>
         </div>
 
@@ -568,6 +572,11 @@ export default function Home() {
               )}
             </div>
           </div>
+        )}
+
+        {/* ── Personal Assets Tab ── */}
+        {activeTab === 'personal' && user && (
+          <PersonalTab user={user} lang={lang} />
         )}
 
         {/* ── Money Tab ── */}
