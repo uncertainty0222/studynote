@@ -13,6 +13,14 @@ interface DeletionRequest {
   payer: 'husband' | 'wife'; amount: number; memo: string; date: string;
 }
 interface Balance { husbandOwes: number; husbandTotal: number; wifeTotal: number; }
+interface ShoppingItem {
+  id: number; name: string; added_by: 'husband' | 'wife';
+  status: 'needed' | 'bought'; bought_by: 'husband' | 'wife' | null;
+  created_at: string; comment_count: number;
+}
+interface ShoppingComment {
+  id: number; item_id: number; author: 'husband' | 'wife'; content: string; created_at: string;
+}
 
 // ─── Translations ──────────────────────────────────────────────────────────
 const T = {
@@ -45,6 +53,12 @@ const T = {
     deletionPending: '삭제 요청 중',
     errGeneral: '오류가 발생했습니다',
     unit: '원',
+    tabMoney: '가계부', tabShopping: '장보기',
+    shopPlaceholder: '쓰레기봉투, 세제 등...', shopAdd: '추가',
+    shopEmpty: '필요한 물건을 추가해보세요',
+    shopBoughtBy: (n: string) => `${n}이(가) 구매`,
+    shopCommentPlaceholder: '댓글 입력...', shopSend: '전송',
+    shopCommentCount: (n: number) => `💬 ${n}`,
   },
   vi: {
     appTitle: 'Sổ Chi Tiêu', appSub: 'Quản lý tiền vợ chồng',
@@ -75,6 +89,12 @@ const T = {
     deletionPending: 'Đang yêu cầu xóa',
     errGeneral: 'Đã xảy ra lỗi',
     unit: '₩',
+    tabMoney: 'Sổ Chi Tiêu', tabShopping: 'Mua Sắm',
+    shopPlaceholder: 'Túi rác, xà phòng,...', shopAdd: 'Thêm',
+    shopEmpty: 'Hãy thêm đồ cần mua',
+    shopBoughtBy: (n: string) => `${n} đã mua`,
+    shopCommentPlaceholder: 'Nhập bình luận...', shopSend: 'Gửi',
+    shopCommentCount: (n: number) => `💬 ${n}`,
   },
 };
 type Lang = 'ko' | 'vi';
@@ -132,6 +152,14 @@ export default function Home() {
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const [activeTab, setActiveTab] = useState<'money' | 'shop'>('money');
+  const [shopItems, setShopItems] = useState<ShoppingItem[]>([]);
+  const [shopInput, setShopInput] = useState('');
+  const [shopSubmitting, setShopSubmitting] = useState(false);
+  const [expandedItem, setExpandedItem] = useState<number | null>(null);
+  const [comments, setComments] = useState<Record<number, ShoppingComment[]>>({});
+  const [commentInput, setCommentInput] = useState<Record<number, string>>({});
+  const [loadingComments, setLoadingComments] = useState<Record<number, boolean>>({});
 
   // Form state
   const [payer, setPayer] = useState<'husband' | 'wife'>('husband');
@@ -196,7 +224,7 @@ export default function Home() {
   }, [router]);
 
   useEffect(() => {
-    if (user) fetchData();
+    if (user) { fetchData(); }
   }, [user, fetchData]);
 
   // SSE: 실시간 업데이트 + 인앱 알림음
@@ -206,6 +234,7 @@ export default function Home() {
     es.onmessage = (e) => {
       if (e.data === 'update') playBeep(audioCtxRef.current);
       fetchData();
+      fetchShopData();
     };
     return () => es.close();
   }, [user, fetchData]);
@@ -267,6 +296,60 @@ export default function Home() {
     const id = setInterval(() => { if (user) fetchData(); }, 120000);
     return () => clearInterval(id);
   }, [user, fetchData]);
+
+  const fetchShopData = useCallback(async () => {
+    const res = await fetch('/api/shopping');
+    if (res.status === 401) { router.push('/login'); return; }
+    const data = await res.json();
+    setShopItems(data.items ?? []);
+  }, [router]);
+
+  useEffect(() => {
+    if (user) fetchShopData();
+  }, [user, fetchShopData]);
+
+  async function handleAddShopItem(e: React.FormEvent) {
+    e.preventDefault();
+    if (!shopInput.trim()) return;
+    setShopSubmitting(true);
+    await fetch('/api/shopping', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: shopInput.trim() }) });
+    setShopInput('');
+    setShopSubmitting(false);
+    await fetchShopData();
+  }
+
+  async function handleToggleShopItem(id: number) {
+    await fetch(`/api/shopping/${id}`, { method: 'PATCH' });
+    await fetchShopData();
+  }
+
+  async function handleDeleteShopItem(id: number) {
+    await fetch(`/api/shopping/${id}`, { method: 'DELETE' });
+    await fetchShopData();
+  }
+
+  async function handleExpandItem(id: number) {
+    if (expandedItem === id) { setExpandedItem(null); return; }
+    setExpandedItem(id);
+    if (!comments[id]) {
+      setLoadingComments(prev => ({ ...prev, [id]: true }));
+      const res = await fetch(`/api/shopping/${id}/comments`);
+      const data = await res.json();
+      setComments(prev => ({ ...prev, [id]: data.comments ?? [] }));
+      setLoadingComments(prev => ({ ...prev, [id]: false }));
+    }
+  }
+
+  async function handleAddComment(itemId: number) {
+    const content = commentInput[itemId]?.trim();
+    if (!content) return;
+    await fetch(`/api/shopping/${itemId}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) });
+    setCommentInput(prev => ({ ...prev, [itemId]: '' }));
+    const res = await fetch(`/api/shopping/${itemId}/comments`);
+    const data = await res.json();
+    setComments(prev => ({ ...prev, [itemId]: data.comments ?? [] }));
+    await fetchShopData();
+  }
 
   async function handleLogout() {
     await fetch('/api/auth', { method: 'DELETE' });
@@ -394,6 +477,101 @@ export default function Home() {
       </header>
 
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
+        {/* Tab Navigation */}
+        <div className="flex rounded-xl bg-gray-100 p-1">
+          <button onClick={() => setActiveTab('money')} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${activeTab === 'money' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
+            💰 {t.tabMoney}
+          </button>
+          <button onClick={() => setActiveTab('shop')} className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${activeTab === 'shop' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
+            🛒 {t.tabShopping}
+          </button>
+        </div>
+
+        {/* ── Shopping Tab ── */}
+        {activeTab === 'shop' && (
+          <div className="space-y-3">
+            <form onSubmit={handleAddShopItem} className="flex gap-2">
+              <input
+                value={shopInput}
+                onChange={e => setShopInput(e.target.value)}
+                placeholder={t.shopPlaceholder}
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+              <button type="submit" disabled={shopSubmitting || !shopInput.trim()} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors">
+                {t.shopAdd}
+              </button>
+            </form>
+
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              {shopItems.length === 0 ? (
+                <div className="py-12 text-center text-gray-400 text-sm">
+                  <p className="text-3xl mb-2">🛒</p>
+                  <p>{t.shopEmpty}</p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-50">
+                  {shopItems.map(item => {
+                    const isBought = item.status === 'bought';
+                    const isExpanded = expandedItem === item.id;
+                    const itemComments = comments[item.id] ?? [];
+                    return (
+                      <li key={item.id} className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => handleToggleShopItem(item.id)} className={`w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-xs font-bold transition-colors ${isBought ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-transparent hover:border-green-400'}`}>✓</button>
+                          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleExpandItem(item.id)}>
+                            <p className={`text-sm font-medium ${isBought ? 'line-through text-gray-400' : 'text-gray-900'}`}>{item.name}</p>
+                            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+                              <span>{item.added_by === 'husband' ? t.husband : t.wife}</span>
+                              {isBought && item.bought_by && <span className="text-green-600">{t.shopBoughtBy(item.bought_by === 'husband' ? t.husband : t.wife)}</span>}
+                              {item.comment_count > 0 && <span>{t.shopCommentCount(item.comment_count)}</span>}
+                            </p>
+                          </div>
+                          <button onClick={() => handleDeleteShopItem(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 flex-shrink-0">✕</button>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="mt-3 pl-10 space-y-2">
+                            {loadingComments[item.id] ? (
+                              <p className="text-xs text-gray-400">{t.loading}</p>
+                            ) : (
+                              <>
+                                {itemComments.map(c => (
+                                  <div key={c.id} className={`flex items-end gap-2 ${c.author === user?.role ? 'flex-row-reverse' : ''}`}>
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${c.author === 'husband' ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-600'}`}>
+                                      {c.author === 'husband' ? t.husbandInitial : t.wifeInitial}
+                                    </div>
+                                    <div className={`rounded-2xl px-3 py-1.5 text-xs max-w-[75%] ${c.author === user?.role ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                                      {c.content}
+                                    </div>
+                                  </div>
+                                ))}
+                                <div className="flex gap-2 pt-1">
+                                  <input
+                                    value={commentInput[item.id] ?? ''}
+                                    onChange={e => setCommentInput(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddComment(item.id); } }}
+                                    placeholder={t.shopCommentPlaceholder}
+                                    className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                  />
+                                  <button onClick={() => handleAddComment(item.id)} disabled={!commentInput[item.id]?.trim()} className="bg-indigo-600 disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg transition-colors">
+                                    {t.shopSend}
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Money Tab ── */}
+        {activeTab === 'money' && <>
         {/* Balance Card */}
         {bal && (
           <div className={`rounded-2xl border p-4 ${bal.bg}`}>
@@ -515,6 +693,7 @@ export default function Home() {
             </ul>
           )}
         </div>
+        </>}
       </main>
 
       {/* ── Add Transaction Modal ── */}

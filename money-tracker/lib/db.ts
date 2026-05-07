@@ -67,6 +67,27 @@ export async function initDb(): Promise<void> {
     `;
 
     await sql`
+      CREATE TABLE IF NOT EXISTS shopping_items (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        added_by TEXT NOT NULL CHECK(added_by IN ('husband', 'wife')),
+        status TEXT NOT NULL DEFAULT 'needed' CHECK(status IN ('needed', 'bought')),
+        bought_by TEXT CHECK(bought_by IN ('husband', 'wife')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS shopping_comments (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER NOT NULL REFERENCES shopping_items(id) ON DELETE CASCADE,
+        author TEXT NOT NULL CHECK(author IN ('husband', 'wife')),
+        content TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await sql`
       CREATE TABLE IF NOT EXISTS config (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -287,6 +308,82 @@ export async function rejectDeletion(id: number): Promise<boolean> {
     UPDATE deletion_requests SET status = 'rejected' WHERE id = ${id} AND status = 'pending'
   `;
   return result.count > 0;
+}
+
+// ─── Shopping ─────────────────────────────────────────────────────────────────
+
+export interface ShoppingItem {
+  id: number;
+  name: string;
+  added_by: 'husband' | 'wife';
+  status: 'needed' | 'bought';
+  bought_by: 'husband' | 'wife' | null;
+  created_at: string;
+  comment_count: number;
+}
+
+export interface ShoppingComment {
+  id: number;
+  item_id: number;
+  author: 'husband' | 'wife';
+  content: string;
+  created_at: string;
+}
+
+export async function getShoppingItems(): Promise<ShoppingItem[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<ShoppingItem[]>`
+    SELECT si.*, COUNT(sc.id)::int AS comment_count
+    FROM shopping_items si
+    LEFT JOIN shopping_comments sc ON sc.item_id = si.id
+    GROUP BY si.id
+    ORDER BY status DESC, si.created_at DESC
+  `;
+}
+
+export async function createShoppingItem(name: string, addedBy: 'husband' | 'wife'): Promise<ShoppingItem> {
+  await initDb();
+  const sql = getSql();
+  const [row] = await sql<ShoppingItem[]>`
+    INSERT INTO shopping_items (name, added_by) VALUES (${name}, ${addedBy}) RETURNING *, 0 AS comment_count
+  `;
+  return row;
+}
+
+export async function toggleShoppingItem(id: number, buyerRole: 'husband' | 'wife'): Promise<ShoppingItem | null> {
+  await initDb();
+  const sql = getSql();
+  const [current] = await sql<ShoppingItem[]>`SELECT * FROM shopping_items WHERE id = ${id}`;
+  if (!current) return null;
+  const newStatus = current.status === 'needed' ? 'bought' : 'needed';
+  const boughtBy = newStatus === 'bought' ? buyerRole : null;
+  const [row] = await sql<ShoppingItem[]>`
+    UPDATE shopping_items SET status = ${newStatus}, bought_by = ${boughtBy}
+    WHERE id = ${id} RETURNING *, 0 AS comment_count
+  `;
+  return row;
+}
+
+export async function deleteShoppingItem(id: number): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`DELETE FROM shopping_items WHERE id = ${id}`;
+}
+
+export async function getShoppingComments(itemId: number): Promise<ShoppingComment[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<ShoppingComment[]>`SELECT * FROM shopping_comments WHERE item_id = ${itemId} ORDER BY created_at ASC`;
+}
+
+export async function createShoppingComment(itemId: number, author: 'husband' | 'wife', content: string): Promise<ShoppingComment> {
+  await initDb();
+  const sql = getSql();
+  const [row] = await sql<ShoppingComment[]>`
+    INSERT INTO shopping_comments (item_id, author, content) VALUES (${itemId}, ${author}, ${content}) RETURNING *
+  `;
+  return row;
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
