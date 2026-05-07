@@ -17,7 +17,7 @@ const USD_DENOMS = ['100', '50', '20', '10', '5', '2', '1'];
 const KRW_DENOMS = ['50000', '10000', '5000', '1000'];
 const VND_DENOMS = ['500000', '200000', '100000'];
 
-function fmtUsd(v: number) { return '$' + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v); }
+function fmtUsd(v: number) { return '$' + new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.round(v)); }
 function fmtVnd(v: number) { return '₫' + new Intl.NumberFormat('vi-VN').format(Math.round(v)); }
 function fmtKrw(v: number) { return '₩' + new Intl.NumberFormat('ko-KR').format(Math.round(v)); }
 
@@ -86,6 +86,14 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
     setVaultDraft(prev => prev ? { ...prev, [currency]: { ...prev[currency], [denom]: Math.max(0, parseInt(val) || 0) } } : prev);
   }
 
+  function adjustCount(currency: 'usd' | 'krw' | 'vnd', denom: string, delta: number) {
+    setVaultDraft(prev => {
+      if (!prev) return prev;
+      const cur = prev[currency][denom] ?? 0;
+      return { ...prev, [currency]: { ...prev[currency], [denom]: Math.max(0, cur + delta) } };
+    });
+  }
+
   // Calculate totals for display
   const usdToKrw = vaultResp?.usdToKrw ?? binance?.usdToKrw ?? 1380;
   const usdToVnd = vaultResp?.usdToVnd ?? binance?.usdToVnd ?? 25800;
@@ -151,11 +159,13 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
                   const cnt = vaultDraft.usd[d] ?? 0;
                   const amt = Number(d) * cnt;
                   return (
-                    <div key={d} className="flex items-center gap-2">
+                    <div key={d} className="flex items-center gap-1.5">
                       <span className="text-xs text-gray-500 w-10 text-right">${d}</span>
+                      <button onClick={() => adjustCount('usd', d, -1)} className="w-7 h-7 rounded-lg bg-gray-100 text-gray-600 text-sm font-bold flex items-center justify-center active:bg-gray-200">−</button>
                       <input type="number" min="0" value={cnt}
                         onChange={e => setCount('usd', d, e.target.value)}
-                        className="w-16 border border-gray-200 rounded px-2 py-1 text-xs text-center text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300" />
+                        className="w-12 border border-gray-200 rounded px-1 py-1 text-xs text-center text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300" />
+                      <button onClick={() => adjustCount('usd', d, 1)} className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 text-sm font-bold flex items-center justify-center active:bg-indigo-200">+</button>
                       <span className="text-xs text-gray-400 flex-1 text-right">{amt > 0 ? fmtUsd(amt) : '—'}</span>
                     </div>
                   );
@@ -165,11 +175,13 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
 
             {/* 사무실정산 (추가 달러 금액) */}
             <div className="border-t border-gray-50 pt-2">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <span className="text-xs text-gray-500 w-20">사무실정산</span>
+                <button onClick={() => adjustCount('usd', 'office', -1)} className="w-7 h-7 rounded-lg bg-gray-100 text-gray-600 text-sm font-bold flex items-center justify-center active:bg-gray-200">−</button>
                 <input type="number" min="0" value={vaultDraft.usd['office'] ?? 0}
                   onChange={e => setCount('usd', 'office', e.target.value)}
-                  className="w-16 border border-gray-200 rounded px-2 py-1 text-xs text-center text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300" />
+                  className="w-12 border border-gray-200 rounded px-1 py-1 text-xs text-center text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300" />
+                <button onClick={() => adjustCount('usd', 'office', 1)} className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 text-sm font-bold flex items-center justify-center active:bg-indigo-200">+</button>
                 <span className="text-xs text-gray-400">달러</span>
               </div>
             </div>
@@ -185,11 +197,13 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
                   const cnt = vaultDraft.krw[d] ?? 0;
                   const amt = Number(d) * cnt;
                   return (
-                    <div key={d} className="flex items-center gap-2">
+                    <div key={d} className="flex items-center gap-1.5">
                       <span className="text-xs text-gray-500 w-16 text-right">₩{Number(d).toLocaleString()}</span>
+                      <button onClick={() => adjustCount('krw', d, -1)} className="w-7 h-7 rounded-lg bg-gray-100 text-gray-600 text-sm font-bold flex items-center justify-center active:bg-gray-200">−</button>
                       <input type="number" min="0" value={cnt}
                         onChange={e => setCount('krw', d, e.target.value)}
-                        className="w-16 border border-gray-200 rounded px-2 py-1 text-xs text-center text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300" />
+                        className="w-12 border border-gray-200 rounded px-1 py-1 text-xs text-center text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300" />
+                      <button onClick={() => adjustCount('krw', d, 1)} className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 text-sm font-bold flex items-center justify-center active:bg-indigo-200">+</button>
                       <span className="text-xs text-gray-400 flex-1 text-right">{amt > 0 ? fmtKrw(amt) : '—'}</span>
                     </div>
                   );
@@ -208,11 +222,13 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
                   const cnt = vaultDraft.vnd[d] ?? 0;
                   const amt = Number(d) * cnt;
                   return (
-                    <div key={d} className="flex items-center gap-2">
+                    <div key={d} className="flex items-center gap-1.5">
                       <span className="text-xs text-gray-500 w-18 text-right">₫{Number(d).toLocaleString()}</span>
+                      <button onClick={() => adjustCount('vnd', d, -1)} className="w-7 h-7 rounded-lg bg-gray-100 text-gray-600 text-sm font-bold flex items-center justify-center active:bg-gray-200">−</button>
                       <input type="number" min="0" value={cnt}
                         onChange={e => setCount('vnd', d, e.target.value)}
-                        className="w-16 border border-gray-200 rounded px-2 py-1 text-xs text-center text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300" />
+                        className="w-12 border border-gray-200 rounded px-1 py-1 text-xs text-center text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-300" />
+                      <button onClick={() => adjustCount('vnd', d, 1)} className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 text-sm font-bold flex items-center justify-center active:bg-indigo-200">+</button>
                       <span className="text-xs text-gray-400 flex-1 text-right">{amt > 0 ? fmtVnd(amt) : '—'}</span>
                     </div>
                   );
