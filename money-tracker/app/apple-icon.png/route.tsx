@@ -1,26 +1,17 @@
 import { ImageResponse } from 'next/og';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  const img = readFileSync(join(process.cwd(), 'public/mango.jpg'));
+  const src = `data:image/jpeg;base64,${img.toString('base64')}`;
+
   return new ImageResponse(
-    (
-      <div
-        style={{
-          width: 180,
-          height: 180,
-          background: 'linear-gradient(135deg, #d4f1c0 0%, #a8e090 50%, #6bbf3f 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: 40,
-          fontSize: 112,
-          lineHeight: 1,
-        }}
-      >
-        🥥
-      </div>
-    ),
-    { width: 180, height: 180, fonts: [] }
+    <div style={{ width: 180, height: 180, borderRadius: 40, overflow: 'hidden', display: 'flex' }}>
+      <img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 22%' }} />
+    </div>,
+    { width: 180, height: 180, fonts: [] },
   );
 }

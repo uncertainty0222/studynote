@@ -1,24 +1,17 @@
 import { ImageResponse } from 'next/og';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 export const size = { width: 512, height: 512 };
 export const contentType = 'image/png';
 
 export default function Icon() {
+  const img = readFileSync(join(process.cwd(), 'public/mango.jpg'));
+  const src = `data:image/jpeg;base64,${img.toString('base64')}`;
+
   return new ImageResponse(
-    <div
-      style={{
-        width: 512,
-        height: 512,
-        background: 'linear-gradient(135deg, #d4f1c0 0%, #a8e090 50%, #6bbf3f 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 112,
-        fontSize: 320,
-        lineHeight: 1,
-      }}
-    >
-      🥥
+    <div style={{ width: 512, height: 512, borderRadius: 112, overflow: 'hidden', display: 'flex' }}>
+      <img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 22%' }} />
     </div>,
     { width: 512, height: 512 },
   );
