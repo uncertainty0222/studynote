@@ -479,6 +479,21 @@ export async function deletePersonalExpense(id: number): Promise<void> {
   await sql`DELETE FROM personal_expenses WHERE id = ${id}`;
 }
 
+export async function updatePersonalExpense(id: number, fields: { category?: string; merchant?: string; amount?: number; currency?: string; date?: string }): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  const { category, merchant, amount, currency, date } = fields;
+  await sql`
+    UPDATE personal_expenses SET
+      category  = COALESCE(${category  ?? null}, category),
+      merchant  = COALESCE(${merchant  ?? null}, merchant),
+      amount    = COALESCE(${amount    ?? null}, amount),
+      currency  = COALESCE(${currency  ?? null}, currency),
+      date      = COALESCE(${date      ?? null}, date)
+    WHERE id = ${id}
+  `;
+}
+
 // ─── Push Subscriptions ───────────────────────────────────────────────────────
 
 export async function upsertPushSubscription(role: 'husband' | 'wife', endpoint: string, subscription: string): Promise<void> {

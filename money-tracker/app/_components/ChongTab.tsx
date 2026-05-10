@@ -86,6 +86,11 @@ export default function ChongTab() {
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 
+  // Inline edit state
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editFields, setEditFields] = useState<{ category: string; merchant: string; amount: string; currency: string; date: string }>({ category: '', merchant: '', amount: '', currency: 'VND', date: '' });
+  const [editSaving, setEditSaving] = useState(false);
+
   // Exchange rates for USD conversion
   const [usdToVnd, setUsdToVnd] = useState(25800);
   const [usdToKrw, setUsdToKrw] = useState(1380);
@@ -165,6 +170,23 @@ export default function ChongTab() {
     setExpenses(prev => prev.filter(i => i.id !== id));
     await fetch(`/api/personal/expenses/${id}`, { method: 'DELETE' });
     await fetchExpenses();
+  }
+
+  function startEdit(item: ExpenseEntry) {
+    setEditingId(item.id);
+    setEditFields({ category: item.category, merchant: item.merchant ?? '', amount: String(Number(item.amount)), currency: item.currency, date: item.date });
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+    setEditSaving(true);
+    await fetch(`/api/personal/expenses/${editingId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...editFields, amount: Math.round(Number(editFields.amount)) }),
+    });
+    setEditingId(null);
+    await fetchExpenses();
+    setEditSaving(false);
   }
 
   const filteredIncomes = filterByPeriod(incomes, inPeriod);
@@ -394,18 +416,63 @@ export default function ChongTab() {
             ) : (
               <ul className="divide-y divide-gray-50">
                 {filteredExpenses.map(item => (
-                  <li key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs bg-rose-100 text-rose-700 font-medium px-2 py-0.5 rounded-full">{item.category}</span>
-                        {item.merchant && <span className="text-xs text-gray-700 font-medium truncate">{item.merchant}</span>}
+                  <li key={item.id}>
+                    {/* 일반 행 */}
+                    <div className="px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs bg-rose-100 text-rose-700 font-medium px-2 py-0.5 rounded-full">{item.category}</span>
+                          {item.merchant && <span className="text-xs text-gray-700 font-medium truncate">{item.merchant}</span>}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
                       </div>
-                      <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className="text-sm font-bold text-rose-700">{fmt(item.amount, item.currency)}</span>
+                        <button onClick={() => editingId === item.id ? setEditingId(null) : startEdit(item)}
+                          className={`p-1 transition-colors text-sm ${editingId === item.id ? 'text-indigo-500' : 'text-gray-300 hover:text-indigo-400'}`}>✏️</button>
+                        <button onClick={() => handleDeleteExpense(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 text-sm">✕</button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-sm font-bold text-rose-700">{fmt(item.amount, item.currency)}</span>
-                      <button onClick={() => handleDeleteExpense(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
-                    </div>
+                    {/* 인라인 수정 패널 */}
+                    {editingId === item.id && (
+                      <div className="px-4 pb-3 bg-indigo-50/60 border-t border-indigo-100 space-y-2">
+                        <div className="flex gap-2 pt-2">
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-500 mb-1">카테고리</p>
+                            <select value={editFields.category} onChange={e => setEditFields(f => ({ ...f, category: e.target.value }))} className={`${selectCls} w-full`}>
+                              {EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-500 mb-1">날짜</p>
+                            <input type="date" value={editFields.date} onChange={e => setEditFields(f => ({ ...f, date: e.target.value }))} className={inputCls} />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <p className="text-xs text-gray-500 mb-1">금액</p>
+                            <input type="text" inputMode="numeric" value={editFields.amount}
+                              onChange={e => setEditFields(f => ({ ...f, amount: e.target.value.replace(/[^0-9]/g, '') }))} className={inputCls} />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-1">통화</p>
+                            <select value={editFields.currency} onChange={e => setEditFields(f => ({ ...f, currency: e.target.value }))} className={selectCls}>
+                              {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 mb-1">상호명</p>
+                          <input type="text" value={editFields.merchant} onChange={e => setEditFields(f => ({ ...f, merchant: e.target.value }))} className={inputCls} />
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => setEditingId(null)} className="flex-1 py-2 text-xs font-medium rounded-lg bg-gray-100 text-gray-600">취소</button>
+                          <button onClick={saveEdit} disabled={editSaving} className="flex-1 py-2 text-xs font-medium rounded-lg bg-indigo-600 text-white disabled:opacity-50">
+                            {editSaving ? '저장 중...' : '저장'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
