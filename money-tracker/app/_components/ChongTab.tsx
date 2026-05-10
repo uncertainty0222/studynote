@@ -157,8 +157,19 @@ export default function ChongTab() {
         if (d.currency && CURRENCIES.includes(d.currency)) setExCurrency(d.currency);
         if (d.category && EXPENSE_CATEGORIES.includes(d.category)) setExCategory(d.category);
         if (d.merchant) setExMerchant(d.merchant);
-        if (d.date) setExDate(d.date);
-        setOcrMsg('영수증 정보를 가져왔어요. 확인 후 저장하세요.');
+        if (d.date) {
+          const now = new Date();
+          const parsed = new Date(d.date);
+          const sameMonth = parsed.getFullYear() === now.getFullYear() && parsed.getMonth() === now.getMonth();
+          setExDate(d.date);
+          if (!sameMonth) {
+            setOcrMsg(`영수증 정보를 가져왔어요. ⚠️ 날짜가 ${d.date} (이번 달 아님) — 맞으면 그대로, 아니면 날짜를 수정해주세요.`);
+          } else {
+            setOcrMsg('영수증 정보를 가져왔어요. 확인 후 저장하세요.');
+          }
+        } else {
+          setOcrMsg('영수증 정보를 가져왔어요. 확인 후 저장하세요.');
+        }
       } else { const err = await res.json(); setOcrMsg(err.error ?? 'OCR 실패 — 수동 입력해주세요.'); }
     } catch { setOcrMsg('이미지 처리 실패'); }
     setOcrLoading(false);
