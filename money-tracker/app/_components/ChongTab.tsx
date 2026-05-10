@@ -113,16 +113,29 @@ export default function ChongTab() {
     });
   }, []);
 
+  const [inErrMsg, setInErrMsg] = useState('');
+
   async function handleAddIncome(e: React.FormEvent) {
     e.preventDefault();
     if (!inAmount.trim()) return;
     setInSubmitting(true);
-    await fetch('/api/personal/income', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: Number(inAmount.replace(/,/g, '')), currency: inCurrency, category: inCategory, description: inDesc, date: inDate }),
-    });
-    setInAmount(''); setInDesc('');
-    await fetchIncomes();
+    setInErrMsg('');
+    try {
+      const res = await fetch('/api/personal/income', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: Number(inAmount.replace(/,/g, '')), currency: inCurrency, category: inCategory, description: inDesc, date: inDate }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setInErrMsg(res.status === 401 ? '⚠️ 세션 만료 — 페이지를 새로고침해주세요' : `⚠️ 저장 실패: ${err.error ?? res.status}`);
+        setInSubmitting(false);
+        return;
+      }
+      setInAmount(''); setInDesc('');
+      await fetchIncomes();
+    } catch {
+      setInErrMsg('⚠️ 네트워크 오류 — 다시 시도해주세요');
+    }
     setInSubmitting(false);
   }
 
@@ -157,12 +170,23 @@ export default function ChongTab() {
     e.preventDefault();
     if (!exAmount.trim()) return;
     setExSubmitting(true);
-    await fetch('/api/personal/expenses', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amount: Number(exAmount.replace(/,/g, '')), currency: exCurrency, category: exCategory, merchant: exMerchant, description: exDesc, date: exDate }),
-    });
-    setExAmount(''); setExMerchant(''); setExDesc(''); setOcrMsg('');
-    await fetchExpenses();
+    setOcrMsg('');
+    try {
+      const res = await fetch('/api/personal/expenses', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: Number(exAmount.replace(/,/g, '')), currency: exCurrency, category: exCategory, merchant: exMerchant, description: exDesc, date: exDate }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setOcrMsg(res.status === 401 ? '⚠️ 세션 만료 — 페이지를 새로고침해주세요' : `⚠️ 저장 실패: ${err.error ?? res.status}`);
+        setExSubmitting(false);
+        return;
+      }
+      setExAmount(''); setExMerchant(''); setExDesc('');
+      await fetchExpenses();
+    } catch {
+      setOcrMsg('⚠️ 네트워크 오류 — 다시 시도해주세요');
+    }
     setExSubmitting(false);
   }
 
@@ -222,6 +246,7 @@ export default function ChongTab() {
         <div className="space-y-3">
           <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
             <h3 className="text-sm font-semibold text-gray-800">수입 기록 · <span className="text-gray-400 font-normal">Ghi thu nhập</span></h3>
+            {inErrMsg && <p className="text-xs px-3 py-2 rounded-lg bg-amber-50 text-amber-700">{inErrMsg}</p>}
             <form onSubmit={handleAddIncome} className="space-y-3">
               <div className="flex gap-2">
                 <div className="flex-1">
