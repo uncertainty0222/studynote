@@ -15,7 +15,7 @@ type SubTab = 'income' | 'expense';
 type Period = 'all' | 'month' | 'year';
 
 const INCOME_CATEGORIES = ['급여', '투자수익', '부업', '보너스', '기타'];
-const EXPENSE_CATEGORIES = ['식비', '교통', '쇼핑', '주거', '의료', '교육', '기타'];
+const EXPENSE_CATEGORIES = ['식비', '교통', '쇼핑', '주거', '의료', '카페', '구독', '교육', '기타'];
 const CURRENCIES = ['VND', 'KRW', 'USD', 'USDT'];
 
 function fmt(amount: number, currency: string): string {
@@ -83,7 +83,12 @@ export default function ChongTab() {
   const [exSubmitting, setExSubmitting] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrMsg, setOcrMsg] = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+
+  // Exchange rates for USD conversion
+  const [usdToVnd, setUsdToVnd] = useState(25800);
+  const [usdToKrw, setUsdToKrw] = useState(1380);
 
   const fetchIncomes = useCallback(async () => {
     const res = await fetch('/api/personal/income');
@@ -97,6 +102,11 @@ export default function ChongTab() {
 
   useEffect(() => { fetchIncomes(); }, [fetchIncomes]);
   useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
+  useEffect(() => {
+    fetch('/api/personal/vault').then(r => r.ok ? r.json() : null).then(d => {
+      if (d) { setUsdToVnd(d.usdToVnd); setUsdToKrw(d.usdToKrw); }
+    });
+  }, []);
 
   async function handleAddIncome(e: React.FormEvent) {
     e.preventDefault();
@@ -134,7 +144,8 @@ export default function ChongTab() {
       } else { const err = await res.json(); setOcrMsg(err.error ?? 'OCR 실패 — 수동 입력해주세요.'); }
     } catch { setOcrMsg('이미지 처리 실패'); }
     setOcrLoading(false);
-    if (fileRef.current) fileRef.current.value = '';
+    if (cameraRef.current) cameraRef.current.value = '';
+    if (galleryRef.current) galleryRef.current.value = '';
   }
 
   async function handleAddExpense(e: React.FormEvent) {
@@ -278,11 +289,18 @@ export default function ChongTab() {
           <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-800">지출 기록 · <span className="text-gray-400 font-normal">Ghi chi tiêu</span></h3>
-              <label className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${ocrLoading ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
-                {ocrLoading ? '분석 중...' : '📷 영수증'}
-                <input ref={fileRef} type="file" accept="image/*" capture="environment"
-                  className="hidden" disabled={ocrLoading} onChange={handleReceiptUpload} />
-              </label>
+              <div className="flex gap-1.5">
+                <label className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${ocrLoading ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
+                  {ocrLoading ? '...' : '📷 촬영'}
+                  <input ref={cameraRef} type="file" accept="image/*" capture="environment"
+                    className="hidden" disabled={ocrLoading} onChange={handleReceiptUpload} />
+                </label>
+                <label className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${ocrLoading ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
+                  {ocrLoading ? '...' : '🖼️ 업로드'}
+                  <input ref={galleryRef} type="file" accept="image/*"
+                    className="hidden" disabled={ocrLoading} onChange={handleReceiptUpload} />
+                </label>
+              </div>
             </div>
             {ocrMsg && (
               <p className={`text-xs px-3 py-2 rounded-lg ${ocrMsg.includes('가져왔') ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{ocrMsg}</p>
@@ -335,24 +353,40 @@ export default function ChongTab() {
             ))}
           </div>
 
-          {Object.keys(expenseTotal).length > 0 && (
-            <div className="bg-rose-50 rounded-xl p-3 border border-rose-100 space-y-2">
-              <p className="text-xs font-semibold text-rose-700">{periodLabel[exPeriod]} 총 지출</p>
-              {Object.entries(expenseTotal).map(([cur, amt]) => (
-                <p key={cur} className="text-base font-bold text-rose-800">{fmt(amt, cur)}</p>
-              ))}
-              {Object.entries(expenseByCategory).map(([cur, cats]) => (
-                <div key={cur} className="grid grid-cols-2 gap-1 mt-1">
-                  {Object.entries(cats).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => (
+          {Object.keys(expenseTotal).length > 0 && (() => {
+            const totalUsd = Object.entries(expenseTotal).reduce((s, [cur, amt]) => {
+              if (cur === 'VND') return s + amt / usdToVnd;
+              if (cur === 'KRW') return s + amt / usdToKrw;
+              return s + amt;
+            }, 0);
+            const allCats: Record<string, number> = {};
+            for (const [cur, cats] of Object.entries(expenseByCategory)) {
+              for (const [cat, amt] of Object.entries(cats)) {
+                let usd = amt;
+                if (cur === 'VND') usd = amt / usdToVnd;
+                else if (cur === 'KRW') usd = amt / usdToKrw;
+                allCats[cat] = (allCats[cat] ?? 0) + usd;
+              }
+            }
+            return (
+              <div className="bg-rose-50 rounded-xl p-3 border border-rose-100 space-y-2">
+                <p className="text-xs font-semibold text-rose-700">{periodLabel[exPeriod]} 총 지출</p>
+                <p className="text-xl font-bold text-rose-800">${Math.round(totalUsd).toLocaleString()}</p>
+                <div className="flex gap-3">
+                  <p className="text-xs text-rose-400">₫{Math.round(totalUsd * usdToVnd).toLocaleString()}</p>
+                  <p className="text-xs text-rose-400">₩{Math.round(totalUsd * usdToKrw).toLocaleString()}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-1 mt-1">
+                  {Object.entries(allCats).sort((a, b) => b[1] - a[1]).map(([cat, usd]) => (
                     <div key={cat} className="flex justify-between bg-white/60 rounded-lg px-2 py-1">
                       <span className="text-xs text-gray-600">{cat}</span>
-                      <span className="text-xs font-medium text-rose-700">{fmt(amt, cur)}</span>
+                      <span className="text-xs font-medium text-rose-700">${Math.round(usd).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
-              ))}
-            </div>
-          )}
+              </div>
+            );
+          })()}
 
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
             {filteredExpenses.length === 0 ? (
