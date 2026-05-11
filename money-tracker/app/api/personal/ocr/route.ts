@@ -21,7 +21,7 @@ export async function POST(request: Request) {
         content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: image } },
           { type: 'text', text: `영수증에서 다음 정보를 추출해서 JSON으로만 응답하세요 (설명 없이):
-{"date":"YYYY-MM-DD","merchant":"상호명","amount":숫자,"currency":"VND|KRW|USD","category":"식비|교통|쇼핑|주거|의료|카페|구독|교육|기타","items":[{"name":"항목명","price":숫자}]}
+{"date":"YYYY-MM-DD","merchant":"상호명","amount":숫자,"currency":"VND|KRW|USD","category":"외식|생활비|교통|쇼핑|주거|의료|카페|구독|교육|기타","items":[{"name":"항목명","price":숫자}]}
 날짜가 없거나 불명확하면 오늘 날짜, 금액은 최종 합계 금액, 화폐단위는 영수증 기준으로 판단.` },
         ],
       }],

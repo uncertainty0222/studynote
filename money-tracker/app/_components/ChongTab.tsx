@@ -15,7 +15,7 @@ type SubTab = 'income' | 'expense';
 type Period = 'all' | 'month' | 'year';
 
 const INCOME_CATEGORIES = ['급여', '투자수익', '부업', '보너스', '기타'];
-const EXPENSE_CATEGORIES = ['식비', '교통', '쇼핑', '주거', '의료', '카페', '구독', '교육', '기타'];
+const EXPENSE_CATEGORIES = ['외식', '생활비', '교통', '쇼핑', '주거', '의료', '카페', '구독', '교육', '기타'];
 const CURRENCIES = ['VND', 'KRW', 'USD', 'USDT'];
 
 function fmt(amount: number, currency: string): string {
@@ -76,7 +76,7 @@ export default function ChongTab() {
   const [exPeriod, setExPeriod] = useState<Period>('month');
   const [exAmount, setExAmount] = useState('');
   const [exCurrency, setExCurrency] = useState('VND');
-  const [exCategory, setExCategory] = useState('식비');
+  const [exCategory, setExCategory] = useState('외식');
   const [exMerchant, setExMerchant] = useState('');
   const [exDesc, setExDesc] = useState('');
   const [exDate, setExDate] = useState(new Date().toISOString().slice(0, 10));
