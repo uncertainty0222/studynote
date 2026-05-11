@@ -246,6 +246,7 @@ function DailyBarChart({ data, today }: { data: number[]; today: number }) {
 
 export default function ChongTab() {
   const [subTab, setSubTab] = useState<SubTab>('dashboard');
+  const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
 
   // Income
   const [incomes, setIncomes] = useState<IncomeEntry[]>([]);
@@ -516,7 +517,21 @@ export default function ChongTab() {
   }
   const last6Data = last6Keys.map(key => {
     const found = monthlyHistory.find(m => m.key === key);
-    return { key, income: found?.income ?? 0, expense: found?.expense ?? 0, net: found?.net ?? 0 };
+    const inc = found?.income ?? 0;
+    const exp = found?.expense ?? 0;
+    const monthIncomes = incomes.filter(i => i.date.startsWith(key));
+    const tourInc = monthIncomes.filter(i => i.category === '투어')
+      .reduce((s, i) => s + toUsd(Number(i.amount), i.currency, usdToVnd, usdToKrw), 0);
+    const coinInc = monthIncomes.filter(i => i.category === '투자수익')
+      .reduce((s, i) => s + toUsd(Number(i.amount), i.currency, usdToVnd, usdToKrw), 0);
+    const otherInc = inc - tourInc - coinInc;
+    const expByCat: Record<string, number> = {};
+    for (const e of expenses.filter(e => e.date.startsWith(key))) {
+      const usd = toUsd(Number(e.amount), e.currency, usdToVnd, usdToKrw);
+      expByCat[e.category] = (expByCat[e.category] ?? 0) + usd;
+    }
+    const sortedExpCats = Object.entries(expByCat).sort((a, b) => b[1] - a[1]);
+    return { key, income: inc, expense: exp, net: inc - exp, tourInc, coinInc, otherInc, sortedExpCats };
   });
 
   const incomePower  = Math.min(Math.round((incomeUsd / 500) * 100), 100);
@@ -673,28 +688,132 @@ export default function ChongTab() {
           </div>
 
           {/* ▶ 최근 3달 순현금흐름 */}
-          <div className="bg-white rounded-2xl shadow-sm p-4">
-            <p className="text-sm font-semibold text-gray-800 mb-3">
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <p className="text-sm font-semibold text-gray-800 px-4 pt-4 pb-3">
               최근 3달 순현금흐름 <span className="text-gray-400 font-normal">· 3 tháng gần đây</span>
             </p>
-            <div className="space-y-2">
+            <div className="divide-y divide-gray-50">
               {last6Data.slice(-3).map(d => {
                 const isPos = d.net >= 0;
                 const monthLabel = `${parseInt(d.key.slice(5))}월`;
                 const isCurrent = d.key === now.toISOString().slice(0, 7);
+                const isExpanded = expandedMonth === d.key;
                 return (
-                  <div key={d.key} className={`flex items-center justify-between rounded-xl px-3 py-2.5 ${isCurrent ? 'bg-indigo-50 border border-indigo-100' : 'bg-gray-50'}`}>
-                    <span className={`text-xs font-medium ${isCurrent ? 'text-indigo-700' : 'text-gray-600'}`}>
-                      {monthLabel}{isCurrent && <span className="ml-1 text-[10px] text-indigo-400">이번 달</span>}
-                    </span>
-                    <div className="text-right">
-                      <span className={`text-sm font-bold ${isPos ? 'text-emerald-700' : 'text-rose-600'}`}>
-                        {isPos ? '+' : '−'}${Math.round(Math.abs(d.net)).toLocaleString()}
-                      </span>
-                      <span className={`block text-[10px] ${isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {isPos ? '+' : '−'}₫{Math.round(Math.abs(d.net) * usdToVnd).toLocaleString()}
-                      </span>
-                    </div>
+                  <div key={d.key}>
+                    {/* 요약 행 (클릭 가능) */}
+                    <button
+                      onClick={() => setExpandedMonth(isExpanded ? null : d.key)}
+                      className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${isCurrent ? 'bg-indigo-50' : 'bg-white hover:bg-gray-50'}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-semibold ${isCurrent ? 'text-indigo-700' : 'text-gray-700'}`}>
+                          {monthLabel}
+                        </span>
+                        {isCurrent && <span className="text-[10px] text-indigo-400 bg-indigo-100 px-1.5 py-0.5 rounded-full">이번 달</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <span className={`text-sm font-bold ${isPos ? 'text-emerald-700' : 'text-rose-600'}`}>
+                            {isPos ? '+' : '−'}${Math.round(Math.abs(d.net)).toLocaleString()}
+                          </span>
+                          <span className={`block text-[10px] ${isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {isPos ? '+' : '−'}₫{Math.round(Math.abs(d.net) * usdToVnd).toLocaleString()}
+                          </span>
+                        </div>
+                        <span className="text-gray-300 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                      </div>
+                    </button>
+
+                    {/* 펼침 상세 */}
+                    {isExpanded && (
+                      <div className="border-t border-gray-100 bg-gray-50/50">
+                        {/* 수입 */}
+                        <div className="px-4 pt-3 pb-3 border-b border-gray-100">
+                          <div className="flex items-baseline justify-between mb-2">
+                            <span className="text-xs font-semibold text-gray-700">📈 수입</span>
+                            <div className="text-right">
+                              <span className="text-sm font-bold text-emerald-700">${Math.round(d.income).toLocaleString()}</span>
+                              <span className="text-xs text-emerald-400 ml-1">(₫{Math.round(d.income * usdToVnd).toLocaleString()})</span>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            {d.tourInc !== 0 && (() => {
+                              const pct = Math.round(d.tourInc / d.income * 100);
+                              return (
+                                <div>
+                                  <div className="flex justify-between text-xs mb-1">
+                                    <span className="font-medium text-teal-700">🗺️ TOUR</span>
+                                    <span className="text-teal-700">${Math.round(d.tourInc).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                                  </div>
+                                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                    <div className="h-full bg-teal-400 rounded-full" style={{ width: `${pct}%` }} />
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            {d.coinInc !== 0 && (() => {
+                              const pct = Math.round(d.coinInc / d.income * 100);
+                              return (
+                                <div>
+                                  <div className="flex justify-between text-xs mb-1">
+                                    <span className="font-medium text-blue-700">🪙 COIN</span>
+                                    <span className="text-blue-700">${Math.round(d.coinInc).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                                  </div>
+                                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                    <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            {Math.abs(d.otherInc) >= 1 && (() => {
+                              const pct = Math.round(Math.abs(d.otherInc) / d.income * 100);
+                              return (
+                                <div>
+                                  <div className="flex justify-between text-xs mb-1">
+                                    <span className="text-gray-500">기타</span>
+                                    <span className="text-gray-500">${Math.round(d.otherInc).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                                  </div>
+                                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                    <div className="h-full bg-gray-300 rounded-full" style={{ width: `${pct}%` }} />
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                        {/* 지출 */}
+                        <div className="px-4 pt-3 pb-4">
+                          <div className="flex items-baseline justify-between mb-2">
+                            <span className="text-xs font-semibold text-gray-700">📉 지출</span>
+                            <div className="text-right">
+                              <span className="text-sm font-bold text-rose-700">${Math.round(d.expense).toLocaleString()}</span>
+                              <span className="text-xs text-rose-400 ml-1">(₫{Math.round(d.expense * usdToVnd).toLocaleString()})</span>
+                            </div>
+                          </div>
+                          {d.sortedExpCats.length === 0 ? (
+                            <p className="text-xs text-gray-400 text-center py-1">지출 없음</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {d.sortedExpCats.map(([cat, usd]) => {
+                                const pct = Math.round(usd / d.expense * 100);
+                                const color = CATEGORY_COLORS[cat] ?? '#94a3b8';
+                                return (
+                                  <div key={cat}>
+                                    <div className="flex justify-between text-xs mb-1">
+                                      <span className="text-gray-700">{cat}</span>
+                                      <span className="text-gray-600">${Math.round(usd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                                    </div>
+                                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                      <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
