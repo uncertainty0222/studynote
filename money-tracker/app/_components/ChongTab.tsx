@@ -1036,109 +1036,147 @@ export default function ChongTab() {
             ))}
           </div>
 
-          {Object.keys(expenseTotal).length > 0 && (() => {
+          {(() => {
             const totalUsd = Object.entries(expenseTotal).reduce((s, [cur, amt]) => {
               if (cur === 'VND') return s + amt / usdToVnd;
               if (cur === 'KRW') return s + amt / usdToKrw;
               return s + amt;
             }, 0);
-            const allCats: Record<string, number> = {};
-            for (const [cur, cats] of Object.entries(expenseByCategory)) {
-              for (const [cat, amt] of Object.entries(cats)) {
-                let usd = amt;
-                if (cur === 'VND') usd = amt / usdToVnd;
-                else if (cur === 'KRW') usd = amt / usdToKrw;
-                allCats[cat] = (allCats[cat] ?? 0) + usd;
-              }
+
+            // group filteredExpenses by category
+            const grouped: Record<string, typeof filteredExpenses> = {};
+            for (const item of filteredExpenses) {
+              if (!grouped[item.category]) grouped[item.category] = [];
+              grouped[item.category].push(item);
             }
+            // sort categories by total USD desc
+            const sortedCats = Object.entries(grouped).sort((a, b) => {
+              const sum = (items: typeof filteredExpenses) => items.reduce((s, it) => {
+                const n = Number(it.amount);
+                if (it.currency === 'VND') return s + n / usdToVnd;
+                if (it.currency === 'KRW') return s + n / usdToKrw;
+                return s + n;
+              }, 0);
+              return sum(b[1]) - sum(a[1]);
+            });
+
             return (
-              <div className="bg-rose-50 rounded-xl p-3 border border-rose-100 space-y-2">
-                <p className="text-xs font-semibold text-rose-700">{periodLabel[exPeriod]} 총 지출</p>
-                <p className="text-xl font-bold text-rose-800">${Math.round(totalUsd).toLocaleString()}</p>
-                <div className="flex gap-3">
-                  <p className="text-xs text-rose-400">₫{Math.round(totalUsd * usdToVnd).toLocaleString()}</p>
-                  <p className="text-xs text-rose-400">₩{Math.round(totalUsd * usdToKrw).toLocaleString()}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-1 mt-1">
-                  {Object.entries(allCats).sort((a, b) => b[1] - a[1]).map(([cat, usd]) => (
-                    <div key={cat} className="flex justify-between bg-white/60 rounded-lg px-2 py-1">
-                      <span className="text-xs text-gray-600">{cat}</span>
-                      <span className="text-xs font-medium text-rose-700">${Math.round(usd).toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <>
+                {filteredExpenses.length > 0 && (
+                  <div className="bg-rose-50 rounded-xl p-3 border border-rose-100">
+                    <p className="text-xs font-semibold text-rose-700">{periodLabel[exPeriod]} 총 지출</p>
+                    <p className="text-xl font-bold text-rose-800 mt-1">
+                      ${Math.round(totalUsd).toLocaleString()}
+                      <span className="text-sm font-medium text-rose-400 ml-2">(₫{Math.round(totalUsd * usdToVnd).toLocaleString()})</span>
+                    </p>
+                  </div>
+                )}
+
+                {filteredExpenses.length === 0 ? (
+                  <div className="py-10 text-center text-gray-400 text-sm bg-white rounded-2xl shadow-sm">
+                    <p className="text-2xl mb-2">📉</p><p>지출 내역이 없어요</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {sortedCats.map(([cat, items]) => {
+                      const catUsd = items.reduce((s, it) => {
+                        const n = Number(it.amount);
+                        if (it.currency === 'VND') return s + n / usdToVnd;
+                        if (it.currency === 'KRW') return s + n / usdToKrw;
+                        return s + n;
+                      }, 0);
+                      return (
+                        <div key={cat} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                          <div className="px-4 py-2.5 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
+                            <span className="text-xs font-semibold text-rose-700">{cat}</span>
+                            <span className="text-xs font-bold text-rose-800">
+                              ${Math.round(catUsd).toLocaleString()}
+                              <span className="font-medium text-rose-400 ml-1">(₫{Math.round(catUsd * usdToVnd).toLocaleString()})</span>
+                            </span>
+                          </div>
+                          <ul className="divide-y divide-gray-50">
+                            {items.map(item => {
+                              const n = Number(item.amount);
+                              const itemUsd = item.currency === 'VND' ? n / usdToVnd : item.currency === 'KRW' ? n / usdToKrw : n;
+                              return (
+                                <li key={item.id}>
+                                  <div className="px-4 py-3 flex items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      {item.merchant && <p className="text-xs text-gray-700 font-medium truncate">{item.merchant}</p>}
+                                      <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                      <div className="text-right">
+                                        {item.currency === 'VND' ? (
+                                          <p className="text-sm font-bold text-rose-700">₫{Math.round(n).toLocaleString()}</p>
+                                        ) : item.currency === 'KRW' ? (
+                                          <>
+                                            <p className="text-sm font-bold text-rose-700">₩{Math.round(n).toLocaleString()}</p>
+                                            <p className="text-xs text-rose-400">₫{Math.round(itemUsd * usdToVnd).toLocaleString()}</p>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <p className="text-sm font-bold text-rose-700">${Math.round(n).toLocaleString()}</p>
+                                            <p className="text-xs text-rose-400">₫{Math.round(itemUsd * usdToVnd).toLocaleString()}</p>
+                                          </>
+                                        )}
+                                      </div>
+                                      <button onClick={() => editingId === item.id ? setEditingId(null) : startEdit(item)}
+                                        className={`p-1 transition-colors text-sm ${editingId === item.id ? 'text-indigo-500' : 'text-gray-300 hover:text-indigo-400'}`}>✏️</button>
+                                      <button onClick={() => handleDeleteExpense(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 text-sm">✕</button>
+                                    </div>
+                                  </div>
+                                  {editingId === item.id && (
+                                    <div className="px-4 pb-3 bg-indigo-50/60 border-t border-indigo-100 space-y-2">
+                                      <div className="flex gap-2 pt-2">
+                                        <div className="flex-1">
+                                          <p className="text-xs text-gray-500 mb-1">카테고리</p>
+                                          <select value={editFields.category} onChange={e => setEditFields(f => ({ ...f, category: e.target.value }))} className={`${selectCls} w-full`}>
+                                            {EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                                          </select>
+                                        </div>
+                                        <div className="flex-1">
+                                          <p className="text-xs text-gray-500 mb-1">날짜</p>
+                                          <input type="date" value={editFields.date} onChange={e => setEditFields(f => ({ ...f, date: e.target.value }))} className={inputCls} />
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <div className="flex-1">
+                                          <p className="text-xs text-gray-500 mb-1">금액</p>
+                                          <input type="text" inputMode="numeric" value={editFields.amount}
+                                            onChange={e => setEditFields(f => ({ ...f, amount: e.target.value.replace(/[^0-9]/g, '') }))} className={inputCls} />
+                                        </div>
+                                        <div>
+                                          <p className="text-xs text-gray-500 mb-1">통화</p>
+                                          <select value={editFields.currency} onChange={e => setEditFields(f => ({ ...f, currency: e.target.value }))} className={selectCls}>
+                                            {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+                                          </select>
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-gray-500 mb-1">상호명</p>
+                                        <input type="text" value={editFields.merchant} onChange={e => setEditFields(f => ({ ...f, merchant: e.target.value }))} className={inputCls} />
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <button onClick={() => setEditingId(null)} className="flex-1 py-2 text-xs font-medium rounded-lg bg-gray-100 text-gray-600">취소</button>
+                                        <button onClick={saveEdit} disabled={editSaving} className="flex-1 py-2 text-xs font-medium rounded-lg bg-indigo-600 text-white disabled:opacity-50">
+                                          {editSaving ? '저장 중...' : '저장'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             );
           })()}
-
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            {filteredExpenses.length === 0 ? (
-              <div className="py-10 text-center text-gray-400 text-sm"><p className="text-2xl mb-2">📉</p><p>지출 내역이 없어요</p></div>
-            ) : (
-              <ul className="divide-y divide-gray-50">
-                {filteredExpenses.map(item => (
-                  <li key={item.id}>
-                    {/* 일반 행 */}
-                    <div className="px-4 py-3 flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs bg-rose-100 text-rose-700 font-medium px-2 py-0.5 rounded-full">{item.category}</span>
-                          {item.merchant && <span className="text-xs text-gray-700 font-medium truncate">{item.merchant}</span>}
-                        </div>
-                        <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="text-sm font-bold text-rose-700">{fmt(item.amount, item.currency)}</span>
-                        <button onClick={() => editingId === item.id ? setEditingId(null) : startEdit(item)}
-                          className={`p-1 transition-colors text-sm ${editingId === item.id ? 'text-indigo-500' : 'text-gray-300 hover:text-indigo-400'}`}>✏️</button>
-                        <button onClick={() => handleDeleteExpense(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 text-sm">✕</button>
-                      </div>
-                    </div>
-                    {/* 인라인 수정 패널 */}
-                    {editingId === item.id && (
-                      <div className="px-4 pb-3 bg-indigo-50/60 border-t border-indigo-100 space-y-2">
-                        <div className="flex gap-2 pt-2">
-                          <div className="flex-1">
-                            <p className="text-xs text-gray-500 mb-1">카테고리</p>
-                            <select value={editFields.category} onChange={e => setEditFields(f => ({ ...f, category: e.target.value }))} className={`${selectCls} w-full`}>
-                              {EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
-                            </select>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-xs text-gray-500 mb-1">날짜</p>
-                            <input type="date" value={editFields.date} onChange={e => setEditFields(f => ({ ...f, date: e.target.value }))} className={inputCls} />
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <div className="flex-1">
-                            <p className="text-xs text-gray-500 mb-1">금액</p>
-                            <input type="text" inputMode="numeric" value={editFields.amount}
-                              onChange={e => setEditFields(f => ({ ...f, amount: e.target.value.replace(/[^0-9]/g, '') }))} className={inputCls} />
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500 mb-1">통화</p>
-                            <select value={editFields.currency} onChange={e => setEditFields(f => ({ ...f, currency: e.target.value }))} className={selectCls}>
-                              {CURRENCIES.map(c => <option key={c}>{c}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-500 mb-1">상호명</p>
-                          <input type="text" value={editFields.merchant} onChange={e => setEditFields(f => ({ ...f, merchant: e.target.value }))} className={inputCls} />
-                        </div>
-                        <div className="flex gap-2">
-                          <button onClick={() => setEditingId(null)} className="flex-1 py-2 text-xs font-medium rounded-lg bg-gray-100 text-gray-600">취소</button>
-                          <button onClick={saveEdit} disabled={editSaving} className="flex-1 py-2 text-xs font-medium rounded-lg bg-indigo-600 text-white disabled:opacity-50">
-                            {editSaving ? '저장 중...' : '저장'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
         </div>
       )}
     </div>
