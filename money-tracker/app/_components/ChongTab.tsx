@@ -847,7 +847,35 @@ export default function ChongTab() {
                       <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className={`text-sm font-bold ${Number(item.amount) < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{fmt(item.amount, item.currency)}</span>
+                      <div className="text-right">
+                        {(() => {
+                          const amt = Number(item.amount);
+                          const neg = amt < 0;
+                          const abs = Math.abs(Math.round(amt));
+                          const color = neg ? 'text-rose-600' : 'text-emerald-700';
+                          const smallColor = neg ? 'text-rose-400' : 'text-emerald-400';
+                          const sign = neg ? '−' : '';
+                          let primary = '';
+                          let vndAmt: number | null = null;
+                          if (item.currency === 'USD' || item.currency === 'USDT') {
+                            primary = `${sign}$${abs.toLocaleString()}`;
+                            vndAmt = Math.round(Math.abs(amt) * usdToVnd);
+                          } else if (item.currency === 'KRW') {
+                            primary = `${sign}₩${abs.toLocaleString()}`;
+                            vndAmt = Math.round(Math.abs(amt) / usdToKrw * usdToVnd);
+                          } else {
+                            primary = `${sign}₫${abs.toLocaleString()}`;
+                          }
+                          return (
+                            <>
+                              <span className={`text-sm font-bold ${color}`}>{primary}</span>
+                              {vndAmt !== null && (
+                                <span className={`block text-[10px] ${smallColor}`}>{sign}₫{vndAmt.toLocaleString()}</span>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
                       <button onClick={() => handleDeleteIncome(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
                     </div>
                   </li>
