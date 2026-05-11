@@ -14,7 +14,7 @@ interface ExpenseEntry {
 type SubTab = 'dashboard' | 'income' | 'expense';
 type Period = 'all' | 'month' | 'year';
 
-const INCOME_CATEGORIES = ['급여', '투자수익', '부업', '보너스', '기타'];
+const INCOME_CATEGORIES = ['급여', '투자수익', '부업', '보너스', '투어', '기타'];
 const EXPENSE_CATEGORIES = ['외식', '생활비', '교통', '쇼핑', '주거', '의료', '카페', '구독', '교육', '기타'];
 const CURRENCIES = ['VND', 'KRW', 'USD', 'USDT'];
 
@@ -94,6 +94,53 @@ function compressImage(file: File, maxW = 1200, quality = 0.7): Promise<string> 
     img.onerror = reject;
     img.src = url;
   });
+}
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+    else if (ch === '"') inQuotes = !inQuotes;
+    else if (ch === ',' && !inQuotes) { result.push(current); current = ''; }
+    else current += ch;
+  }
+  result.push(current);
+  return result;
+}
+
+interface ParsedCsvEntry { date: string; amount: number; currency: string; category: string; description: string; }
+
+function parseIncomeCsv(text: string): { entries: ParsedCsvEntry[]; errors: string[] } {
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+  if (lines.length === 0) return { entries: [], errors: ['빈 CSV'] };
+  const header = parseCsvLine(lines[0]).map(h => h.trim().toLowerCase());
+  const dateI = header.indexOf('date'), amountI = header.indexOf('amount');
+  const curI = header.indexOf('currency'), catI = header.indexOf('category'), descI = header.indexOf('description');
+  if (dateI < 0 || amountI < 0 || catI < 0) {
+    return { entries: [], errors: ['헤더에 date, amount, category가 모두 있어야 합니다'] };
+  }
+  const entries: ParsedCsvEntry[] = [];
+  const errors: string[] = [];
+  lines.slice(1).forEach((line, i) => {
+    const f = parseCsvLine(line);
+    const date = f[dateI]?.trim();
+    const amount = Number(f[amountI]?.trim());
+    const category = f[catI]?.trim();
+    if (!date || Number.isNaN(amount) || !category) {
+      errors.push(`row ${i + 2}: 필수 항목 누락`);
+      return;
+    }
+    entries.push({
+      date, amount,
+      currency: (curI >= 0 ? f[curI]?.trim() : '') || 'USD',
+      category,
+      description: (descI >= 0 ? f[descI]?.trim() : '') || '',
+    });
+  });
+  return { entries, errors };
 }
 
 function filterByPeriod<T extends { date: string }>(items: T[], period: Period): T[] {
@@ -235,6 +282,45 @@ export default function ChongTab() {
   }, []);
 
   const [inErrMsg, setInErrMsg] = useState('');
+
+  // CSV bulk upload
+  const [csvText, setCsvText] = useState('');
+  const [csvUploading, setCsvUploading] = useState(false);
+  const [csvMsg, setCsvMsg] = useState('');
+  const csvFileRef = useRef<HTMLInputElement>(null);
+  const csvParsed = csvText ? parseIncomeCsv(csvText) : null;
+
+  async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    setCsvText(text);
+    setCsvMsg('');
+  }
+
+  async function handleCsvImport() {
+    if (!csvParsed || csvParsed.entries.length === 0) return;
+    setCsvUploading(true); setCsvMsg('');
+    try {
+      const res = await fetch('/api/personal/income/bulk', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries: csvParsed.entries }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setCsvMsg(`⚠️ 업로드 실패: ${err.error ?? res.status}`);
+      } else {
+        const d = await res.json();
+        setCsvMsg(`✅ ${d.inserted}건 업로드 완료${d.errors.length > 0 ? ` (오류 ${d.errors.length}건)` : ''}`);
+        setCsvText('');
+        if (csvFileRef.current) csvFileRef.current.value = '';
+        await fetchIncomes();
+      }
+    } catch {
+      setCsvMsg('⚠️ 네트워크 오류');
+    }
+    setCsvUploading(false);
+  }
 
   async function handleAddIncome(e: React.FormEvent) {
     e.preventDefault();
@@ -587,6 +673,59 @@ export default function ChongTab() {
       {/* ── 수입 탭 ── */}
       {subTab === 'income' && (
         <div className="space-y-3">
+          {/* CSV 일괄 업로드 */}
+          <details className="bg-white rounded-2xl shadow-sm">
+            <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-gray-700 flex items-center justify-between list-none">
+              <span>📥 일괄 업로드 <span className="text-gray-400 font-normal">/ Tải hàng loạt CSV</span></span>
+              <span className="text-xs text-gray-400">펼치기 ▾</span>
+            </summary>
+            <div className="px-4 pb-4 border-t border-gray-50 pt-3 space-y-3">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                CSV 헤더: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[11px]">date,amount,currency,category,description</code>
+              </p>
+              <div>
+                <a href="/seed-income-2024-2026.csv" download
+                  className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 underline">
+                  📄 투어 매출 2024-2026 CSV 다운로드 (118건)
+                </a>
+              </div>
+              <div>
+                <label className={labelCls}>CSV 파일 선택</label>
+                <input ref={csvFileRef} type="file" accept=".csv,text/csv,text/plain" onChange={handleCsvFile}
+                  className="text-xs w-full file:text-xs file:bg-indigo-50 file:text-indigo-600 file:font-medium file:border-0 file:rounded-lg file:px-3 file:py-1.5 file:mr-3 file:cursor-pointer" />
+              </div>
+              <div>
+                <label className={labelCls}>혹은 CSV 내용 직접 붙여넣기</label>
+                <textarea value={csvText} onChange={e => { setCsvText(e.target.value); setCsvMsg(''); }}
+                  rows={4} placeholder="date,amount,currency,category,description&#10;2024-06-14,598,USD,투어,..."
+                  className={`${inputCls} font-mono text-[11px]`} />
+              </div>
+              {csvParsed && (
+                <div className="text-xs space-y-1 bg-gray-50 rounded-lg p-2.5">
+                  <p className="font-semibold text-gray-700">
+                    미리보기: {csvParsed.entries.length}건
+                    {csvParsed.entries.length > 0 && (
+                      <span className="text-gray-500 font-normal ml-1">
+                        (합계 ${csvParsed.entries.reduce((s, e) => s + e.amount, 0).toLocaleString()})
+                      </span>
+                    )}
+                  </p>
+                  {csvParsed.errors.length > 0 && (
+                    <p className="text-amber-600">⚠️ 오류 {csvParsed.errors.length}건 — {csvParsed.errors.slice(0, 2).join(', ')}{csvParsed.errors.length > 2 ? ' …' : ''}</p>
+                  )}
+                </div>
+              )}
+              {csvMsg && (
+                <p className={`text-xs px-3 py-2 rounded-lg ${csvMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{csvMsg}</p>
+              )}
+              <button onClick={handleCsvImport}
+                disabled={!csvParsed || csvParsed.entries.length === 0 || csvUploading}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg text-sm transition-colors">
+                {csvUploading ? '업로드 중...' : `${csvParsed?.entries.length ?? 0}건 일괄 업로드 / Nhập`}
+              </button>
+            </div>
+          </details>
+
           <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
             <h3 className="text-sm font-semibold text-gray-800">수입 기록 · <span className="text-gray-400 font-normal">Ghi thu nhập</span></h3>
             {inErrMsg && <p className="text-xs px-3 py-2 rounded-lg bg-amber-50 text-amber-700">{inErrMsg}</p>}
