@@ -583,10 +583,10 @@ export default function ChongTab() {
             {(tourIncomeUsd !== 0 || investIncomeUsd !== 0) && (
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 pt-2 border-t border-emerald-100 text-xs">
                 {tourIncomeUsd !== 0 && (
-                  <span className="text-teal-700">🗺️ 투어소득 ${Math.round(tourIncomeUsd).toLocaleString()}</span>
+                  <span className="text-teal-700">🗺️ TOUR ${Math.round(tourIncomeUsd).toLocaleString()}</span>
                 )}
                 {investIncomeUsd !== 0 && (
-                  <span className="text-blue-700">📊 투자소득 ${Math.round(investIncomeUsd).toLocaleString()}</span>
+                  <span className="text-blue-700">🪙 COIN ${Math.round(investIncomeUsd).toLocaleString()}</span>
                 )}
                 {Math.abs(otherIncomeUsd) >= 1 && (
                   <span className="text-gray-500">기타 ${Math.round(otherIncomeUsd).toLocaleString()}</span>
