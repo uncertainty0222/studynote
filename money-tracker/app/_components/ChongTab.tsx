@@ -828,10 +828,25 @@ export default function ChongTab() {
               <p className="text-xs font-semibold text-emerald-700 mb-1">{periodLabel[inPeriod]} 총 수입</p>
               {Object.entries(incomeTotal).map(([cur, amt]) => {
                 const r = Math.round(amt);
-                const display = cur === 'USD' || cur === 'USDT' ? `$${r.toLocaleString()}`
-                  : cur === 'KRW' ? `₩${r.toLocaleString()}`
-                  : `₫${r.toLocaleString()}`;
-                return <p key={cur} className="text-base font-bold text-emerald-800">{display}</p>;
+                let display = '';
+                let vnd: number | null = null;
+                if (cur === 'USD' || cur === 'USDT') {
+                  display = `$${r.toLocaleString()}`;
+                  vnd = Math.round(amt * usdToVnd);
+                } else if (cur === 'KRW') {
+                  display = `₩${r.toLocaleString()}`;
+                  vnd = Math.round(amt / usdToKrw * usdToVnd);
+                } else {
+                  display = `₫${r.toLocaleString()}`;
+                }
+                return (
+                  <p key={cur} className="text-base font-bold text-emerald-800">
+                    {display}
+                    {vnd !== null && (
+                      <span className="text-sm font-normal text-emerald-600 ml-1.5">(₫{vnd.toLocaleString()})</span>
+                    )}
+                  </p>
+                );
               })}
             </div>
           )}
