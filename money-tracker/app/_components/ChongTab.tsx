@@ -12,11 +12,21 @@ interface ExpenseEntry {
 }
 
 type SubTab = 'dashboard' | 'income' | 'expense';
-type Period = 'month' | 'lastmonth' | 'year';
+type Period = 'month' | 'lastmonth' | 'lastlastmonth' | 'year';
 
 const INCOME_CATEGORIES = ['급여', '투자수익', '부업', '보너스', '투어', '기타'];
 const EXPENSE_CATEGORIES = ['외식', '생활비', '교통', '쇼핑', '주거', '의료', '카페', '구독', '교육', '기타'];
 const CURRENCIES = ['VND', 'KRW', 'USD', 'USDT'];
+
+const INCOME_CATEGORY_VI: Record<string, string> = {
+  '급여': 'Lương', '투자수익': 'Đầu tư', '부업': 'Việc phụ',
+  '보너스': 'Thưởng', '투어': 'Tour', '기타': 'Khác',
+};
+const EXPENSE_CATEGORY_VI: Record<string, string> = {
+  '외식': 'Ăn ngoài', '생활비': 'Sinh hoạt', '교통': 'Giao thông',
+  '쇼핑': 'Mua sắm', '주거': 'Nhà ở', '의료': 'Y tế',
+  '카페': 'Cà phê', '구독': 'Đăng ký', '교육': 'Giáo dục', '기타': 'Khác',
+};
 
 const CATEGORY_COLORS: Record<string, string> = {
   '외식': '#f87171', '생활비': '#fb923c', '교통': '#facc15', '쇼핑': '#f472b6',
@@ -152,11 +162,16 @@ function filterByPeriod<T extends { date: string }>(items: T[], period: Period):
       const last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       return d.getFullYear() === last.getFullYear() && d.getMonth() === last.getMonth();
     }
+    if (period === 'lastlastmonth') {
+      const ll = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      return d.getFullYear() === ll.getFullYear() && d.getMonth() === ll.getMonth();
+    }
     return d.getFullYear() === now.getFullYear();
   });
 }
 
-const periodLabel: Record<Period, string> = { month: '이번 달', lastmonth: '저번 달', year: '올해' };
+const periodLabel: Record<Period, string> = { month: '이번 달', lastmonth: '저번 달', lastlastmonth: '저저번 달', year: '올해' };
+const periodLabelVI: Record<Period, string> = { month: 'Tháng này', lastmonth: 'Tháng trước', lastlastmonth: '2 tháng trước', year: 'Năm nay' };
 const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300';
 const selectCls = 'border border-gray-200 rounded-lg px-2 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300';
 const labelCls = 'text-xs font-medium text-gray-500 block mb-1.5';
@@ -775,7 +790,7 @@ export default function ChongTab() {
             <form onSubmit={handleAddIncome} className="space-y-3">
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className={labelCls}>금액</label>
+                  <label className={labelCls}>금액 · <span className="font-normal text-gray-400">Số tiền</span></label>
                   <input type="text" inputMode="numeric" value={inAmount}
                     onChange={e => setInAmount(e.target.value.replace(/[^0-9-]/g, '').replace(/(?!^)-/g, ''))}
                     placeholder="0 또는 -100" required className={inputCls} />
@@ -787,7 +802,7 @@ export default function ChongTab() {
                   )}
                 </div>
                 <div>
-                  <label className={labelCls}>통화</label>
+                  <label className={labelCls}>통화 · <span className="font-normal text-gray-400">Tiền tệ</span></label>
                   <select value={inCurrency} onChange={e => setInCurrency(e.target.value)} className={selectCls}>
                     {CURRENCIES.map(c => <option key={c}>{c}</option>)}
                   </select>
@@ -795,40 +810,41 @@ export default function ChongTab() {
               </div>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className={labelCls}>카테고리</label>
+                  <label className={labelCls}>카테고리 · <span className="font-normal text-gray-400">Danh mục</span></label>
                   <select value={inCategory} onChange={e => setInCategory(e.target.value)} className={`${selectCls} w-full`}>
-                    {INCOME_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                    {INCOME_CATEGORIES.map(c => <option key={c}>{INCOME_CATEGORY_VI[c] ? `${c} · ${INCOME_CATEGORY_VI[c]}` : c}</option>)}
                   </select>
                 </div>
                 <div className="flex-1">
-                  <label className={labelCls}>날짜</label>
+                  <label className={labelCls}>날짜 · <span className="font-normal text-gray-400">Ngày</span></label>
                   <input type="date" value={inDate} onChange={e => setInDate(e.target.value)} required className={inputCls} />
                 </div>
               </div>
               <div>
-                <label className={labelCls}>메모 (선택)</label>
+                <label className={labelCls}>메모 (선택) · <span className="font-normal text-gray-400">Ghi chú</span></label>
                 <input type="text" value={inDesc} onChange={e => setInDesc(e.target.value)} placeholder="급여, 프리랜서 등" className={inputCls} />
               </div>
               <button type="submit" disabled={inSubmitting || !inAmount.trim()}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors text-sm">
-                {inSubmitting ? '저장 중...' : '수입 저장'}
+                {inSubmitting ? '저장 중... · Đang lưu...' : '수입 저장 · Lưu thu nhập'}
               </button>
             </form>
           </div>
 
-          <div className="flex gap-2 items-center">
-            <span className="text-xs text-gray-500 font-medium">기간:</span>
-            {(['month', 'lastmonth', 'year'] as Period[]).map(p => (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-xs text-gray-500 font-medium">기간 · <span className="font-normal text-gray-400">Thời gian</span>:</span>
+            {(['month', 'lastmonth', 'lastlastmonth', 'year'] as Period[]).map(p => (
               <button key={p} onClick={() => setInPeriod(p)}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${inPeriod === p ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                {periodLabel[p]}
+                className={`text-center px-2.5 py-1 rounded-full font-medium transition-colors ${inPeriod === p ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                <span className="block text-[11px] leading-tight">{periodLabel[p]}</span>
+                <span className="block text-[9px] leading-tight opacity-75">{periodLabelVI[p]}</span>
               </button>
             ))}
           </div>
 
           {Object.keys(incomeTotal).length > 0 && (
             <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-              <p className="text-xs font-semibold text-emerald-700 mb-1">{periodLabel[inPeriod]} 총 수입</p>
+              <p className="text-xs font-semibold text-emerald-700 mb-1">{periodLabel[inPeriod]} 총 수입 · <span className="font-normal text-emerald-500">Tổng thu nhập</span></p>
               {Object.entries(incomeTotal).map(([cur, amt]) => {
                 const r = Math.round(amt);
                 let display = '';
@@ -899,7 +915,9 @@ export default function ChongTab() {
             if (filteredIncomes.length === 0) {
               return (
                 <div className="bg-white rounded-2xl shadow-sm py-10 text-center text-gray-400 text-sm">
-                  <p className="text-2xl mb-2">📈</p><p>수입 내역이 없어요</p>
+                  <p className="text-2xl mb-2">📈</p>
+                  <p>수입 내역이 없어요</p>
+                  <p className="text-[11px] mt-0.5">Chưa có thu nhập</p>
                 </div>
               );
             }
@@ -909,13 +927,13 @@ export default function ChongTab() {
                   <div className="grid grid-cols-2 gap-2">
                     {tourItems.length > 0 && (
                       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                        <p className="text-[11px] font-semibold text-teal-700 px-2.5 pt-2.5 pb-1">🗺️ 투어</p>
+                        <p className="text-[11px] font-semibold text-teal-700 px-2.5 pt-2.5 pb-1">🗺️ 투어 · <span className="font-normal text-teal-500">Tour</span></p>
                         <ul>{tourItems.map(renderItem)}</ul>
                       </div>
                     )}
                     {investItems.length > 0 && (
                       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                        <p className="text-[11px] font-semibold text-blue-700 px-2.5 pt-2.5 pb-1">📊 투자수익</p>
+                        <p className="text-[11px] font-semibold text-blue-700 px-2.5 pt-2.5 pb-1">📊 투자수익 · <span className="font-normal text-blue-500">Đầu tư</span></p>
                         <ul>{investItems.map(renderItem)}</ul>
                       </div>
                     )}
@@ -923,7 +941,7 @@ export default function ChongTab() {
                 )}
                 {otherItems.length > 0 && (
                   <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                    <p className="text-[11px] font-semibold text-gray-500 px-3 pt-2.5 pb-1">기타 수입</p>
+                    <p className="text-[11px] font-semibold text-gray-500 px-3 pt-2.5 pb-1">기타 수입 · <span className="font-normal text-gray-400">Thu khác</span></p>
                     <ul className="divide-y divide-gray-50">
                       {otherItems.map(item => {
                         const amt = Number(item.amount);
@@ -994,13 +1012,13 @@ export default function ChongTab() {
             <form onSubmit={handleAddExpense} className="space-y-3">
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className={labelCls}>금액</label>
+                  <label className={labelCls}>금액 · <span className="font-normal text-gray-400">Số tiền</span></label>
                   <input type="text" inputMode="numeric" value={exAmount}
                     onChange={e => setExAmount(e.target.value.replace(/[^0-9]/g, ''))}
                     placeholder="0" required className={inputCls} />
                 </div>
                 <div>
-                  <label className={labelCls}>통화</label>
+                  <label className={labelCls}>통화 · <span className="font-normal text-gray-400">Tiền tệ</span></label>
                   <select value={exCurrency} onChange={e => setExCurrency(e.target.value)} className={selectCls}>
                     {CURRENCIES.map(c => <option key={c}>{c}</option>)}
                   </select>
@@ -1008,33 +1026,34 @@ export default function ChongTab() {
               </div>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <label className={labelCls}>카테고리</label>
+                  <label className={labelCls}>카테고리 · <span className="font-normal text-gray-400">Danh mục</span></label>
                   <select value={exCategory} onChange={e => setExCategory(e.target.value)} className={`${selectCls} w-full`}>
-                    {EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                    {EXPENSE_CATEGORIES.map(c => <option key={c}>{EXPENSE_CATEGORY_VI[c] ? `${c} · ${EXPENSE_CATEGORY_VI[c]}` : c}</option>)}
                   </select>
                 </div>
                 <div className="flex-1">
-                  <label className={labelCls}>날짜</label>
+                  <label className={labelCls}>날짜 · <span className="font-normal text-gray-400">Ngày</span></label>
                   <input type="date" value={exDate} onChange={e => setExDate(e.target.value)} required className={inputCls} />
                 </div>
               </div>
               <div>
-                <label className={labelCls}>상호명 (선택)</label>
+                <label className={labelCls}>상호명 (선택) · <span className="font-normal text-gray-400">Tên cửa hàng</span></label>
                 <input type="text" value={exMerchant} onChange={e => setExMerchant(e.target.value)} placeholder="마트, 식당명 등" className={inputCls} />
               </div>
               <button type="submit" disabled={exSubmitting || !exAmount.trim()}
                 className="w-full bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors text-sm">
-                {exSubmitting ? '저장 중...' : '지출 저장'}
+                {exSubmitting ? '저장 중... · Đang lưu...' : '지출 저장 · Lưu chi tiêu'}
               </button>
             </form>
           </div>
 
-          <div className="flex gap-2 items-center">
-            <span className="text-xs text-gray-500 font-medium">기간:</span>
-            {(['month', 'lastmonth', 'year'] as Period[]).map(p => (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            <span className="text-xs text-gray-500 font-medium">기간 · <span className="font-normal text-gray-400">Thời gian</span>:</span>
+            {(['month', 'lastmonth', 'lastlastmonth', 'year'] as Period[]).map(p => (
               <button key={p} onClick={() => setExPeriod(p)}
-                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${exPeriod === p ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                {periodLabel[p]}
+                className={`text-center px-2.5 py-1 rounded-full font-medium transition-colors ${exPeriod === p ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                <span className="block text-[11px] leading-tight">{periodLabel[p]}</span>
+                <span className="block text-[9px] leading-tight opacity-75">{periodLabelVI[p]}</span>
               </button>
             ))}
           </div>
@@ -1067,7 +1086,7 @@ export default function ChongTab() {
               <>
                 {filteredExpenses.length > 0 && (
                   <div className="bg-rose-50 rounded-xl p-3 border border-rose-100">
-                    <p className="text-xs font-semibold text-rose-700">{periodLabel[exPeriod]} 총 지출</p>
+                    <p className="text-xs font-semibold text-rose-700">{periodLabel[exPeriod]} 총 지출 · <span className="font-normal text-rose-400">Tổng chi tiêu</span></p>
                     <p className="text-xl font-bold text-rose-800 mt-1">
                       ${Math.round(totalUsd).toLocaleString()}
                       <span className="text-sm font-medium text-rose-400 ml-2">(₫{Math.round(totalUsd * usdToVnd).toLocaleString()})</span>
@@ -1077,7 +1096,9 @@ export default function ChongTab() {
 
                 {filteredExpenses.length === 0 ? (
                   <div className="py-10 text-center text-gray-400 text-sm bg-white rounded-2xl shadow-sm">
-                    <p className="text-2xl mb-2">📉</p><p>지출 내역이 없어요</p>
+                    <p className="text-2xl mb-2">📉</p>
+                    <p>지출 내역이 없어요</p>
+                    <p className="text-[11px] mt-0.5">Chưa có chi tiêu</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1091,7 +1112,7 @@ export default function ChongTab() {
                       return (
                         <div key={cat} className="bg-white rounded-2xl shadow-sm overflow-hidden">
                           <div className="px-4 py-2.5 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
-                            <span className="text-xs font-semibold text-rose-700">{cat}</span>
+                            <span className="text-xs font-semibold text-rose-700">{cat} · <span className="font-normal text-rose-400">{EXPENSE_CATEGORY_VI[cat] ?? cat}</span></span>
                             <span className="text-xs font-bold text-rose-800">
                               ${Math.round(catUsd).toLocaleString()}
                               <span className="font-medium text-rose-400 ml-1">(₫{Math.round(catUsd * usdToVnd).toLocaleString()})</span>
