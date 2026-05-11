@@ -459,6 +459,14 @@ export default function ChongTab() {
     }
   }
 
+  const tourIncomeUsd = monthIncomes
+    .filter(i => i.category === '투어')
+    .reduce((s, i) => s + toUsd(Number(i.amount), i.currency, usdToVnd, usdToKrw), 0);
+  const investIncomeUsd = monthIncomes
+    .filter(i => i.category === '투자수익')
+    .reduce((s, i) => s + toUsd(Number(i.amount), i.currency, usdToVnd, usdToKrw), 0);
+  const otherIncomeUsd = incomeUsd - tourIncomeUsd - investIncomeUsd;
+
   // ── 캐릭터 / 게임 통계 ──
   const allMonthKeys = [...new Set([
     ...incomes.map(i => i.date.slice(0, 7)),
@@ -609,9 +617,22 @@ export default function ChongTab() {
               {netUsd >= 0 ? '+' : '−'}${Math.round(Math.abs(netUsd)).toLocaleString()}
             </p>
             <div className="flex gap-4 mt-2 text-xs">
-              <span className="text-emerald-700">📈 수입/Thu ${Math.round(incomeUsd).toLocaleString()}</span>
-              <span className="text-rose-700">📉 지출/Chi ${Math.round(expenseUsd).toLocaleString()}</span>
+              <span className="text-emerald-700">📈 수입 ${Math.round(incomeUsd).toLocaleString()}</span>
+              <span className="text-rose-700">📉 지출 ${Math.round(expenseUsd).toLocaleString()}</span>
             </div>
+            {(tourIncomeUsd !== 0 || investIncomeUsd !== 0) && (
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 pt-2 border-t border-emerald-100 text-xs">
+                {tourIncomeUsd !== 0 && (
+                  <span className="text-teal-700">🗺️ 투어소득 ${Math.round(tourIncomeUsd).toLocaleString()}</span>
+                )}
+                {investIncomeUsd !== 0 && (
+                  <span className="text-blue-700">📊 투자소득 ${Math.round(investIncomeUsd).toLocaleString()}</span>
+                )}
+                {Math.abs(otherIncomeUsd) >= 1 && (
+                  <span className="text-gray-500">기타 ${Math.round(otherIncomeUsd).toLocaleString()}</span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ▶ 6개월 흐름 */}
@@ -736,6 +757,12 @@ export default function ChongTab() {
                   <input type="text" inputMode="numeric" value={inAmount}
                     onChange={e => setInAmount(e.target.value.replace(/[^0-9-]/g, '').replace(/(?!^)-/g, ''))}
                     placeholder="0 또는 -100" required className={inputCls} />
+                  {(inCurrency === 'USD' || inCurrency === 'USDT') && inAmount && !Number.isNaN(Number(inAmount)) && Number(inAmount) !== 0 && (
+                    <p className="text-xs text-gray-400 mt-1 ml-0.5">≈ ₫{Math.round(Number(inAmount) * usdToVnd).toLocaleString()}</p>
+                  )}
+                  {inCurrency === 'KRW' && inAmount && !Number.isNaN(Number(inAmount)) && Number(inAmount) !== 0 && (
+                    <p className="text-xs text-gray-400 mt-1 ml-0.5">≈ ₫{Math.round(Number(inAmount) / usdToKrw * usdToVnd).toLocaleString()}</p>
+                  )}
                 </div>
                 <div>
                   <label className={labelCls}>통화</label>
