@@ -801,7 +801,7 @@ export default function ChongTab() {
                       <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-sm font-bold text-emerald-700">{fmt(item.amount, item.currency)}</span>
+                      <span className={`text-sm font-bold ${Number(item.amount) < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{fmt(item.amount, item.currency)}</span>
                       <button onClick={() => handleDeleteIncome(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
                     </div>
                   </li>
