@@ -130,6 +130,17 @@ export async function initDb(): Promise<void> {
       )
     `;
 
+    await sql`
+      CREATE TABLE IF NOT EXISTS asset_snapshots (
+        id SERIAL PRIMARY KEY,
+        total_usd DOUBLE PRECISION NOT NULL,
+        vault_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+        binance_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+        usd_to_vnd DOUBLE PRECISION NOT NULL DEFAULT 25800,
+        snapshot_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
     // Seed pre-configured accounts
     const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(*)::int AS count FROM users`;
     if (count === 0) {
@@ -518,6 +529,32 @@ export async function deletePushSubscription(endpoint: string): Promise<void> {
   await initDb();
   const sql = getSql();
   await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
+}
+
+// ─── Asset Snapshots ──────────────────────────────────────────────────────────
+
+export interface AssetSnapshot {
+  id: number;
+  total_usd: number;
+  vault_usd: number;
+  binance_usd: number;
+  usd_to_vnd: number;
+  snapshot_at: string;
+}
+
+export async function createAssetSnapshot(data: { totalUsd: number; vaultUsd: number; binanceUsd: number; usdToVnd: number }): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`
+    INSERT INTO asset_snapshots (total_usd, vault_usd, binance_usd, usd_to_vnd)
+    VALUES (${data.totalUsd}, ${data.vaultUsd}, ${data.binanceUsd}, ${data.usdToVnd})
+  `;
+}
+
+export async function getAssetSnapshots(): Promise<AssetSnapshot[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<AssetSnapshot[]>`SELECT * FROM asset_snapshots ORDER BY snapshot_at ASC`;
 }
 
 // ─── Balance ──────────────────────────────────────────────────────────────────

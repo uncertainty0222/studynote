@@ -13,6 +13,104 @@ interface VaultResponse {
   totalUsd: number; totalKrw: number; totalVnd: number;
 }
 
+interface AssetSnapshot { id: number; total_usd: number; vault_usd: number; binance_usd: number; usd_to_vnd: number; snapshot_at: string; }
+interface Candle { weekKey: string; label: string; open: number; close: number; high: number; low: number; }
+
+function getWeekKey(date: Date): string {
+  const d = new Date(date.getTime());
+  d.setUTCHours(0, 0, 0, 0);
+  const day = (d.getUTCDay() + 6) % 7; // Mon=0
+  d.setUTCDate(d.getUTCDate() - day + 3); // move to Thursday
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.floor((d.getTime() - yearStart.getTime()) / (7 * 86400000)) + 1;
+  return `${d.getUTCFullYear()}-${String(weekNo).padStart(2, '0')}`;
+}
+
+function weekLabel(weekKey: string): string {
+  const [yearStr, weekStr] = weekKey.split('-');
+  const year = Number(yearStr), week = Number(weekStr);
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4Mon = new Date(jan4);
+  jan4Mon.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7));
+  const monday = new Date(jan4Mon.getTime() + (week - 1) * 7 * 86400000);
+  return `${monday.getUTCMonth() + 1}/${monday.getUTCDate()}`;
+}
+
+function buildCandles(snapshots: AssetSnapshot[]): Candle[] {
+  if (!snapshots.length) return [];
+  const byWeek: Record<string, number[]> = {};
+  for (const s of snapshots) {
+    const wk = getWeekKey(new Date(s.snapshot_at));
+    if (!byWeek[wk]) byWeek[wk] = [];
+    byWeek[wk].push(Number(s.total_usd));
+  }
+  return Object.keys(byWeek).sort().map(wk => {
+    const vals = byWeek[wk];
+    return { weekKey: wk, label: weekLabel(wk), open: vals[0], close: vals[vals.length - 1], high: Math.max(...vals), low: Math.min(...vals) };
+  });
+}
+
+function CandlestickChart({ candles }: { candles: Candle[] }) {
+  const visible = candles.slice(-16);
+  if (!visible.length) {
+    return (
+      <div className="py-8 text-center text-gray-400 text-xs">
+        <p className="text-2xl mb-1">📊</p>
+        <p>금고를 저장하면 차트가 쌓여요</p>
+        <p className="text-[10px] mt-0.5 text-gray-300">Lưu kho tiền để xây biểu đồ</p>
+      </div>
+    );
+  }
+
+  const W = 320, H = 180, PT = 10, PB = 28, PL = 50, PR = 6;
+  const innerW = W - PL - PR, innerH = H - PT - PB;
+  const n = visible.length;
+  const spacing = innerW / n;
+  const bw = Math.min(spacing * 0.65, 14);
+
+  const allVals = visible.flatMap(c => [c.high, c.low]);
+  const rawMin = Math.min(...allVals), rawMax = Math.max(...allVals);
+  const pad = (rawMax - rawMin) * 0.1 || rawMax * 0.05 || 1;
+  const vMin = rawMin - pad, vMax = rawMax + pad;
+  const vRange = vMax - vMin;
+
+  const toY = (v: number) => PT + ((vMax - v) / vRange) * innerH;
+  const toX = (i: number) => PL + (i + 0.5) * spacing;
+  const fmtK = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${Math.round(v)}`;
+  const yTicks = [0.2, 0.4, 0.6, 0.8].map(f => vMin + vRange * f);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full block">
+      {yTicks.map((t, i) => (
+        <g key={i}>
+          <line x1={PL} x2={W - PR} y1={toY(t)} y2={toY(t)} stroke="#e2e8f0" strokeWidth={0.8} />
+          <text x={PL - 3} y={toY(t) + 3} textAnchor="end" fontSize={8} fill="#94a3b8">{fmtK(t)}</text>
+        </g>
+      ))}
+      {visible.map((c, i) => {
+        const x = toX(i);
+        const bullish = c.close >= c.open;
+        const col = bullish ? '#10b981' : '#f43f5e';
+        const bodyT = toY(Math.max(c.open, c.close));
+        const bodyB = toY(Math.min(c.open, c.close));
+        const bodyH = Math.max(2, bodyB - bodyT);
+        return (
+          <g key={c.weekKey}>
+            <line x1={x} x2={x} y1={toY(c.high)} y2={toY(c.low)} stroke={col} strokeWidth={1} strokeLinecap="round" />
+            <rect x={x - bw / 2} y={bodyT} width={bw} height={bodyH} fill={col} rx={1.5} />
+          </g>
+        );
+      })}
+      {visible.map((c, i) => {
+        if (n > 8 && i % 2 !== 0) return null;
+        return (
+          <text key={c.weekKey} x={toX(i)} y={H - 6} textAnchor="middle" fontSize={7.5} fill="#94a3b8">{c.label}</text>
+        );
+      })}
+    </svg>
+  );
+}
+
 const USD_DENOMS = ['100', '50', '20', '10', '5', '2', '1'];
 const KRW_DENOMS = ['50000', '10000', '5000', '1000'];
 const VND_DENOMS = ['500000', '200000', '100000'];
@@ -48,8 +146,8 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
   const [vaultOpen, setVaultOpen] = useState(false);
   const [vaultSaving, setVaultSaving] = useState(false);
 
-  // vợ chồng balance (husbandOwes: + means husband owes wife, - means wife owes husband)
   const [husbandOwes, setHusbandOwes] = useState<number | null>(null);
+  const [snapshots, setSnapshots] = useState<AssetSnapshot[]>([]);
 
   const fetchBinance = useCallback(async () => {
     setBinanceLoading(true); setBinanceErr('');
@@ -69,15 +167,29 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
     if (res.ok) { const d = await res.json(); setHusbandOwes(d.husbandOwes ?? 0); }
   }, []);
 
+  const fetchSnapshots = useCallback(async () => {
+    const res = await fetch('/api/personal/asset-snapshots');
+    if (res.ok) setSnapshots(await res.json());
+  }, []);
+
   useEffect(() => { if (!binance && !binanceLoading && !binanceErr) fetchBinance(); }, [binance, binanceLoading, binanceErr, fetchBinance]);
   useEffect(() => { fetchVault(); }, [fetchVault]);
   useEffect(() => { fetchBalance(); }, [fetchBalance]);
+  useEffect(() => { fetchSnapshots(); }, [fetchSnapshots]);
 
   async function saveVault() {
     if (!vaultDraft) return;
     setVaultSaving(true);
     await fetch('/api/personal/vault', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(vaultDraft) });
-    await fetchVault();
+    const snapVaultUsd = calcVaultTotals(vaultDraft, usdToKrw, usdToVnd).totalUsd;
+    const snapBinanceUsd = binance?.totalUsdt ?? 0;
+    const snapBalance = husbandOwes !== null ? -(husbandOwes / usdToVnd) : 0;
+    await fetch('/api/personal/asset-snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ totalUsd: snapVaultUsd + snapBinanceUsd + snapBalance, vaultUsd: snapVaultUsd, binanceUsd: snapBinanceUsd, usdToVnd }),
+    });
+    await Promise.all([fetchVault(), fetchSnapshots()]);
     setVaultSaving(false);
     setVaultOpen(false);
   }
@@ -102,12 +214,15 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
 
   const vaultUsd = savedTotals?.totalUsd ?? 0;
   const binanceUsd = binance?.totalUsdt ?? 0;
-  // husbandOwes > 0: husband owes wife → subtract (his liability)
-  // husbandOwes < 0: wife owes husband → add (his receivable)
   const balanceUsd = husbandOwes !== null ? -(husbandOwes / usdToVnd) : 0;
   const totalUsd = vaultUsd + binanceUsd + balanceUsd;
 
   const displayTotals = vaultOpen && vaultTotals ? vaultTotals : savedTotals;
+  const candles = buildCandles(snapshots);
+
+  const weekChange = candles.length >= 2
+    ? candles[candles.length - 1].close - candles[candles.length - 2].close
+    : null;
 
   return (
     <div className="space-y-3">
@@ -123,6 +238,33 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
           <p className="text-xs opacity-40 mt-3">
             $1 = ₫{Math.round(usdToVnd).toLocaleString()} / ₩{Math.round(usdToKrw).toLocaleString()} · {new Date(binance.updatedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
           </p>
+        )}
+      </div>
+
+      {/* ── 자산 차트 ── */}
+      <div className="bg-white rounded-2xl shadow-sm p-4">
+        <div className="flex items-start justify-between mb-2">
+          <div>
+            <p className="text-sm font-semibold text-gray-800">자산 히스토리 <span className="text-gray-400 font-normal text-xs">Lịch sử tài sản</span></p>
+            <p className="text-[10px] text-gray-400">주간 캔들차트 · Biểu đồ nến theo tuần</p>
+          </div>
+          {weekChange !== null && (
+            <div className="text-right">
+              <p className={`text-xs font-bold ${weekChange >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                {weekChange >= 0 ? '+' : ''}{fmtUsd(weekChange)}
+              </p>
+              <p className={`text-[10px] ${weekChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                주간 {weekChange >= 0 ? '▲' : '▼'} {Math.abs((weekChange / (candles[candles.length - 2]?.close || 1)) * 100).toFixed(1)}%
+              </p>
+            </div>
+          )}
+        </div>
+        <CandlestickChart candles={candles} />
+        {candles.length > 0 && (
+          <div className="flex gap-3 mt-1 justify-end">
+            <span className="flex items-center gap-1 text-[9px] text-gray-400"><span className="w-2 h-2 rounded-sm bg-emerald-500 inline-block" />상승</span>
+            <span className="flex items-center gap-1 text-[9px] text-gray-400"><span className="w-2 h-2 rounded-sm bg-rose-500 inline-block" />하락</span>
+          </div>
         )}
       </div>
 
