@@ -31,6 +31,7 @@ function toUsd(amount: number, currency: string, usdToVnd: number, usdToKrw: num
 }
 
 const LEVEL_TITLES = ['', '새내기 🌱', '절약 견습생 🐣', '가계부 마스터 📒', '자산 수호자 🛡️', '현금흐름 왕 👑', '전설의 재테크러 🌟'];
+const LEVEL_TITLES_VI = ['', 'Tân binh', 'Tập sự tiết kiệm', 'Bậc thầy chi tiêu', 'Người gác tài sản', 'Vua dòng tiền', 'Huyền thoại tài chính'];
 const LEVEL_ICONS  = ['', '🌱', '🐣', '📒', '🛡️', '👑', '🌟'];
 
 function MonthlyChart({ data }: { data: { key: string; income: number; expense: number; net: number }[] }) {
@@ -58,10 +59,12 @@ function MonthlyChart({ data }: { data: { key: string; income: number; expense: 
       </div>
       <div className="flex gap-4 mt-2 justify-center">
         <span className="flex items-center gap-1.5 text-xs text-gray-500">
-          <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400 flex-shrink-0 inline-block"></span>수입
+          <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400 flex-shrink-0 inline-block"></span>
+          수입 <span className="text-gray-400">/ Thu</span>
         </span>
         <span className="flex items-center gap-1.5 text-xs text-gray-500">
-          <span className="w-2.5 h-2.5 rounded-sm bg-rose-400 flex-shrink-0 inline-block"></span>지출
+          <span className="w-2.5 h-2.5 rounded-sm bg-rose-400 flex-shrink-0 inline-block"></span>
+          지출 <span className="text-gray-400">/ Chi</span>
         </span>
       </div>
     </div>
@@ -131,8 +134,9 @@ function DonutChart({ data, total }: { data: [string, number][]; total: number }
             strokeDashoffset={-a.offset}
             transform={`rotate(-90 ${size/2} ${size/2})`} />
         ))}
-        <text x={size/2} y={size/2 - 2} textAnchor="middle" fontSize="18" fontWeight="700" fill="#111827">${Math.round(total).toLocaleString()}</text>
-        <text x={size/2} y={size/2 + 16} textAnchor="middle" fontSize="10" fill="#9ca3af">총 지출</text>
+        <text x={size/2} y={size/2 - 6} textAnchor="middle" fontSize="18" fontWeight="700" fill="#111827">${Math.round(total).toLocaleString()}</text>
+        <text x={size/2} y={size/2 + 10} textAnchor="middle" fontSize="10" fill="#9ca3af">총 지출</text>
+        <text x={size/2} y={size/2 + 22} textAnchor="middle" fontSize="9" fill="#9ca3af" fontStyle="italic">Tổng chi</text>
       </svg>
       <div className="flex-1 space-y-1 min-w-0">
         {data.slice(0, 6).map(([cat, amt]) => (
@@ -408,12 +412,12 @@ export default function ChongTab() {
   const streakScore  = Math.min(consecutivePositive * 25, 100);
 
   const achievements = [
-    { icon: '🌟', name: '첫 수입',    desc: '수입 기록 시작',       unlocked: incomes.length > 0 },
-    { icon: '💰', name: '첫 흑자',    desc: '한 달 흑자 달성',      unlocked: positiveMonths >= 1 },
-    { icon: '🔥', name: '연속 흑자',  desc: '2달 이상 연속 흑자',   unlocked: consecutivePositive >= 2 },
-    { icon: '🛡️', name: '절약왕',    desc: '지출이 수입의 50% 이하', unlocked: incomeUsd > 0 && expenseUsd <= incomeUsd * 0.5 },
-    { icon: '💎', name: '수입 $500', desc: '한 달 수입 $500 돌파',  unlocked: incomeUsd >= 500 },
-    { icon: '🏆', name: '3달 연속',   desc: '3개월 연속 흑자 달성', unlocked: consecutivePositive >= 3 },
+    { icon: '🌟', name: '첫 수입',    nameVi: 'Lần đầu thu',   desc: '수입 기록 시작',         descVi: 'Bắt đầu ghi thu',    unlocked: incomes.length > 0 },
+    { icon: '💰', name: '첫 흑자',    nameVi: 'Thặng dư đầu', desc: '한 달 흑자 달성',        descVi: 'Tháng thặng dư đầu', unlocked: positiveMonths >= 1 },
+    { icon: '🔥', name: '연속 흑자',  nameVi: 'Chuỗi thặng dư', desc: '2달 이상 연속 흑자',  descVi: '2+ tháng liên tiếp', unlocked: consecutivePositive >= 2 },
+    { icon: '🛡️', name: '절약왕',    nameVi: 'Vua tiết kiệm', desc: '지출이 수입의 50% 이하', descVi: 'Chi ≤ 50% thu',     unlocked: incomeUsd > 0 && expenseUsd <= incomeUsd * 0.5 },
+    { icon: '💎', name: '수입 $500', nameVi: 'Thu $500',      desc: '한 달 수입 $500 돌파',   descVi: 'Tháng > $500',       unlocked: incomeUsd >= 500 },
+    { icon: '🏆', name: '3달 연속',   nameVi: '3 tháng',       desc: '3개월 연속 흑자 달성',   descVi: '3 tháng liên tiếp',  unlocked: consecutivePositive >= 3 },
   ];
 
   const filteredIncomes = filterByPeriod(incomes, inPeriod);
@@ -458,10 +462,13 @@ export default function ChongTab() {
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-semibold tracking-wide">Lv.{level}</span>
-                  <span className="text-[11px] text-white/60">다음 레벨까지 {2 - (positiveMonths % 2)}달 흑자</span>
+                  <span className="text-[11px] text-white/60">
+                    다음 레벨까지 {2 - (positiveMonths % 2)}달 흑자 <span className="opacity-70">/ {2 - (positiveMonths % 2)} tháng thặng dư nữa</span>
+                  </span>
                 </div>
                 <p className="text-xl font-bold leading-tight">{LEVEL_TITLES[level]}</p>
-                <p className="text-xs text-white/50 mt-0.5">VOCHONG 가족</p>
+                <p className="text-xs text-white/60 leading-tight">{LEVEL_TITLES_VI[level]}</p>
+                <p className="text-[11px] text-white/40 mt-1">VOCHONG 가족 · Gia đình VOCHONG</p>
               </div>
               <div className="text-5xl">{LEVEL_ICONS[level]}</div>
             </div>
@@ -469,7 +476,7 @@ export default function ChongTab() {
             {/* EXP 바 */}
             <div className="mb-4">
               <div className="flex justify-between text-[11px] text-white/60 mb-1">
-                <span>EXP</span>
+                <span>EXP <span className="opacity-70">· Kinh nghiệm</span></span>
                 <span>{positiveMonths % 2}/2</span>
               </div>
               <div className="h-2 bg-white/20 rounded-full overflow-hidden">
@@ -480,13 +487,13 @@ export default function ChongTab() {
             {/* 스탯 바 3개 */}
             <div className="bg-white/10 rounded-xl p-3 space-y-3">
               {[
-                { label: '💪 소득력',  value: incomePower, color: '#34d399' },
-                { label: '🛡️ 절제력', value: selfControl,  color: '#60a5fa' },
-                { label: '🔥 연속흑자', value: streakScore, color: '#fbbf24' },
+                { label: '💪 소득력',  labelVi: 'Thu nhập',     value: incomePower, color: '#34d399' },
+                { label: '🛡️ 절제력', labelVi: 'Tiết chế',     value: selfControl,  color: '#60a5fa' },
+                { label: '🔥 연속흑자', labelVi: 'Chuỗi thặng dư', value: streakScore, color: '#fbbf24' },
               ].map(stat => (
                 <div key={stat.label}>
                   <div className="flex justify-between text-xs text-white/80 mb-1">
-                    <span>{stat.label}</span>
+                    <span>{stat.label} <span className="text-white/50">/ {stat.labelVi}</span></span>
                     <span className="font-bold text-white">{stat.value}<span className="text-white/50 font-normal">/100</span></span>
                   </div>
                   <div className="h-2 bg-white/20 rounded-full overflow-hidden">
@@ -498,7 +505,9 @@ export default function ChongTab() {
 
             {/* 누적 자산 */}
             <div className="mt-3 flex justify-between items-center border-t border-white/10 pt-3">
-              <span className="text-xs text-white/60">누적 순자산 (USD)</span>
+              <span className="text-xs text-white/60">
+                누적 순자산 <span className="opacity-70">/ Tài sản tích lũy</span>
+              </span>
               <span className={`text-lg font-bold ${totalSavingsUsd >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
                 {totalSavingsUsd >= 0 ? '+' : '−'}${Math.round(Math.abs(totalSavingsUsd)).toLocaleString()}
               </span>
@@ -507,27 +516,35 @@ export default function ChongTab() {
 
           {/* ▶ 이번 달 현금흐름 */}
           <div className={`rounded-2xl p-4 border ${netUsd >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-            <p className={`text-xs font-semibold ${netUsd >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>이번 달 순현금흐름</p>
+            <p className={`text-xs font-semibold ${netUsd >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              이번 달 순현금흐름 <span className="font-normal opacity-70">/ Dòng tiền tháng này</span>
+            </p>
             <p className={`text-3xl font-bold mt-1 ${netUsd >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
               {netUsd >= 0 ? '+' : '−'}${Math.round(Math.abs(netUsd)).toLocaleString()}
             </p>
             <div className="flex gap-4 mt-2 text-xs">
-              <span className="text-emerald-700">📈 수입 ${Math.round(incomeUsd).toLocaleString()}</span>
-              <span className="text-rose-700">📉 지출 ${Math.round(expenseUsd).toLocaleString()}</span>
+              <span className="text-emerald-700">📈 수입/Thu ${Math.round(incomeUsd).toLocaleString()}</span>
+              <span className="text-rose-700">📉 지출/Chi ${Math.round(expenseUsd).toLocaleString()}</span>
             </div>
           </div>
 
           {/* ▶ 6개월 흐름 */}
           <div className="bg-white rounded-2xl shadow-sm p-4">
-            <p className="text-sm font-semibold text-gray-800 mb-3">6개월 흐름</p>
+            <p className="text-sm font-semibold text-gray-800 mb-3">
+              6개월 흐름 <span className="text-gray-400 font-normal">· Dòng tiền 6 tháng</span>
+            </p>
             <MonthlyChart data={last6Data} />
           </div>
 
           {/* ▶ 업적 배지 */}
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-gray-800">업적 배지</p>
-              <span className="text-xs text-gray-400">{achievements.filter(a => a.unlocked).length}/{achievements.length} 달성</span>
+              <p className="text-sm font-semibold text-gray-800">
+                업적 배지 <span className="text-gray-400 font-normal">· Huy hiệu thành tựu</span>
+              </p>
+              <span className="text-xs text-gray-400">
+                {achievements.filter(a => a.unlocked).length}/{achievements.length} 달성/đạt
+              </span>
             </div>
             <div className="grid grid-cols-3 gap-2">
               {achievements.map(a => (
@@ -535,7 +552,9 @@ export default function ChongTab() {
                   className={`rounded-xl p-2.5 text-center transition-all ${a.unlocked ? 'bg-indigo-50 border border-indigo-100' : 'bg-gray-50 border border-gray-100 grayscale opacity-40'}`}>
                   <div className="text-2xl mb-1">{a.icon}</div>
                   <p className="text-[11px] font-semibold text-gray-800 leading-tight">{a.name}</p>
+                  <p className="text-[10px] text-gray-500 leading-tight italic">{a.nameVi}</p>
                   <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{a.desc}</p>
+                  <p className="text-[9px] text-gray-400 leading-tight italic">{a.descVi}</p>
                 </div>
               ))}
             </div>
@@ -543,9 +562,13 @@ export default function ChongTab() {
 
           {/* ▶ 카테고리 도넛 */}
           <div className="bg-white rounded-2xl shadow-sm p-4">
-            <p className="text-sm font-semibold text-gray-800 mb-3">카테고리별 지출</p>
+            <p className="text-sm font-semibold text-gray-800 mb-3">
+              카테고리별 지출 <span className="text-gray-400 font-normal">· Chi tiêu theo nhóm</span>
+            </p>
             {sortedCats.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">이번 달 지출 내역이 없어요</p>
+              <p className="text-sm text-gray-400 text-center py-6">
+                이번 달 지출 내역이 없어요 <span className="block text-xs italic">Chưa có chi tiêu tháng này</span>
+              </p>
             ) : (
               <DonutChart data={sortedCats} total={expenseUsd} />
             )}
@@ -553,7 +576,9 @@ export default function ChongTab() {
 
           {/* ▶ 일별 지출 추이 */}
           <div className="bg-white rounded-2xl shadow-sm p-4">
-            <p className="text-sm font-semibold text-gray-800 mb-3">일별 지출 추이</p>
+            <p className="text-sm font-semibold text-gray-800 mb-3">
+              일별 지출 추이 <span className="text-gray-400 font-normal">· Chi tiêu theo ngày</span>
+            </p>
             <DailyBarChart data={dailyExpenses} today={now.getDate()} />
           </div>
         </div>
