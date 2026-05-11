@@ -596,16 +596,6 @@ export default function ChongTab() {
                 </div>
               ))}
             </div>
-
-            {/* 누적 자산 */}
-            <div className="mt-3 flex justify-between items-center border-t border-white/10 pt-3">
-              <span className="text-xs text-white/60">
-                누적 순자산 <span className="opacity-70">/ Tài sản tích lũy</span>
-              </span>
-              <span className={`text-lg font-bold ${totalSavingsUsd >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                {totalSavingsUsd >= 0 ? '+' : '−'}${Math.round(Math.abs(totalSavingsUsd)).toLocaleString()}
-              </span>
-            </div>
           </div>
 
           {/* ▶ 이번 달 현금흐름 */}
@@ -633,6 +623,35 @@ export default function ChongTab() {
                 )}
               </div>
             )}
+          </div>
+
+          {/* ▶ 최근 3달 순현금흐름 */}
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <p className="text-sm font-semibold text-gray-800 mb-3">
+              최근 3달 순현금흐름 <span className="text-gray-400 font-normal">· 3 tháng gần đây</span>
+            </p>
+            <div className="space-y-2">
+              {last6Data.slice(-3).map(d => {
+                const isPos = d.net >= 0;
+                const monthLabel = `${parseInt(d.key.slice(5))}월`;
+                const isCurrent = d.key === now.toISOString().slice(0, 7);
+                return (
+                  <div key={d.key} className={`flex items-center justify-between rounded-xl px-3 py-2.5 ${isCurrent ? 'bg-indigo-50 border border-indigo-100' : 'bg-gray-50'}`}>
+                    <span className={`text-xs font-medium ${isCurrent ? 'text-indigo-700' : 'text-gray-600'}`}>
+                      {monthLabel}{isCurrent && <span className="ml-1 text-[10px] text-indigo-400">이번 달</span>}
+                    </span>
+                    <div className="text-right">
+                      <span className={`text-sm font-bold ${isPos ? 'text-emerald-700' : 'text-rose-600'}`}>
+                        {isPos ? '+' : '−'}${Math.round(Math.abs(d.net)).toLocaleString()}
+                      </span>
+                      <span className={`block text-[10px] ${isPos ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {isPos ? '+' : '−'}₫{Math.round(Math.abs(d.net) * usdToVnd).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* ▶ 6개월 흐름 */}
