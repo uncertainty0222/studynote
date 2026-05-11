@@ -552,7 +552,7 @@ export default function ChongTab() {
       <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
         <button onClick={() => setSubTab('dashboard')}
           className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'dashboard' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
-          📊 대시
+          📊 대시보드
         </button>
         <button onClick={() => setSubTab('income')}
           className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'income' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>
@@ -568,55 +568,7 @@ export default function ChongTab() {
       {subTab === 'dashboard' && (
         <div className="space-y-3">
 
-          {/* ▶ 캐릭터 카드 */}
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-4 text-white shadow-lg">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-semibold tracking-wide">Lv.{level}</span>
-                  <span className="text-[11px] text-white/60">
-                    다음 레벨까지 {2 - (positiveMonths % 2)}달 흑자 <span className="opacity-70">/ {2 - (positiveMonths % 2)} tháng thặng dư nữa</span>
-                  </span>
-                </div>
-                <p className="text-xl font-bold leading-tight">{LEVEL_TITLES[level]}</p>
-                <p className="text-xs text-white/60 leading-tight">{LEVEL_TITLES_VI[level]}</p>
-                <p className="text-[11px] text-white/40 mt-1">VOCHONG 가족 · Gia đình VOCHONG</p>
-              </div>
-              <div className="text-5xl">{LEVEL_ICONS[level]}</div>
-            </div>
-
-            {/* EXP 바 */}
-            <div className="mb-4">
-              <div className="flex justify-between text-[11px] text-white/60 mb-1">
-                <span>EXP <span className="opacity-70">· Kinh nghiệm</span></span>
-                <span>{positiveMonths % 2}/2</span>
-              </div>
-              <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-                <div className="h-full bg-yellow-300 rounded-full" style={{ width: `${expProgress}%` }} />
-              </div>
-            </div>
-
-            {/* 스탯 바 3개 */}
-            <div className="bg-white/10 rounded-xl p-3 space-y-3">
-              {[
-                { label: '💪 소득력',  labelVi: 'Thu nhập',     value: incomePower, color: '#34d399' },
-                { label: '🛡️ 절제력', labelVi: 'Tiết chế',     value: selfControl,  color: '#60a5fa' },
-                { label: '🔥 연속흑자', labelVi: 'Chuỗi thặng dư', value: streakScore, color: '#fbbf24' },
-              ].map(stat => (
-                <div key={stat.label}>
-                  <div className="flex justify-between text-xs text-white/80 mb-1">
-                    <span>{stat.label} <span className="text-white/50">/ {stat.labelVi}</span></span>
-                    <span className="font-bold text-white">{stat.value}<span className="text-white/50 font-normal">/100</span></span>
-                  </div>
-                  <div className="h-2 bg-white/20 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${stat.value}%`, background: stat.color }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ▶ 이번 달 현금흐름 */}
+          {/* ▶ 이번 달 순현금흐름 */}
           <div className={`rounded-2xl p-4 border ${netUsd >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
             <p className={`text-xs font-semibold ${netUsd >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
               이번 달 순현금흐름 <span className="font-normal opacity-70">/ Dòng tiền tháng này</span>
@@ -640,6 +592,20 @@ export default function ChongTab() {
                   <span className="text-gray-500">기타 ${Math.round(otherIncomeUsd).toLocaleString()}</span>
                 )}
               </div>
+            )}
+          </div>
+
+          {/* ▶ 카테고리별 지출 */}
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <p className="text-sm font-semibold text-gray-800 mb-3">
+              카테고리별 지출 <span className="text-gray-400 font-normal">· Chi tiêu theo nhóm</span>
+            </p>
+            {sortedCats.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">
+                이번 달 지출 내역이 없어요 <span className="block text-xs italic">Chưa có chi tiêu tháng này</span>
+              </p>
+            ) : (
+              <DonutChart data={sortedCats} total={expenseUsd} />
             )}
           </div>
 
@@ -670,60 +636,6 @@ export default function ChongTab() {
                 );
               })}
             </div>
-          </div>
-
-          {/* ▶ 6개월 흐름 */}
-          <div className="bg-white rounded-2xl shadow-sm p-4">
-            <p className="text-sm font-semibold text-gray-800 mb-3">
-              6개월 흐름 <span className="text-gray-400 font-normal">· Dòng tiền 6 tháng</span>
-            </p>
-            <MonthlyChart data={last6Data} />
-          </div>
-
-          {/* ▶ 업적 배지 */}
-          <div className="bg-white rounded-2xl shadow-sm p-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-gray-800">
-                업적 배지 <span className="text-gray-400 font-normal">· Huy hiệu thành tựu</span>
-              </p>
-              <span className="text-xs text-gray-400">
-                {achievements.filter(a => a.unlocked).length}/{achievements.length} 달성/đạt
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {achievements.map(a => (
-                <div key={a.name}
-                  className={`rounded-xl p-2.5 text-center transition-all ${a.unlocked ? 'bg-indigo-50 border border-indigo-100' : 'bg-gray-50 border border-gray-100 grayscale opacity-40'}`}>
-                  <div className="text-2xl mb-1">{a.icon}</div>
-                  <p className="text-[11px] font-semibold text-gray-800 leading-tight">{a.name}</p>
-                  <p className="text-[10px] text-gray-500 leading-tight italic">{a.nameVi}</p>
-                  <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{a.desc}</p>
-                  <p className="text-[9px] text-gray-400 leading-tight italic">{a.descVi}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ▶ 카테고리 도넛 */}
-          <div className="bg-white rounded-2xl shadow-sm p-4">
-            <p className="text-sm font-semibold text-gray-800 mb-3">
-              카테고리별 지출 <span className="text-gray-400 font-normal">· Chi tiêu theo nhóm</span>
-            </p>
-            {sortedCats.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">
-                이번 달 지출 내역이 없어요 <span className="block text-xs italic">Chưa có chi tiêu tháng này</span>
-              </p>
-            ) : (
-              <DonutChart data={sortedCats} total={expenseUsd} />
-            )}
-          </div>
-
-          {/* ▶ 일별 지출 추이 */}
-          <div className="bg-white rounded-2xl shadow-sm p-4">
-            <p className="text-sm font-semibold text-gray-800 mb-3">
-              일별 지출 추이 <span className="text-gray-400 font-normal">· Chi tiêu theo ngày</span>
-            </p>
-            <DailyBarChart data={dailyExpenses} today={now.getDate()} />
           </div>
         </div>
       )}
