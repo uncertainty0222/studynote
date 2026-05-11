@@ -826,63 +826,128 @@ export default function ChongTab() {
           {Object.keys(incomeTotal).length > 0 && (
             <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
               <p className="text-xs font-semibold text-emerald-700 mb-1">{periodLabel[inPeriod]} 총 수입</p>
-              {Object.entries(incomeTotal).map(([cur, amt]) => (
-                <p key={cur} className="text-base font-bold text-emerald-800">{fmt(amt, cur)}</p>
-              ))}
+              {Object.entries(incomeTotal).map(([cur, amt]) => {
+                const r = Math.round(amt);
+                const display = cur === 'USD' || cur === 'USDT' ? `$${r.toLocaleString()}`
+                  : cur === 'KRW' ? `₩${r.toLocaleString()}`
+                  : `₫${r.toLocaleString()}`;
+                return <p key={cur} className="text-base font-bold text-emerald-800">{display}</p>;
+              })}
             </div>
           )}
 
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            {filteredIncomes.length === 0 ? (
-              <div className="py-10 text-center text-gray-400 text-sm"><p className="text-2xl mb-2">📈</p><p>수입 내역이 없어요</p></div>
-            ) : (
-              <ul className="divide-y divide-gray-50">
-                {filteredIncomes.map(item => (
-                  <li key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs bg-emerald-100 text-emerald-700 font-medium px-2 py-0.5 rounded-full">{item.category}</span>
-                        {item.description && <span className="text-xs text-gray-500 truncate">{item.description}</span>}
-                      </div>
-                      <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
+          {(() => {
+            const tourItems = filteredIncomes.filter(i => i.category === '투어');
+            const investItems = filteredIncomes.filter(i => i.category === '투자수익');
+            const otherItems = filteredIncomes.filter(i => i.category !== '투어' && i.category !== '투자수익');
+
+            const renderItem = (item: IncomeEntry) => {
+              const amt = Number(item.amount);
+              const neg = amt < 0;
+              const abs = Math.abs(Math.round(amt));
+              const color = neg ? 'text-rose-600' : 'text-emerald-700';
+              const smallColor = neg ? 'text-rose-400' : 'text-emerald-400';
+              const sign = neg ? '−' : '';
+              let primary = '';
+              let vndAmt: number | null = null;
+              if (item.currency === 'USD' || item.currency === 'USDT') {
+                primary = `${sign}$${abs.toLocaleString()}`;
+                vndAmt = Math.round(Math.abs(amt) * usdToVnd);
+              } else if (item.currency === 'KRW') {
+                primary = `${sign}₩${abs.toLocaleString()}`;
+                vndAmt = Math.round(Math.abs(amt) / usdToKrw * usdToVnd);
+              } else {
+                primary = `${sign}₫${abs.toLocaleString()}`;
+              }
+              return (
+                <li key={item.id} className="py-2 px-2.5 flex items-start justify-between gap-1 border-b border-gray-50 last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-gray-700 font-medium truncate">{item.description || item.category}</p>
+                    <p className="text-[10px] text-gray-400">{item.date.slice(5)}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0 flex items-center gap-1">
+                    <div>
+                      <span className={`text-xs font-bold ${color}`}>{primary}</span>
+                      {vndAmt !== null && (
+                        <span className={`block text-[9px] ${smallColor}`}>{sign}₫{vndAmt.toLocaleString()}</span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <div className="text-right">
-                        {(() => {
-                          const amt = Number(item.amount);
-                          const neg = amt < 0;
-                          const abs = Math.abs(Math.round(amt));
-                          const color = neg ? 'text-rose-600' : 'text-emerald-700';
-                          const smallColor = neg ? 'text-rose-400' : 'text-emerald-400';
-                          const sign = neg ? '−' : '';
-                          let primary = '';
-                          let vndAmt: number | null = null;
-                          if (item.currency === 'USD' || item.currency === 'USDT') {
-                            primary = `${sign}$${abs.toLocaleString()}`;
-                            vndAmt = Math.round(Math.abs(amt) * usdToVnd);
-                          } else if (item.currency === 'KRW') {
-                            primary = `${sign}₩${abs.toLocaleString()}`;
-                            vndAmt = Math.round(Math.abs(amt) / usdToKrw * usdToVnd);
-                          } else {
-                            primary = `${sign}₫${abs.toLocaleString()}`;
-                          }
-                          return (
-                            <>
-                              <span className={`text-sm font-bold ${color}`}>{primary}</span>
-                              {vndAmt !== null && (
-                                <span className={`block text-[10px] ${smallColor}`}>{sign}₫{vndAmt.toLocaleString()}</span>
-                              )}
-                            </>
-                          );
-                        })()}
+                    <button onClick={() => handleDeleteIncome(item.id)} className="text-gray-200 hover:text-red-400 transition-colors ml-0.5">✕</button>
+                  </div>
+                </li>
+              );
+            };
+
+            if (filteredIncomes.length === 0) {
+              return (
+                <div className="bg-white rounded-2xl shadow-sm py-10 text-center text-gray-400 text-sm">
+                  <p className="text-2xl mb-2">📈</p><p>수입 내역이 없어요</p>
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-2">
+                {(tourItems.length > 0 || investItems.length > 0) && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {tourItems.length > 0 && (
+                      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                        <p className="text-[11px] font-semibold text-teal-700 px-2.5 pt-2.5 pb-1">🗺️ 투어</p>
+                        <ul>{tourItems.map(renderItem)}</ul>
                       </div>
-                      <button onClick={() => handleDeleteIncome(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                    )}
+                    {investItems.length > 0 && (
+                      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                        <p className="text-[11px] font-semibold text-blue-700 px-2.5 pt-2.5 pb-1">📊 투자수익</p>
+                        <ul>{investItems.map(renderItem)}</ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {otherItems.length > 0 && (
+                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <p className="text-[11px] font-semibold text-gray-500 px-3 pt-2.5 pb-1">기타 수입</p>
+                    <ul className="divide-y divide-gray-50">
+                      {otherItems.map(item => {
+                        const amt = Number(item.amount);
+                        const neg = amt < 0;
+                        const abs = Math.abs(Math.round(amt));
+                        const color = neg ? 'text-rose-600' : 'text-emerald-700';
+                        const smallColor = neg ? 'text-rose-400' : 'text-emerald-400';
+                        const sign = neg ? '−' : '';
+                        let primary = '';
+                        let vndAmt: number | null = null;
+                        if (item.currency === 'USD' || item.currency === 'USDT') {
+                          primary = `${sign}$${abs.toLocaleString()}`; vndAmt = Math.round(Math.abs(amt) * usdToVnd);
+                        } else if (item.currency === 'KRW') {
+                          primary = `${sign}₩${abs.toLocaleString()}`; vndAmt = Math.round(Math.abs(amt) / usdToKrw * usdToVnd);
+                        } else {
+                          primary = `${sign}₫${abs.toLocaleString()}`;
+                        }
+                        return (
+                          <li key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs bg-emerald-100 text-emerald-700 font-medium px-2 py-0.5 rounded-full">{item.category}</span>
+                                {item.description && <span className="text-xs text-gray-500 truncate">{item.description}</span>}
+                              </div>
+                              <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <div className="text-right">
+                                <span className={`text-sm font-bold ${color}`}>{primary}</span>
+                                {vndAmt !== null && <span className={`block text-[10px] ${smallColor}`}>{sign}₫{vndAmt.toLocaleString()}</span>}
+                              </div>
+                              <button onClick={() => handleDeleteIncome(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
