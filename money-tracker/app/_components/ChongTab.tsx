@@ -30,6 +30,44 @@ function toUsd(amount: number, currency: string, usdToVnd: number, usdToKrw: num
   return amount;
 }
 
+const LEVEL_TITLES = ['', '새내기 🌱', '절약 견습생 🐣', '가계부 마스터 📒', '자산 수호자 🛡️', '현금흐름 왕 👑', '전설의 재테크러 🌟'];
+const LEVEL_ICONS  = ['', '🌱', '🐣', '📒', '🛡️', '👑', '🌟'];
+
+function MonthlyChart({ data }: { data: { key: string; income: number; expense: number; net: number }[] }) {
+  const maxVal = Math.max(...data.flatMap(d => [d.income, d.expense]), 1);
+  return (
+    <div>
+      <div className="flex items-end justify-between gap-2" style={{ height: '96px' }}>
+        {data.map(d => {
+          const incH = d.income > 0 ? Math.max((d.income / maxVal) * 100, 4) : 0;
+          const expH = d.expense > 0 ? Math.max((d.expense / maxVal) * 100, 4) : 0;
+          const month = String(parseInt(d.key.slice(5)));
+          const isCurrentMonth = d.key === new Date().toISOString().slice(0, 7);
+          return (
+            <div key={d.key} className="flex-1 flex flex-col items-center">
+              <div className="w-full flex items-end justify-center gap-0.5" style={{ height: '80px' }}>
+                <div className={`flex-1 rounded-t transition-all ${isCurrentMonth ? 'bg-emerald-500' : 'bg-emerald-300'}`}
+                  style={{ height: `${incH}%` }} title={`수입 $${Math.round(d.income)}`} />
+                <div className={`flex-1 rounded-t transition-all ${isCurrentMonth ? 'bg-rose-500' : 'bg-rose-300'}`}
+                  style={{ height: `${expH}%` }} title={`지출 $${Math.round(d.expense)}`} />
+              </div>
+              <span className={`text-[10px] mt-1 ${isCurrentMonth ? 'text-indigo-600 font-semibold' : 'text-gray-400'}`}>{month}월</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex gap-4 mt-2 justify-center">
+        <span className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400 flex-shrink-0 inline-block"></span>수입
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-gray-500">
+          <span className="w-2.5 h-2.5 rounded-sm bg-rose-400 flex-shrink-0 inline-block"></span>지출
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function fmt(amount: number, currency: string): string {
   if (currency === 'VND') return '₫' + new Intl.NumberFormat('vi-VN').format(amount);
   if (currency === 'KRW') return '₩' + new Intl.NumberFormat('ko-KR').format(amount);
@@ -331,6 +369,53 @@ export default function ChongTab() {
     }
   }
 
+  // ── 캐릭터 / 게임 통계 ──
+  const allMonthKeys = [...new Set([
+    ...incomes.map(i => i.date.slice(0, 7)),
+    ...expenses.map(e => e.date.slice(0, 7)),
+  ])].sort();
+
+  const monthlyHistory = allMonthKeys.map(key => {
+    const inc = incomes.filter(i => i.date.startsWith(key))
+      .reduce((s, i) => s + toUsd(Number(i.amount), i.currency, usdToVnd, usdToKrw), 0);
+    const exp = expenses.filter(e => e.date.startsWith(key))
+      .reduce((s, e) => s + toUsd(Number(e.amount), e.currency, usdToVnd, usdToKrw), 0);
+    return { key, income: inc, expense: exp, net: inc - exp };
+  });
+
+  const positiveMonths = monthlyHistory.filter(m => m.net > 0).length;
+  let consecutivePositive = 0;
+  for (let i = monthlyHistory.length - 1; i >= 0; i--) {
+    if (monthlyHistory[i].net > 0) consecutivePositive++;
+    else break;
+  }
+  const level = Math.min(Math.max(1, Math.floor(positiveMonths / 2) + 1), LEVEL_TITLES.length - 1);
+  const expProgress = Math.round((positiveMonths % 2) / 2 * 100);
+  const totalSavingsUsd = monthlyHistory.reduce((s, m) => s + m.net, 0);
+
+  const last6Keys: string[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    last6Keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  const last6Data = last6Keys.map(key => {
+    const found = monthlyHistory.find(m => m.key === key);
+    return { key, income: found?.income ?? 0, expense: found?.expense ?? 0, net: found?.net ?? 0 };
+  });
+
+  const incomePower  = Math.min(Math.round((incomeUsd / 500) * 100), 100);
+  const selfControl  = incomeUsd > 0 ? Math.max(0, Math.round((1 - expenseUsd / incomeUsd) * 100)) : 0;
+  const streakScore  = Math.min(consecutivePositive * 25, 100);
+
+  const achievements = [
+    { icon: '🌟', name: '첫 수입',    desc: '수입 기록 시작',       unlocked: incomes.length > 0 },
+    { icon: '💰', name: '첫 흑자',    desc: '한 달 흑자 달성',      unlocked: positiveMonths >= 1 },
+    { icon: '🔥', name: '연속 흑자',  desc: '2달 이상 연속 흑자',   unlocked: consecutivePositive >= 2 },
+    { icon: '🛡️', name: '절약왕',    desc: '지출이 수입의 50% 이하', unlocked: incomeUsd > 0 && expenseUsd <= incomeUsd * 0.5 },
+    { icon: '💎', name: '수입 $500', desc: '한 달 수입 $500 돌파',  unlocked: incomeUsd >= 500 },
+    { icon: '🏆', name: '3달 연속',   desc: '3개월 연속 흑자 달성', unlocked: consecutivePositive >= 3 },
+  ];
+
   const filteredIncomes = filterByPeriod(incomes, inPeriod);
   const filteredExpenses = filterByPeriod(expenses, exPeriod);
 
@@ -366,17 +451,97 @@ export default function ChongTab() {
       {/* ── 대시보드 ── */}
       {subTab === 'dashboard' && (
         <div className="space-y-3">
+
+          {/* ▶ 캐릭터 카드 */}
+          <div className="bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl p-4 text-white shadow-lg">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-full font-semibold tracking-wide">Lv.{level}</span>
+                  <span className="text-[11px] text-white/60">다음 레벨까지 {2 - (positiveMonths % 2)}달 흑자</span>
+                </div>
+                <p className="text-xl font-bold leading-tight">{LEVEL_TITLES[level]}</p>
+                <p className="text-xs text-white/50 mt-0.5">VOCHONG 가족</p>
+              </div>
+              <div className="text-5xl">{LEVEL_ICONS[level]}</div>
+            </div>
+
+            {/* EXP 바 */}
+            <div className="mb-4">
+              <div className="flex justify-between text-[11px] text-white/60 mb-1">
+                <span>EXP</span>
+                <span>{positiveMonths % 2}/2</span>
+              </div>
+              <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                <div className="h-full bg-yellow-300 rounded-full" style={{ width: `${expProgress}%` }} />
+              </div>
+            </div>
+
+            {/* 스탯 바 3개 */}
+            <div className="bg-white/10 rounded-xl p-3 space-y-3">
+              {[
+                { label: '💪 소득력',  value: incomePower, color: '#34d399' },
+                { label: '🛡️ 절제력', value: selfControl,  color: '#60a5fa' },
+                { label: '🔥 연속흑자', value: streakScore, color: '#fbbf24' },
+              ].map(stat => (
+                <div key={stat.label}>
+                  <div className="flex justify-between text-xs text-white/80 mb-1">
+                    <span>{stat.label}</span>
+                    <span className="font-bold text-white">{stat.value}<span className="text-white/50 font-normal">/100</span></span>
+                  </div>
+                  <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${stat.value}%`, background: stat.color }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 누적 자산 */}
+            <div className="mt-3 flex justify-between items-center border-t border-white/10 pt-3">
+              <span className="text-xs text-white/60">누적 순자산 (USD)</span>
+              <span className={`text-lg font-bold ${totalSavingsUsd >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                {totalSavingsUsd >= 0 ? '+' : '−'}${Math.round(Math.abs(totalSavingsUsd)).toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {/* ▶ 이번 달 현금흐름 */}
           <div className={`rounded-2xl p-4 border ${netUsd >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-            <p className={`text-xs font-semibold ${netUsd >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>이번 달 순현금흐름</p>
+            <p className={`text-xs font-semibold ${netUsd >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>이번 달 순현금흐름</p>
             <p className={`text-3xl font-bold mt-1 ${netUsd >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
               {netUsd >= 0 ? '+' : '−'}${Math.round(Math.abs(netUsd)).toLocaleString()}
             </p>
-            <div className="flex gap-3 mt-2 text-xs">
+            <div className="flex gap-4 mt-2 text-xs">
               <span className="text-emerald-700">📈 수입 ${Math.round(incomeUsd).toLocaleString()}</span>
               <span className="text-rose-700">📉 지출 ${Math.round(expenseUsd).toLocaleString()}</span>
             </div>
           </div>
 
+          {/* ▶ 6개월 흐름 */}
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <p className="text-sm font-semibold text-gray-800 mb-3">6개월 흐름</p>
+            <MonthlyChart data={last6Data} />
+          </div>
+
+          {/* ▶ 업적 배지 */}
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-gray-800">업적 배지</p>
+              <span className="text-xs text-gray-400">{achievements.filter(a => a.unlocked).length}/{achievements.length} 달성</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {achievements.map(a => (
+                <div key={a.name}
+                  className={`rounded-xl p-2.5 text-center transition-all ${a.unlocked ? 'bg-indigo-50 border border-indigo-100' : 'bg-gray-50 border border-gray-100 grayscale opacity-40'}`}>
+                  <div className="text-2xl mb-1">{a.icon}</div>
+                  <p className="text-[11px] font-semibold text-gray-800 leading-tight">{a.name}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{a.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* ▶ 카테고리 도넛 */}
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <p className="text-sm font-semibold text-gray-800 mb-3">카테고리별 지출</p>
             {sortedCats.length === 0 ? (
@@ -386,6 +551,7 @@ export default function ChongTab() {
             )}
           </div>
 
+          {/* ▶ 일별 지출 추이 */}
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <p className="text-sm font-semibold text-gray-800 mb-3">일별 지출 추이</p>
             <DailyBarChart data={dailyExpenses} today={now.getDate()} />
