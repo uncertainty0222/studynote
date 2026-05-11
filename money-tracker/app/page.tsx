@@ -498,8 +498,8 @@ export default function Home() {
         )}
 
         {/* ── Chong Tab (수입 + 지출) ── */}
-        {activeTab === 'chong' && (
-          <ChongTab />
+        {activeTab === 'chong' && user && (
+          <ChongTab user={user} />
         )}
 
         {/* ── Couple Tab (가계부 + 장보기 통합) ── */}

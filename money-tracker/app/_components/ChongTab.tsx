@@ -244,7 +244,8 @@ function DailyBarChart({ data, today }: { data: number[]; today: number }) {
   );
 }
 
-export default function ChongTab() {
+export default function ChongTab({ user }: { user: { role: string } }) {
+  const isHusband = user.role === 'husband';
   const [subTab, setSubTab] = useState<SubTab>('dashboard');
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
   const [inFormOpen, setInFormOpen] = useState(false);
@@ -568,20 +569,22 @@ export default function ChongTab() {
   return (
     <div className="space-y-3">
       {/* Sub-tab nav */}
-      <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
-        <button onClick={() => setSubTab('dashboard')}
-          className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'dashboard' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
-          📊 대시보드
-        </button>
-        <button onClick={() => setSubTab('income')}
-          className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'income' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>
-          📈 수입
-        </button>
-        <button onClick={() => setSubTab('expense')}
-          className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'expense' ? 'bg-white shadow-sm text-rose-600' : 'text-gray-500'}`}>
-          📉 지출
-        </button>
-      </div>
+      {isHusband && (
+        <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
+          <button onClick={() => setSubTab('dashboard')}
+            className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'dashboard' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
+            📊 대시보드
+          </button>
+          <button onClick={() => setSubTab('income')}
+            className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'income' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>
+            📈 수입
+          </button>
+          <button onClick={() => setSubTab('expense')}
+            className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'expense' ? 'bg-white shadow-sm text-rose-600' : 'text-gray-500'}`}>
+            📉 지출
+          </button>
+        </div>
+      )}
 
       {/* ── 대시보드 ── */}
       {subTab === 'dashboard' && (
@@ -827,7 +830,7 @@ export default function ChongTab() {
       )}
 
       {/* ── 수입 탭 ── */}
-      {subTab === 'income' && (
+      {isHusband && subTab === 'income' && (
         <div className="space-y-3">
 
           {/* 입력하기 토글 버튼 */}
@@ -1042,7 +1045,7 @@ export default function ChongTab() {
       )}
 
       {/* ── 지출 탭 ── */}
-      {subTab === 'expense' && (
+      {isHusband && subTab === 'expense' && (
         <div className="space-y-3">
 
           {/* 입력하기 토글 버튼 + OCR */}
