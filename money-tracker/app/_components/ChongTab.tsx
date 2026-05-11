@@ -568,45 +568,108 @@ export default function ChongTab() {
       {subTab === 'dashboard' && (
         <div className="space-y-3">
 
-          {/* ▶ 이번 달 순현금흐름 */}
-          <div className={`rounded-2xl p-4 border ${netUsd >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
-            <p className={`text-xs font-semibold ${netUsd >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-              이번 달 순현금흐름 <span className="font-normal opacity-70">/ Dòng tiền tháng này</span>
-            </p>
-            <p className={`text-3xl font-bold mt-1 ${netUsd >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
-              {netUsd >= 0 ? '+' : '−'}${Math.round(Math.abs(netUsd)).toLocaleString()}
-            </p>
-            <div className="flex gap-4 mt-2 text-xs">
-              <span className="text-emerald-700">📈 수입 ${Math.round(incomeUsd).toLocaleString()}</span>
-              <span className="text-rose-700">📉 지출 ${Math.round(expenseUsd).toLocaleString()}</span>
-            </div>
-            {(tourIncomeUsd !== 0 || investIncomeUsd !== 0) && (
-              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 pt-2 border-t border-emerald-100 text-xs">
-                {tourIncomeUsd !== 0 && (
-                  <span className="text-teal-700">🗺️ TOUR ${Math.round(tourIncomeUsd).toLocaleString()}</span>
-                )}
-                {investIncomeUsd !== 0 && (
-                  <span className="text-blue-700">🪙 COIN ${Math.round(investIncomeUsd).toLocaleString()}</span>
-                )}
-                {Math.abs(otherIncomeUsd) >= 1 && (
-                  <span className="text-gray-500">기타 ${Math.round(otherIncomeUsd).toLocaleString()}</span>
-                )}
-              </div>
-            )}
-          </div>
+          {/* ▶ 이번달 현금흐름 종합 */}
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
 
-          {/* ▶ 카테고리별 지출 */}
-          <div className="bg-white rounded-2xl shadow-sm p-4">
-            <p className="text-sm font-semibold text-gray-800 mb-3">
-              카테고리별 지출 <span className="text-gray-400 font-normal">· Chi tiêu theo nhóm</span>
-            </p>
-            {sortedCats.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-6">
-                이번 달 지출 내역이 없어요 <span className="block text-xs italic">Chưa có chi tiêu tháng này</span>
+            {/* 순현금흐름 헤더 */}
+            <div className={`px-4 pt-4 pb-3 ${netUsd >= 0 ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+              <p className={`text-xs font-semibold ${netUsd >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                이번 달 순현금흐름 · <span className="font-normal">Dòng tiền tháng này</span>
               </p>
-            ) : (
-              <DonutChart data={sortedCats} total={expenseUsd} />
-            )}
+              <p className={`text-4xl font-bold mt-1 tracking-tight ${netUsd >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                {netUsd >= 0 ? '+' : '−'}${Math.round(Math.abs(netUsd)).toLocaleString()}
+              </p>
+              <p className={`text-sm mt-0.5 ${netUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                ({netUsd >= 0 ? '+' : '−'}₫{Math.round(Math.abs(netUsd) * usdToVnd).toLocaleString()})
+              </p>
+            </div>
+
+            {/* 수입 섹션 */}
+            <div className="px-4 pt-3 pb-3 border-b border-gray-100">
+              <div className="flex items-baseline justify-between mb-2.5">
+                <span className="text-xs font-semibold text-gray-700">📈 수입 · Thu nhập</span>
+                <div className="text-right">
+                  <span className="text-base font-bold text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
+                  <span className="text-xs text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {tourIncomeUsd !== 0 && (() => {
+                  const pct = Math.round(tourIncomeUsd / incomeUsd * 100);
+                  return (
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="font-medium text-teal-700">🗺️ TOUR</span>
+                        <span className="text-teal-700">${Math.round(tourIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-teal-400 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })()}
+                {investIncomeUsd !== 0 && (() => {
+                  const pct = Math.round(investIncomeUsd / incomeUsd * 100);
+                  return (
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="font-medium text-blue-700">🪙 COIN</span>
+                        <span className="text-blue-700">${Math.round(investIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })()}
+                {Math.abs(otherIncomeUsd) >= 1 && (() => {
+                  const pct = Math.round(Math.abs(otherIncomeUsd) / incomeUsd * 100);
+                  return (
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-500">기타</span>
+                        <span className="text-gray-500">${Math.round(otherIncomeUsd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-gray-300 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* 지출 섹션 */}
+            <div className="px-4 pt-3 pb-4">
+              <div className="flex items-baseline justify-between mb-2.5">
+                <span className="text-xs font-semibold text-gray-700">📉 지출 · Chi tiêu</span>
+                <div className="text-right">
+                  <span className="text-base font-bold text-rose-700">${Math.round(expenseUsd).toLocaleString()}</span>
+                  <span className="text-xs text-rose-400 ml-1">(₫{Math.round(expenseUsd * usdToVnd).toLocaleString()})</span>
+                </div>
+              </div>
+              {sortedCats.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-2">이번 달 지출 없음 · Chưa có chi tiêu</p>
+              ) : (
+                <div className="space-y-2">
+                  {sortedCats.map(([cat, usd]) => {
+                    const pct = Math.round(usd / expenseUsd * 100);
+                    const color = CATEGORY_COLORS[cat] ?? '#94a3b8';
+                    return (
+                      <div key={cat}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-gray-700">{cat}</span>
+                          <span className="text-gray-600">${Math.round(usd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ▶ 최근 3달 순현금흐름 */}
