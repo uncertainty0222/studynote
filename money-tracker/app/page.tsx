@@ -55,7 +55,7 @@ const T = {
     deletionPending: '삭제 요청 중',
     errGeneral: '오류가 발생했습니다',
     unit: '원',
-    tabMoney: 'vợ chồng ❤️', tabShopping: '장보기', tabPersonal: 'Tiền của anh! 😜', tabChong: 'chồng',
+    tabMoney: '남편과 아내', tabShopping: '장보기', tabPersonal: '우리의 자산 (쑥쑥 자라라!)', tabChong: '현금 흐름 한눈에 보기',
     shopPlaceholder: '쓰레기봉투, 세제 등...', shopAdd: '추가',
     shopEmpty: '필요한 물건을 추가해보세요',
     shopBoughtBy: (n: string) => `${n}이(가) 구매`,
@@ -91,7 +91,7 @@ const T = {
     deletionPending: 'Đang yêu cầu xóa',
     errGeneral: 'Đã xảy ra lỗi',
     unit: '₩',
-    tabMoney: 'vợ chồng ❤️', tabShopping: 'Mua Sắm', tabPersonal: 'Tiền của anh! 😜', tabChong: 'chồng',
+    tabMoney: 'Chồng và Vợ ❤️', tabShopping: 'Mua Sắm', tabPersonal: 'Tài sản của chúng ta 🌱', tabChong: 'Dòng tiền tổng quan',
     shopPlaceholder: 'Túi rác, xà phòng,...', shopAdd: 'Thêm',
     shopEmpty: 'Hãy thêm đồ cần mua',
     shopBoughtBy: (n: string) => `${n} đã mua`,
@@ -154,7 +154,7 @@ export default function Home() {
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const [activeTab, setActiveTab] = useState<'couple' | 'personal' | 'chong'>('couple');
+  const [activeTab, setActiveTab] = useState<'couple' | 'personal' | 'chong'>('personal');
   const [shopItems, setShopItems] = useState<ShoppingItem[]>([]);
   const [shopInput, setShopInput] = useState('');
   const [shopSubmitting, setShopSubmitting] = useState(false);
@@ -481,14 +481,14 @@ export default function Home() {
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
         {/* Tab Navigation */}
         <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
-          <button onClick={() => setActiveTab('couple')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'couple' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
-            {t.tabMoney}
-          </button>
           <button onClick={() => setActiveTab('personal')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'personal' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
             {t.tabPersonal}
           </button>
           <button onClick={() => setActiveTab('chong')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'chong' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
             {t.tabChong}
+          </button>
+          <button onClick={() => setActiveTab('couple')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'couple' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
+            {t.tabMoney}
           </button>
         </div>
 
