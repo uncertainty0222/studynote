@@ -247,6 +247,8 @@ function DailyBarChart({ data, today }: { data: number[]; today: number }) {
 export default function ChongTab() {
   const [subTab, setSubTab] = useState<SubTab>('dashboard');
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
+  const [inFormOpen, setInFormOpen] = useState(false);
+  const [exFormOpen, setExFormOpen] = useState(false);
 
   // Income
   const [incomes, setIncomes] = useState<IncomeEntry[]>([]);
@@ -358,6 +360,7 @@ export default function ChongTab() {
         return;
       }
       setInAmount(''); setInDesc('');
+      setInFormOpen(false);
       await fetchIncomes();
     } catch {
       setInErrMsg('⚠️ 네트워크 오류 — 다시 시도해주세요');
@@ -420,6 +423,7 @@ export default function ChongTab() {
         return;
       }
       setExAmount(''); setExMerchant(''); setExDesc('');
+      setExFormOpen(false);
       await fetchExpenses();
     } catch {
       setOcrMsg('⚠️ 네트워크 오류 — 다시 시도해주세요');
@@ -825,105 +829,61 @@ export default function ChongTab() {
       {/* ── 수입 탭 ── */}
       {subTab === 'income' && (
         <div className="space-y-3">
-          {/* CSV 일괄 업로드 */}
-          <details className="bg-white rounded-2xl shadow-sm">
-            <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-gray-700 flex items-center justify-between list-none">
-              <span>📥 일괄 업로드 <span className="text-gray-400 font-normal">/ Tải hàng loạt CSV</span></span>
-              <span className="text-xs text-gray-400">펼치기 ▾</span>
-            </summary>
-            <div className="px-4 pb-4 border-t border-gray-50 pt-3 space-y-3">
-              <p className="text-xs text-gray-500 leading-relaxed">
-                CSV 헤더: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-[11px]">date,amount,currency,category,description</code>
-              </p>
-              <div>
-                <a href="/seed-income-2024-2026.csv" download
-                  className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 underline">
-                  📄 투어 매출 2024-2026 CSV 다운로드 (118건)
-                </a>
-              </div>
-              <div>
-                <label className={labelCls}>CSV 파일 선택</label>
-                <input ref={csvFileRef} type="file" accept=".csv,text/csv,text/plain" onChange={handleCsvFile}
-                  className="text-xs w-full file:text-xs file:bg-indigo-50 file:text-indigo-600 file:font-medium file:border-0 file:rounded-lg file:px-3 file:py-1.5 file:mr-3 file:cursor-pointer" />
-              </div>
-              <div>
-                <label className={labelCls}>혹은 CSV 내용 직접 붙여넣기</label>
-                <textarea value={csvText} onChange={e => { setCsvText(e.target.value); setCsvMsg(''); }}
-                  rows={4} placeholder="date,amount,currency,category,description&#10;2024-06-14,598,USD,투어,..."
-                  className={`${inputCls} font-mono text-[11px]`} />
-              </div>
-              {csvParsed && (
-                <div className="text-xs space-y-1 bg-gray-50 rounded-lg p-2.5">
-                  <p className="font-semibold text-gray-700">
-                    미리보기: {csvParsed.entries.length}건
-                    {csvParsed.entries.length > 0 && (
-                      <span className="text-gray-500 font-normal ml-1">
-                        (합계 ${csvParsed.entries.reduce((s, e) => s + e.amount, 0).toLocaleString()})
-                      </span>
-                    )}
-                  </p>
-                  {csvParsed.errors.length > 0 && (
-                    <p className="text-amber-600">⚠️ 오류 {csvParsed.errors.length}건 — {csvParsed.errors.slice(0, 2).join(', ')}{csvParsed.errors.length > 2 ? ' …' : ''}</p>
-                  )}
-                </div>
-              )}
-              {csvMsg && (
-                <p className={`text-xs px-3 py-2 rounded-lg ${csvMsg.startsWith('✅') ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{csvMsg}</p>
-              )}
-              <button onClick={handleCsvImport}
-                disabled={!csvParsed || csvParsed.entries.length === 0 || csvUploading}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg text-sm transition-colors">
-                {csvUploading ? '업로드 중...' : `${csvParsed?.entries.length ?? 0}건 일괄 업로드 / Nhập`}
-              </button>
-            </div>
-          </details>
 
-          <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-gray-800">수입 기록 · <span className="text-gray-400 font-normal">Ghi thu nhập</span></h3>
-            {inErrMsg && <p className="text-xs px-3 py-2 rounded-lg bg-amber-50 text-amber-700">{inErrMsg}</p>}
-            <form onSubmit={handleAddIncome} className="space-y-3">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className={labelCls}>금액 · <span className="font-normal text-gray-400">Số tiền</span></label>
-                  <input type="text" inputMode="numeric" value={inAmount}
-                    onChange={e => setInAmount(e.target.value.replace(/[^0-9-]/g, '').replace(/(?!^)-/g, ''))}
-                    placeholder="0 또는 -100" required className={inputCls} />
-                  {(inCurrency === 'USD' || inCurrency === 'USDT') && inAmount && !Number.isNaN(Number(inAmount)) && Number(inAmount) !== 0 && (
-                    <p className="text-xs text-gray-400 mt-1 ml-0.5">≈ ₫{Math.round(Number(inAmount) * usdToVnd).toLocaleString()}</p>
-                  )}
-                  {inCurrency === 'KRW' && inAmount && !Number.isNaN(Number(inAmount)) && Number(inAmount) !== 0 && (
-                    <p className="text-xs text-gray-400 mt-1 ml-0.5">≈ ₫{Math.round(Number(inAmount) / usdToKrw * usdToVnd).toLocaleString()}</p>
-                  )}
+          {/* 입력하기 토글 버튼 */}
+          <button onClick={() => setInFormOpen(v => !v)}
+            className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${inFormOpen ? 'bg-gray-100 text-gray-500' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}`}>
+            {inFormOpen ? '✕ 닫기 · Đóng' : '+ 입력하기 · Thêm thu nhập'}
+          </button>
+
+          {/* 입력 폼 (토글) */}
+          {inFormOpen && (
+            <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+              {inErrMsg && <p className="text-xs px-3 py-2 rounded-lg bg-amber-50 text-amber-700">{inErrMsg}</p>}
+              <form onSubmit={handleAddIncome} className="space-y-3">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className={labelCls}>금액 · <span className="font-normal text-gray-400">Số tiền</span></label>
+                    <input type="text" inputMode="numeric" value={inAmount}
+                      onChange={e => setInAmount(e.target.value.replace(/[^0-9-]/g, '').replace(/(?!^)-/g, ''))}
+                      placeholder="0 또는 -100" required className={inputCls} autoFocus />
+                    {(inCurrency === 'USD' || inCurrency === 'USDT') && inAmount && !Number.isNaN(Number(inAmount)) && Number(inAmount) !== 0 && (
+                      <p className="text-xs text-gray-400 mt-1 ml-0.5">≈ ₫{Math.round(Number(inAmount) * usdToVnd).toLocaleString()}</p>
+                    )}
+                    {inCurrency === 'KRW' && inAmount && !Number.isNaN(Number(inAmount)) && Number(inAmount) !== 0 && (
+                      <p className="text-xs text-gray-400 mt-1 ml-0.5">≈ ₫{Math.round(Number(inAmount) / usdToKrw * usdToVnd).toLocaleString()}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className={labelCls}>통화 · <span className="font-normal text-gray-400">Tiền tệ</span></label>
+                    <select value={inCurrency} onChange={e => setInCurrency(e.target.value)} className={selectCls}>
+                      {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className={labelCls}>카테고리 · <span className="font-normal text-gray-400">Danh mục</span></label>
+                    <select value={inCategory} onChange={e => setInCategory(e.target.value)} className={`${selectCls} w-full`}>
+                      {INCOME_CATEGORIES.map(c => <option key={c}>{INCOME_CATEGORY_VI[c] ? `${c} · ${INCOME_CATEGORY_VI[c]}` : c}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className={labelCls}>날짜 · <span className="font-normal text-gray-400">Ngày</span></label>
+                    <input type="date" value={inDate} onChange={e => setInDate(e.target.value)} required className={inputCls} />
+                  </div>
                 </div>
                 <div>
-                  <label className={labelCls}>통화 · <span className="font-normal text-gray-400">Tiền tệ</span></label>
-                  <select value={inCurrency} onChange={e => setInCurrency(e.target.value)} className={selectCls}>
-                    {CURRENCIES.map(c => <option key={c}>{c}</option>)}
-                  </select>
+                  <label className={labelCls}>메모 (선택) · <span className="font-normal text-gray-400">Ghi chú</span></label>
+                  <input type="text" value={inDesc} onChange={e => setInDesc(e.target.value)} placeholder="급여, 프리랜서 등" className={inputCls} />
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className={labelCls}>카테고리 · <span className="font-normal text-gray-400">Danh mục</span></label>
-                  <select value={inCategory} onChange={e => setInCategory(e.target.value)} className={`${selectCls} w-full`}>
-                    {INCOME_CATEGORIES.map(c => <option key={c}>{INCOME_CATEGORY_VI[c] ? `${c} · ${INCOME_CATEGORY_VI[c]}` : c}</option>)}
-                  </select>
-                </div>
-                <div className="flex-1">
-                  <label className={labelCls}>날짜 · <span className="font-normal text-gray-400">Ngày</span></label>
-                  <input type="date" value={inDate} onChange={e => setInDate(e.target.value)} required className={inputCls} />
-                </div>
-              </div>
-              <div>
-                <label className={labelCls}>메모 (선택) · <span className="font-normal text-gray-400">Ghi chú</span></label>
-                <input type="text" value={inDesc} onChange={e => setInDesc(e.target.value)} placeholder="급여, 프리랜서 등" className={inputCls} />
-              </div>
-              <button type="submit" disabled={inSubmitting || !inAmount.trim()}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors text-sm">
-                {inSubmitting ? '저장 중... · Đang lưu...' : '수입 저장 · Lưu thu nhập'}
-              </button>
-            </form>
-          </div>
+                <button type="submit" disabled={inSubmitting || !inAmount.trim()}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors text-sm">
+                  {inSubmitting ? '저장 중... · Đang lưu...' : '수입 저장 · Lưu thu nhập'}
+                </button>
+              </form>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-1.5 items-center">
             <span className="text-xs text-gray-500 font-medium">기간 · <span className="font-normal text-gray-400">Thời gian</span>:</span>
@@ -1084,62 +1044,69 @@ export default function ChongTab() {
       {/* ── 지출 탭 ── */}
       {subTab === 'expense' && (
         <div className="space-y-3">
-          <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-800">지출 기록 · <span className="text-gray-400 font-normal">Ghi chi tiêu</span></h3>
-              <div className="flex gap-1.5">
-                <label className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${ocrLoading ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
-                  {ocrLoading ? '...' : '📷 촬영'}
-                  <input ref={cameraRef} type="file" accept="image/*" capture="environment"
-                    className="hidden" disabled={ocrLoading} onChange={handleReceiptUpload} />
-                </label>
-                <label className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${ocrLoading ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
-                  {ocrLoading ? '...' : '🖼️ 업로드'}
-                  <input ref={galleryRef} type="file" accept="image/*"
-                    className="hidden" disabled={ocrLoading} onChange={handleReceiptUpload} />
-                </label>
-              </div>
-            </div>
-            {ocrMsg && (
-              <p className={`text-xs px-3 py-2 rounded-lg ${ocrMsg.includes('가져왔') ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{ocrMsg}</p>
-            )}
-            <form onSubmit={handleAddExpense} className="space-y-3">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className={labelCls}>금액 · <span className="font-normal text-gray-400">Số tiền</span></label>
-                  <input type="text" inputMode="numeric" value={exAmount}
-                    onChange={e => setExAmount(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="0" required className={inputCls} />
+
+          {/* 입력하기 토글 버튼 + OCR */}
+          <div className="flex gap-2">
+            <button onClick={() => setExFormOpen(v => !v)}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${exFormOpen ? 'bg-gray-100 text-gray-500' : 'bg-rose-600 hover:bg-rose-700 text-white'}`}>
+              {exFormOpen ? '✕ 닫기 · Đóng' : '+ 입력하기 · Thêm chi tiêu'}
+            </button>
+            <label className={`flex items-center gap-1 text-xs font-medium px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${ocrLoading ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
+              {ocrLoading ? '...' : '📷'}
+              <input ref={cameraRef} type="file" accept="image/*" capture="environment"
+                className="hidden" disabled={ocrLoading} onChange={e => { setExFormOpen(true); handleReceiptUpload(e); }} />
+            </label>
+            <label className={`flex items-center gap-1 text-xs font-medium px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${ocrLoading ? 'bg-gray-100 text-gray-400' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
+              {ocrLoading ? '...' : '🖼️'}
+              <input ref={galleryRef} type="file" accept="image/*"
+                className="hidden" disabled={ocrLoading} onChange={e => { setExFormOpen(true); handleReceiptUpload(e); }} />
+            </label>
+          </div>
+
+          {/* 입력 폼 (토글) */}
+          {exFormOpen && (
+            <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+              {ocrMsg && (
+                <p className={`text-xs px-3 py-2 rounded-lg ${ocrMsg.includes('가져왔') ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{ocrMsg}</p>
+              )}
+              <form onSubmit={handleAddExpense} className="space-y-3">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className={labelCls}>금액 · <span className="font-normal text-gray-400">Số tiền</span></label>
+                    <input type="text" inputMode="numeric" value={exAmount}
+                      onChange={e => setExAmount(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="0" required className={inputCls} autoFocus />
+                  </div>
+                  <div>
+                    <label className={labelCls}>통화 · <span className="font-normal text-gray-400">Tiền tệ</span></label>
+                    <select value={exCurrency} onChange={e => setExCurrency(e.target.value)} className={selectCls}>
+                      {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className={labelCls}>카테고리 · <span className="font-normal text-gray-400">Danh mục</span></label>
+                    <select value={exCategory} onChange={e => setExCategory(e.target.value)} className={`${selectCls} w-full`}>
+                      {EXPENSE_CATEGORIES.map(c => <option key={c}>{EXPENSE_CATEGORY_VI[c] ? `${c} · ${EXPENSE_CATEGORY_VI[c]}` : c}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className={labelCls}>날짜 · <span className="font-normal text-gray-400">Ngày</span></label>
+                    <input type="date" value={exDate} onChange={e => setExDate(e.target.value)} required className={inputCls} />
+                  </div>
                 </div>
                 <div>
-                  <label className={labelCls}>통화 · <span className="font-normal text-gray-400">Tiền tệ</span></label>
-                  <select value={exCurrency} onChange={e => setExCurrency(e.target.value)} className={selectCls}>
-                    {CURRENCIES.map(c => <option key={c}>{c}</option>)}
-                  </select>
+                  <label className={labelCls}>상호명 (선택) · <span className="font-normal text-gray-400">Tên cửa hàng</span></label>
+                  <input type="text" value={exMerchant} onChange={e => setExMerchant(e.target.value)} placeholder="마트, 식당명 등" className={inputCls} />
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className={labelCls}>카테고리 · <span className="font-normal text-gray-400">Danh mục</span></label>
-                  <select value={exCategory} onChange={e => setExCategory(e.target.value)} className={`${selectCls} w-full`}>
-                    {EXPENSE_CATEGORIES.map(c => <option key={c}>{EXPENSE_CATEGORY_VI[c] ? `${c} · ${EXPENSE_CATEGORY_VI[c]}` : c}</option>)}
-                  </select>
-                </div>
-                <div className="flex-1">
-                  <label className={labelCls}>날짜 · <span className="font-normal text-gray-400">Ngày</span></label>
-                  <input type="date" value={exDate} onChange={e => setExDate(e.target.value)} required className={inputCls} />
-                </div>
-              </div>
-              <div>
-                <label className={labelCls}>상호명 (선택) · <span className="font-normal text-gray-400">Tên cửa hàng</span></label>
-                <input type="text" value={exMerchant} onChange={e => setExMerchant(e.target.value)} placeholder="마트, 식당명 등" className={inputCls} />
-              </div>
-              <button type="submit" disabled={exSubmitting || !exAmount.trim()}
-                className="w-full bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors text-sm">
-                {exSubmitting ? '저장 중... · Đang lưu...' : '지출 저장 · Lưu chi tiêu'}
-              </button>
-            </form>
-          </div>
+                <button type="submit" disabled={exSubmitting || !exAmount.trim()}
+                  className="w-full bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg transition-colors text-sm">
+                  {exSubmitting ? '저장 중... · Đang lưu...' : '지출 저장 · Lưu chi tiêu'}
+                </button>
+              </form>
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-1.5 items-center">
             <span className="text-xs text-gray-500 font-medium">기간 · <span className="font-normal text-gray-400">Thời gian</span>:</span>
