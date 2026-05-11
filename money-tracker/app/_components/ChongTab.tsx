@@ -734,8 +734,8 @@ export default function ChongTab() {
                 <div className="flex-1">
                   <label className={labelCls}>금액</label>
                   <input type="text" inputMode="numeric" value={inAmount}
-                    onChange={e => setInAmount(e.target.value.replace(/[^0-9]/g, ''))}
-                    placeholder="0" required className={inputCls} />
+                    onChange={e => setInAmount(e.target.value.replace(/[^0-9-]/g, '').replace(/(?!^)-/g, ''))}
+                    placeholder="0 또는 -100" required className={inputCls} />
                 </div>
                 <div>
                   <label className={labelCls}>통화</label>
