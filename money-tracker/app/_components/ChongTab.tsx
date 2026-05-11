@@ -11,12 +11,24 @@ interface ExpenseEntry {
   merchant: string; description: string; date: string; created_at: string;
 }
 
-type SubTab = 'income' | 'expense';
+type SubTab = 'dashboard' | 'income' | 'expense';
 type Period = 'all' | 'month' | 'year';
 
 const INCOME_CATEGORIES = ['급여', '투자수익', '부업', '보너스', '기타'];
 const EXPENSE_CATEGORIES = ['외식', '생활비', '교통', '쇼핑', '주거', '의료', '카페', '구독', '교육', '기타'];
 const CURRENCIES = ['VND', 'KRW', 'USD', 'USDT'];
+
+const CATEGORY_COLORS: Record<string, string> = {
+  '외식': '#f87171', '생활비': '#fb923c', '교통': '#facc15', '쇼핑': '#f472b6',
+  '주거': '#fbbf24', '의료': '#34d399', '카페': '#22d3ee', '구독': '#a78bfa',
+  '교육': '#60a5fa', '기타': '#94a3b8',
+};
+
+function toUsd(amount: number, currency: string, usdToVnd: number, usdToKrw: number): number {
+  if (currency === 'VND') return amount / usdToVnd;
+  if (currency === 'KRW') return amount / usdToKrw;
+  return amount;
+}
 
 function fmt(amount: number, currency: string): string {
   if (currency === 'VND') return '₫' + new Intl.NumberFormat('vi-VN').format(amount);
@@ -58,8 +70,75 @@ const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm t
 const selectCls = 'border border-gray-200 rounded-lg px-2 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300';
 const labelCls = 'text-xs font-medium text-gray-500 block mb-1.5';
 
+function DonutChart({ data, total }: { data: [string, number][]; total: number }) {
+  const size = 160; const stroke = 28; const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  let offset = 0;
+  const arcs = data.map(([cat, amt]) => {
+    const frac = amt / total;
+    const dash = c * frac;
+    const arc = { cat, dash, offset, color: CATEGORY_COLORS[cat] ?? '#94a3b8' };
+    offset += dash;
+    return arc;
+  });
+  return (
+    <div className="flex items-center gap-4">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="flex-shrink-0">
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#f3f4f6" strokeWidth={stroke} />
+        {arcs.map(a => (
+          <circle key={a.cat}
+            cx={size/2} cy={size/2} r={r} fill="none"
+            stroke={a.color} strokeWidth={stroke}
+            strokeDasharray={`${a.dash} ${c - a.dash}`}
+            strokeDashoffset={-a.offset}
+            transform={`rotate(-90 ${size/2} ${size/2})`} />
+        ))}
+        <text x={size/2} y={size/2 - 2} textAnchor="middle" fontSize="18" fontWeight="700" fill="#111827">${Math.round(total).toLocaleString()}</text>
+        <text x={size/2} y={size/2 + 16} textAnchor="middle" fontSize="10" fill="#9ca3af">총 지출</text>
+      </svg>
+      <div className="flex-1 space-y-1 min-w-0">
+        {data.slice(0, 6).map(([cat, amt]) => (
+          <div key={cat} className="flex items-center gap-2 text-xs">
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: CATEGORY_COLORS[cat] ?? '#94a3b8' }}></span>
+            <span className="text-gray-600 flex-1 truncate">{cat}</span>
+            <span className="text-gray-500 font-medium">{Math.round(amt/total*100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DailyBarChart({ data, today }: { data: number[]; today: number }) {
+  const max = Math.max(...data, 1);
+  return (
+    <div>
+      <div className="flex items-end gap-0.5 h-24">
+        {data.map((amt, i) => {
+          const isToday = i + 1 === today;
+          const hasValue = amt > 0;
+          return (
+            <div key={i} className="flex-1 flex flex-col items-end">
+              <div
+                className={`w-full rounded-t ${isToday ? 'bg-rose-600' : hasValue ? 'bg-rose-300' : 'bg-gray-100'}`}
+                style={{ height: hasValue ? `${Math.max((amt / max) * 100, 6)}%` : '4px' }}
+                title={`${i+1}일: $${Math.round(amt)}`}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex justify-between mt-1.5 text-[10px] text-gray-400">
+        <span>1일</span>
+        <span>{Math.ceil(data.length/2)}일</span>
+        <span>{data.length}일</span>
+      </div>
+    </div>
+  );
+}
+
 export default function ChongTab() {
-  const [subTab, setSubTab] = useState<SubTab>('income');
+  const [subTab, setSubTab] = useState<SubTab>('dashboard');
 
   // Income
   const [incomes, setIncomes] = useState<IncomeEntry[]>([]);
@@ -224,6 +303,34 @@ export default function ChongTab() {
     setEditSaving(false);
   }
 
+  // Dashboard data (this month)
+  const now = new Date();
+  const isThisMonth = (date: string) => {
+    const d = new Date(date);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  };
+  const monthIncomes = incomes.filter(i => isThisMonth(i.date));
+  const monthExpenses = expenses.filter(e => isThisMonth(e.date));
+  const incomeUsd = monthIncomes.reduce((s, i) => s + toUsd(Number(i.amount), i.currency, usdToVnd, usdToKrw), 0);
+  const expenseUsd = monthExpenses.reduce((s, e) => s + toUsd(Number(e.amount), e.currency, usdToVnd, usdToKrw), 0);
+  const netUsd = incomeUsd - expenseUsd;
+
+  const catTotals: Record<string, number> = {};
+  for (const e of monthExpenses) {
+    const usd = toUsd(Number(e.amount), e.currency, usdToVnd, usdToKrw);
+    catTotals[e.category] = (catTotals[e.category] ?? 0) + usd;
+  }
+  const sortedCats: [string, number][] = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const dailyExpenses = new Array(daysInMonth).fill(0);
+  for (const e of monthExpenses) {
+    const d = new Date(e.date);
+    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+      dailyExpenses[d.getDate() - 1] += toUsd(Number(e.amount), e.currency, usdToVnd, usdToKrw);
+    }
+  }
+
   const filteredIncomes = filterByPeriod(incomes, inPeriod);
   const filteredExpenses = filterByPeriod(expenses, exPeriod);
 
@@ -242,15 +349,49 @@ export default function ChongTab() {
     <div className="space-y-3">
       {/* Sub-tab nav */}
       <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
+        <button onClick={() => setSubTab('dashboard')}
+          className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'dashboard' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
+          📊 대시
+        </button>
         <button onClick={() => setSubTab('income')}
           className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'income' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>
-          📈 수입 <span className="opacity-60">Thu nhập</span>
+          📈 수입
         </button>
         <button onClick={() => setSubTab('expense')}
           className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'expense' ? 'bg-white shadow-sm text-rose-600' : 'text-gray-500'}`}>
-          📉 지출 <span className="opacity-60">Chi tiêu</span>
+          📉 지출
         </button>
       </div>
+
+      {/* ── 대시보드 ── */}
+      {subTab === 'dashboard' && (
+        <div className="space-y-3">
+          <div className={`rounded-2xl p-4 border ${netUsd >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+            <p className={`text-xs font-semibold ${netUsd >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>이번 달 순현금흐름</p>
+            <p className={`text-3xl font-bold mt-1 ${netUsd >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+              {netUsd >= 0 ? '+' : '−'}${Math.round(Math.abs(netUsd)).toLocaleString()}
+            </p>
+            <div className="flex gap-3 mt-2 text-xs">
+              <span className="text-emerald-700">📈 수입 ${Math.round(incomeUsd).toLocaleString()}</span>
+              <span className="text-rose-700">📉 지출 ${Math.round(expenseUsd).toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <p className="text-sm font-semibold text-gray-800 mb-3">카테고리별 지출</p>
+            {sortedCats.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6">이번 달 지출 내역이 없어요</p>
+            ) : (
+              <DonutChart data={sortedCats} total={expenseUsd} />
+            )}
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm p-4">
+            <p className="text-sm font-semibold text-gray-800 mb-3">일별 지출 추이</p>
+            <DailyBarChart data={dailyExpenses} today={now.getDate()} />
+          </div>
+        </div>
+      )}
 
       {/* ── 수입 탭 ── */}
       {subTab === 'income' && (
