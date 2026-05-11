@@ -12,7 +12,7 @@ interface ExpenseEntry {
 }
 
 type SubTab = 'dashboard' | 'income' | 'expense';
-type Period = 'all' | 'month' | 'year';
+type Period = 'month' | 'lastmonth' | 'year';
 
 const INCOME_CATEGORIES = ['급여', '투자수익', '부업', '보너스', '투어', '기타'];
 const EXPENSE_CATEGORIES = ['외식', '생활비', '교통', '쇼핑', '주거', '의료', '카페', '구독', '교육', '기타'];
@@ -144,16 +144,19 @@ function parseIncomeCsv(text: string): { entries: ParsedCsvEntry[]; errors: stri
 }
 
 function filterByPeriod<T extends { date: string }>(items: T[], period: Period): T[] {
-  if (period === 'all') return items;
   const now = new Date();
   return items.filter(i => {
     const d = new Date(i.date);
     if (period === 'month') return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    if (period === 'lastmonth') {
+      const last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return d.getFullYear() === last.getFullYear() && d.getMonth() === last.getMonth();
+    }
     return d.getFullYear() === now.getFullYear();
   });
 }
 
-const periodLabel: Record<Period, string> = { all: '전체', month: '이번 달', year: '올해' };
+const periodLabel: Record<Period, string> = { month: '이번 달', lastmonth: '저번 달', year: '올해' };
 const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300';
 const selectCls = 'border border-gray-200 rounded-lg px-2 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300';
 const labelCls = 'text-xs font-medium text-gray-500 block mb-1.5';
@@ -815,7 +818,7 @@ export default function ChongTab() {
 
           <div className="flex gap-2 items-center">
             <span className="text-xs text-gray-500 font-medium">기간:</span>
-            {(['all', 'month', 'year'] as Period[]).map(p => (
+            {(['month', 'lastmonth', 'year'] as Period[]).map(p => (
               <button key={p} onClick={() => setInPeriod(p)}
                 className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${inPeriod === p ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
                 {periodLabel[p]}
@@ -1028,7 +1031,7 @@ export default function ChongTab() {
 
           <div className="flex gap-2 items-center">
             <span className="text-xs text-gray-500 font-medium">기간:</span>
-            {(['all', 'month', 'year'] as Period[]).map(p => (
+            {(['month', 'lastmonth', 'year'] as Period[]).map(p => (
               <button key={p} onClick={() => setExPeriod(p)}
                 className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${exPeriod === p ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
                 {periodLabel[p]}
