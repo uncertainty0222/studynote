@@ -70,13 +70,24 @@ function CandlestickChart({ candles }: { candles: Candle[] }) {
 
   const allVals = visible.flatMap(c => [c.high, c.low]);
   const rawMin = Math.min(...allVals), rawMax = Math.max(...allVals);
-  const pad = (rawMax - rawMin) * 0.1 || rawMax * 0.05 || 1;
+  const center = (rawMin + rawMax) / 2;
+  const rawRange = rawMax - rawMin;
+  const minPad = Math.abs(center) * 0.05;
+  const pad = Math.max(rawRange * 0.2, minPad, 1);
   const vMin = rawMin - pad, vMax = rawMax + pad;
   const vRange = vMax - vMin;
 
   const toY = (v: number) => PT + ((vMax - v) / vRange) * innerH;
   const toX = (i: number) => PL + (i + 0.5) * spacing;
-  const fmtK = (v: number) => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${Math.round(v)}`;
+  const fmtK = (v: number) => {
+    if (v >= 1000) {
+      const k = v / 1000;
+      if (vRange < 5000) return `$${k.toFixed(2)}k`;
+      if (vRange < 50000) return `$${k.toFixed(1)}k`;
+      return `$${k.toFixed(0)}k`;
+    }
+    return `$${Math.round(v)}`;
+  };
   const yTicks = [0.2, 0.4, 0.6, 0.8].map(f => vMin + vRange * f);
 
   return (
