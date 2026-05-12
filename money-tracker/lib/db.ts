@@ -77,6 +77,9 @@ export async function initDb(): Promise<void> {
       )
     `;
 
+    await sql`ALTER TABLE shopping_items ADD COLUMN IF NOT EXISTS bought_at TIMESTAMPTZ`;
+    await sql`ALTER TABLE shopping_items ADD COLUMN IF NOT EXISTS check_memo TEXT NOT NULL DEFAULT ''`;
+
     await sql`
       CREATE TABLE IF NOT EXISTS shopping_comments (
         id SERIAL PRIMARY KEY,
@@ -356,6 +359,8 @@ export interface ShoppingItem {
   added_by: 'husband' | 'wife';
   status: 'needed' | 'bought';
   bought_by: 'husband' | 'wife' | null;
+  bought_at: string | null;
+  check_memo: string;
   created_at: string;
   comment_count: number;
 }
@@ -375,8 +380,10 @@ export async function getShoppingItems(): Promise<ShoppingItem[]> {
     SELECT si.*, COUNT(sc.id)::int AS comment_count
     FROM shopping_items si
     LEFT JOIN shopping_comments sc ON sc.item_id = si.id
+    WHERE si.status = 'needed'
+       OR (si.status = 'bought' AND (si.bought_at IS NULL OR si.bought_at > NOW() - INTERVAL '7 days'))
     GROUP BY si.id
-    ORDER BY status DESC, si.created_at DESC
+    ORDER BY si.status ASC, si.created_at DESC
   `;
 }
 
@@ -389,18 +396,28 @@ export async function createShoppingItem(name: string, addedBy: 'husband' | 'wif
   return row;
 }
 
-export async function toggleShoppingItem(id: number, buyerRole: 'husband' | 'wife'): Promise<ShoppingItem | null> {
+export async function checkShoppingItem(id: number, buyerRole: 'husband' | 'wife', memo: string): Promise<ShoppingItem | null> {
   await initDb();
   const sql = getSql();
-  const [current] = await sql<ShoppingItem[]>`SELECT * FROM shopping_items WHERE id = ${id}`;
-  if (!current) return null;
-  const newStatus = current.status === 'needed' ? 'bought' : 'needed';
-  const boughtBy = newStatus === 'bought' ? buyerRole : null;
   const [row] = await sql<ShoppingItem[]>`
-    UPDATE shopping_items SET status = ${newStatus}, bought_by = ${boughtBy}
-    WHERE id = ${id} RETURNING *, 0 AS comment_count
+    UPDATE shopping_items
+    SET status = 'bought', bought_by = ${buyerRole}, bought_at = NOW(), check_memo = ${memo}
+    WHERE id = ${id}
+    RETURNING *, 0 AS comment_count
   `;
-  return row;
+  return row ?? null;
+}
+
+export async function uncheckShoppingItem(id: number): Promise<ShoppingItem | null> {
+  await initDb();
+  const sql = getSql();
+  const [row] = await sql<ShoppingItem[]>`
+    UPDATE shopping_items
+    SET status = 'needed', bought_by = NULL, bought_at = NULL, check_memo = ''
+    WHERE id = ${id}
+    RETURNING *, 0 AS comment_count
+  `;
+  return row ?? null;
 }
 
 export async function deleteShoppingItem(id: number): Promise<void> {
