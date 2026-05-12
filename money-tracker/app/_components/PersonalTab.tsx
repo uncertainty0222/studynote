@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 interface BinanceHolding { asset: string; total: number; usdtValue: number; }
 interface BinanceSection { key: string; label: string; usdt: number; holdings: BinanceHolding[]; }
-interface BinanceData { sections: BinanceSection[]; totalUsdt: number; usdToVnd: number; usdToKrw: number; updatedAt: string; }
+interface BinanceData { sections: BinanceSection[]; totalUsdt: number; usdToVnd: number; usdToKrw: number; updatedAt: string; sectionErrors?: Record<string, string>; }
 
 interface VaultData { usd: Record<string, number>; krw: Record<string, number>; vnd: Record<string, number>; }
 interface VaultResponse {
@@ -438,6 +438,9 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
           </div>
         )}
         {binanceErr && <div className="mx-4 mb-3 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">⚠️ {binanceErr}</div>}
+        {binance?.sectionErrors && Object.entries(binance.sectionErrors).map(([k, v]) => (
+          <div key={k} className="mx-4 mb-1 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5">⚠️ {k.toUpperCase()} 오류: {v}</div>
+        ))}
         {binanceLoading && !binance && <p className="text-xs text-gray-400 text-center pb-4">조회 중...</p>}
 
         {binance && (
