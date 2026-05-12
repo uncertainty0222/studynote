@@ -9,17 +9,24 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.95.2",
     "bcryptjs": "^3.0.3",
     "next": "16.2.3",
+    "node-cron": "^4.2.1",
+    "node-telegram-bot-api": "^0.67.0",
     "postgres": "^3.4.9",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "technicalindicators": "^3.1.0",
+    "twitter-api-v2": "^1.29.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
+    "@types/node-cron": "^3.0.11",
+    "@types/node-telegram-bot-api": "^0.64.14",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",

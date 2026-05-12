@@ -130,7 +130,100 @@ export async function initDb(): Promise<void> {
       )
     `;
 
-    // Seed pre-configured accounts
+    // ─── Trading Bot Tables ───────────────────────────────────────────────────
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS haxkai_tweets (
+        id TEXT PRIMARY KEY,
+        text TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        media_urls TEXT[] DEFAULT '{}',
+        processed BOOLEAN DEFAULT FALSE,
+        fetched_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS ta_patterns (
+        id SERIAL PRIMARY KEY,
+        tweet_id TEXT REFERENCES haxkai_tweets(id),
+        symbol TEXT,
+        timeframe TEXT,
+        pattern_type TEXT,
+        indicators_used TEXT[] DEFAULT '{}',
+        entry_logic JSONB,
+        target_logic JSONB,
+        stop_logic JSONB,
+        risk_reward_ratio NUMERIC,
+        confidence_score NUMERIC,
+        raw_analysis JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS style_profile (
+        id SERIAL PRIMARY KEY,
+        version INTEGER NOT NULL,
+        profile_data JSONB NOT NULL,
+        tweet_count INTEGER NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS scan_results (
+        id SERIAL PRIMARY KEY,
+        symbol TEXT NOT NULL,
+        timeframe TEXT NOT NULL,
+        detected_pattern TEXT,
+        indicators_snapshot JSONB,
+        style_match_score NUMERIC,
+        entry_price NUMERIC,
+        target_price NUMERIC,
+        stop_price NUMERIC,
+        risk_reward NUMERIC,
+        scan_reasoning TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        scanned_at TIMESTAMPTZ DEFAULT NOW(),
+        alerted_at TIMESTAMPTZ,
+        expires_at TIMESTAMPTZ
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS trade_log (
+        id SERIAL PRIMARY KEY,
+        scan_result_id INTEGER REFERENCES scan_results(id),
+        symbol TEXT NOT NULL,
+        side TEXT NOT NULL,
+        entry_price NUMERIC NOT NULL,
+        quantity NUMERIC NOT NULL,
+        target_price NUMERIC NOT NULL,
+        stop_price NUMERIC NOT NULL,
+        binance_order_id TEXT,
+        binance_sl_order_id TEXT,
+        binance_tp_order_id TEXT,
+        status TEXT NOT NULL DEFAULT 'open',
+        pnl_usdt NUMERIC,
+        reasoning TEXT NOT NULL,
+        approved_at TIMESTAMPTZ,
+        closed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS risk_limits (
+        id SERIAL PRIMARY KEY,
+        date TEXT NOT NULL UNIQUE,
+        daily_loss_usdt NUMERIC DEFAULT 0,
+        daily_pnl_usdt NUMERIC DEFAULT 0,
+        trade_count INTEGER DEFAULT 0
+      )
+    `;
+
+    // ─── Seed pre-configured accounts ─────────────────────────────────────────
     const [{ count }] = await sql<[{ count: number }]>`SELECT COUNT(*)::int AS count FROM users`;
     if (count === 0) {
       const pw = await bcrypt.hash('1', 10);
@@ -555,4 +648,286 @@ export async function getPendingCountForRole(role: 'husband' | 'wife'): Promise<
     SELECT COUNT(*)::int AS count FROM deletion_requests WHERE status = 'pending' AND requested_by != ${role}
   `;
   return a.count + b.count;
+}
+
+// ─── Trading Bot Types ────────────────────────────────────────────────────────
+
+export interface HaxkaiTweet {
+  id: string;
+  text: string;
+  created_at: string;
+  media_urls: string[];
+  processed: boolean;
+  fetched_at: string;
+}
+
+export interface TaPattern {
+  id: number;
+  tweet_id: string | null;
+  symbol: string | null;
+  timeframe: string | null;
+  pattern_type: string | null;
+  indicators_used: string[];
+  entry_logic: Record<string, unknown> | null;
+  target_logic: Record<string, unknown> | null;
+  stop_logic: Record<string, unknown> | null;
+  risk_reward_ratio: number | null;
+  confidence_score: number | null;
+  raw_analysis: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface StyleProfile {
+  id: number;
+  version: number;
+  profile_data: Record<string, unknown>;
+  tweet_count: number;
+  created_at: string;
+}
+
+export interface ScanResult {
+  id: number;
+  symbol: string;
+  timeframe: string;
+  detected_pattern: string | null;
+  indicators_snapshot: Record<string, unknown> | null;
+  style_match_score: number | null;
+  entry_price: number | null;
+  target_price: number | null;
+  stop_price: number | null;
+  risk_reward: number | null;
+  scan_reasoning: string;
+  status: 'pending' | 'alerted' | 'traded' | 'expired' | 'rejected';
+  scanned_at: string;
+  alerted_at: string | null;
+  expires_at: string | null;
+}
+
+export interface TradeLog {
+  id: number;
+  scan_result_id: number | null;
+  symbol: string;
+  side: 'LONG' | 'SHORT';
+  entry_price: number;
+  quantity: number;
+  target_price: number;
+  stop_price: number;
+  binance_order_id: string | null;
+  binance_sl_order_id: string | null;
+  binance_tp_order_id: string | null;
+  status: 'open' | 'closed_tp' | 'closed_sl' | 'closed_manual';
+  pnl_usdt: number | null;
+  reasoning: string;
+  approved_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+}
+
+export interface RiskLimits {
+  id: number;
+  date: string;
+  daily_loss_usdt: number;
+  daily_pnl_usdt: number;
+  trade_count: number;
+}
+
+// ─── Trading Bot DB Helpers ───────────────────────────────────────────────────
+
+export async function saveTweet(tweet: Omit<HaxkaiTweet, 'fetched_at'>): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`
+    INSERT INTO haxkai_tweets (id, text, created_at, media_urls, processed)
+    VALUES (${tweet.id}, ${tweet.text}, ${tweet.created_at}, ${sql.array(tweet.media_urls)}, ${tweet.processed})
+    ON CONFLICT (id) DO NOTHING
+  `;
+}
+
+export async function getLatestTweetId(): Promise<string | null> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<{ id: string }[]>`SELECT id FROM haxkai_tweets ORDER BY created_at DESC LIMIT 1`;
+  return rows[0]?.id ?? null;
+}
+
+export async function getUnprocessedTweets(): Promise<HaxkaiTweet[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<HaxkaiTweet[]>`SELECT * FROM haxkai_tweets WHERE processed = FALSE ORDER BY created_at ASC`;
+}
+
+export async function markTweetProcessed(id: string): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`UPDATE haxkai_tweets SET processed = TRUE WHERE id = ${id}`;
+}
+
+export async function getTweets(limit = 50): Promise<HaxkaiTweet[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<HaxkaiTweet[]>`SELECT * FROM haxkai_tweets ORDER BY created_at DESC LIMIT ${limit}`;
+}
+
+export async function saveTaPattern(data: Omit<TaPattern, 'id' | 'created_at'>): Promise<TaPattern> {
+  await initDb();
+  const sql = getSql();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const j = (v: unknown) => v != null ? sql.json(v as any) : null;
+  const [row] = await sql<TaPattern[]>`
+    INSERT INTO ta_patterns (tweet_id, symbol, timeframe, pattern_type, indicators_used,
+      entry_logic, target_logic, stop_logic, risk_reward_ratio, confidence_score, raw_analysis)
+    VALUES (${data.tweet_id}, ${data.symbol}, ${data.timeframe}, ${data.pattern_type},
+      ${sql.array(data.indicators_used)}, ${j(data.entry_logic)},
+      ${j(data.target_logic)}, ${j(data.stop_logic)},
+      ${data.risk_reward_ratio}, ${data.confidence_score}, ${j(data.raw_analysis)})
+    RETURNING *
+  `;
+  return row;
+}
+
+export async function getTaPatterns(limit = 100): Promise<TaPattern[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<TaPattern[]>`SELECT * FROM ta_patterns ORDER BY created_at DESC LIMIT ${limit}`;
+}
+
+export async function getUnprocessedTaPatternCount(): Promise<number> {
+  await initDb();
+  const sql = getSql();
+  const [row] = await sql<[{ count: number }]>`
+    SELECT COUNT(*)::int AS count FROM ta_patterns
+    WHERE created_at > (SELECT COALESCE(MAX(created_at), '1970-01-01') FROM style_profile)
+  `;
+  return row.count;
+}
+
+export async function saveStyleProfile(data: Omit<StyleProfile, 'id' | 'created_at'>): Promise<StyleProfile> {
+  await initDb();
+  const sql = getSql();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [row] = await sql<StyleProfile[]>`
+    INSERT INTO style_profile (version, profile_data, tweet_count)
+    VALUES (${data.version}, ${sql.json(data.profile_data as any)}, ${data.tweet_count})
+    RETURNING *
+  `;
+  return row;
+}
+
+export async function getLatestStyleProfile(): Promise<StyleProfile | null> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<StyleProfile[]>`SELECT * FROM style_profile ORDER BY version DESC LIMIT 1`;
+  return rows[0] ?? null;
+}
+
+export async function saveScanResult(data: Omit<ScanResult, 'id' | 'scanned_at' | 'alerted_at'>): Promise<ScanResult> {
+  await initDb();
+  const sql = getSql();
+  const [row] = await sql<ScanResult[]>`
+    INSERT INTO scan_results (symbol, timeframe, detected_pattern, indicators_snapshot,
+      style_match_score, entry_price, target_price, stop_price, risk_reward, scan_reasoning, status, expires_at)
+    VALUES (${data.symbol}, ${data.timeframe}, ${data.detected_pattern},
+      ${data.indicators_snapshot ? sql.json(data.indicators_snapshot as any) : null},
+      ${data.style_match_score}, ${data.entry_price}, ${data.target_price}, ${data.stop_price},
+      ${data.risk_reward}, ${data.scan_reasoning}, ${data.status}, ${data.expires_at})
+    RETURNING *
+  `;
+  return row;
+}
+
+export async function getScanResults(status?: string, limit = 50): Promise<ScanResult[]> {
+  await initDb();
+  const sql = getSql();
+  if (status) {
+    return sql<ScanResult[]>`SELECT * FROM scan_results WHERE status = ${status} ORDER BY style_match_score DESC, scanned_at DESC LIMIT ${limit}`;
+  }
+  return sql<ScanResult[]>`SELECT * FROM scan_results ORDER BY scanned_at DESC LIMIT ${limit}`;
+}
+
+export async function updateScanResultStatus(id: number, status: ScanResult['status']): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  if (status === 'alerted') {
+    await sql`UPDATE scan_results SET status = ${status}, alerted_at = NOW() WHERE id = ${id}`;
+  } else {
+    await sql`UPDATE scan_results SET status = ${status} WHERE id = ${id}`;
+  }
+}
+
+export async function getScanResultById(id: number): Promise<ScanResult | null> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<ScanResult[]>`SELECT * FROM scan_results WHERE id = ${id}`;
+  return rows[0] ?? null;
+}
+
+export async function saveTradeLog(data: Omit<TradeLog, 'id' | 'created_at' | 'closed_at' | 'pnl_usdt'>): Promise<TradeLog> {
+  await initDb();
+  const sql = getSql();
+  const [row] = await sql<TradeLog[]>`
+    INSERT INTO trade_log (scan_result_id, symbol, side, entry_price, quantity, target_price, stop_price,
+      binance_order_id, binance_sl_order_id, binance_tp_order_id, status, reasoning, approved_at)
+    VALUES (${data.scan_result_id}, ${data.symbol}, ${data.side}, ${data.entry_price}, ${data.quantity},
+      ${data.target_price}, ${data.stop_price}, ${data.binance_order_id}, ${data.binance_sl_order_id},
+      ${data.binance_tp_order_id}, ${data.status}, ${data.reasoning}, ${data.approved_at})
+    RETURNING *
+  `;
+  return row;
+}
+
+export async function getTrades(limit = 50): Promise<TradeLog[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<TradeLog[]>`SELECT * FROM trade_log ORDER BY created_at DESC LIMIT ${limit}`;
+}
+
+export async function getOpenTrades(): Promise<TradeLog[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<TradeLog[]>`SELECT * FROM trade_log WHERE status = 'open' ORDER BY created_at DESC`;
+}
+
+export async function closeTradeLog(id: number, status: 'closed_tp' | 'closed_sl' | 'closed_manual', pnlUsdt: number): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`UPDATE trade_log SET status = ${status}, pnl_usdt = ${pnlUsdt}, closed_at = NOW() WHERE id = ${id}`;
+}
+
+export async function getTodayRiskLimits(): Promise<RiskLimits> {
+  await initDb();
+  const sql = getSql();
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = await sql<RiskLimits[]>`SELECT * FROM risk_limits WHERE date = ${today}`;
+  if (rows[0]) return rows[0];
+  const [row] = await sql<RiskLimits[]>`
+    INSERT INTO risk_limits (date) VALUES (${today}) ON CONFLICT (date) DO UPDATE SET date = ${today} RETURNING *
+  `;
+  return row;
+}
+
+export async function addDailyLoss(lossUsdt: number): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  const today = new Date().toISOString().slice(0, 10);
+  await sql`
+    INSERT INTO risk_limits (date, daily_loss_usdt, trade_count)
+    VALUES (${today}, ${lossUsdt}, 1)
+    ON CONFLICT (date) DO UPDATE
+    SET daily_loss_usdt = risk_limits.daily_loss_usdt + ${lossUsdt},
+        daily_pnl_usdt = risk_limits.daily_pnl_usdt - ${lossUsdt},
+        trade_count = risk_limits.trade_count + 1
+  `;
+}
+
+export async function addDailyProfit(profitUsdt: number): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  const today = new Date().toISOString().slice(0, 10);
+  await sql`
+    INSERT INTO risk_limits (date, trade_count)
+    VALUES (${today}, 1)
+    ON CONFLICT (date) DO UPDATE
+    SET daily_pnl_usdt = risk_limits.daily_pnl_usdt + ${profitUsdt},
+        trade_count = risk_limits.trade_count + 1
+  `;
 }
