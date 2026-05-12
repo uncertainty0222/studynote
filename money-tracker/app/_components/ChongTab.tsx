@@ -250,6 +250,8 @@ export default function ChongTab({ user }: { user: { role: string } }) {
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
   const [inFormOpen, setInFormOpen] = useState(false);
   const [exFormOpen, setExFormOpen] = useState(false);
+  const [dashIncomeExpanded, setDashIncomeExpanded] = useState(false);
+  const [dashExpenseExpanded, setDashExpenseExpanded] = useState(false);
 
   // Income
   const [incomes, setIncomes] = useState<IncomeEntry[]>([]);
@@ -607,15 +609,23 @@ export default function ChongTab({ user }: { user: { role: string } }) {
             </div>
 
             {/* 수입 섹션 */}
-            <div className="px-4 pt-3.5 pb-3.5 border-b border-gray-100">
-              <div className="flex items-baseline justify-between mb-3">
-                <span className="text-sm font-semibold text-gray-700">📈 수입 · Thu nhập</span>
-                <div className="text-right">
-                  <span className="text-lg font-bold text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
-                  <span className="text-sm text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
+            <div className="border-b border-gray-100">
+              <button
+                onClick={() => setDashIncomeExpanded(v => !v)}
+                className="w-full px-4 pt-3.5 pb-0 text-left"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-semibold text-gray-700">📈 수입 · Thu nhập</span>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <span className="text-lg font-bold text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
+                      <span className="text-sm text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
+                    </div>
+                    <span className="text-gray-300 text-xs">{dashIncomeExpanded ? '▲' : '▼'}</span>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-2.5">
+              </button>
+              <div className="px-4 pb-3.5 space-y-2.5">
                 {tourIncomeUsd !== 0 && (() => {
                   const pct = Math.round(tourIncomeUsd / incomeUsd * 100);
                   return (
@@ -668,40 +678,125 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                   );
                 })()}
               </div>
+              {/* 수입 개별 항목 */}
+              {dashIncomeExpanded && (
+                <div className="border-t border-gray-100 bg-emerald-50/40 divide-y divide-gray-100">
+                  {monthIncomes.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-3">이번 달 수입 항목 없음</p>
+                  ) : (
+                    [...monthIncomes]
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map(item => {
+                        const usd = toUsd(Number(item.amount), item.currency, usdToVnd, usdToKrw);
+                        const catVi = INCOME_CATEGORY_VI[item.category] ?? item.category;
+                        const isTour = item.category === '투어';
+                        const isCoin = item.category === '투자수익';
+                        const clr = isTour ? 'text-teal-700' : isCoin ? 'text-blue-700' : 'text-gray-700';
+                        return (
+                          <div key={item.id} className="flex items-start justify-between px-4 py-2.5">
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-xs font-medium ${clr}`}>{item.category} · {catVi}</div>
+                              <div className="text-[10px] text-gray-400 mt-0.5">
+                                {item.date}{item.description ? ` · ${item.description}` : ''}
+                              </div>
+                            </div>
+                            <div className="text-right ml-3 flex-shrink-0">
+                              <span className={`text-xs font-semibold ${clr}`}>{fmt(Number(item.amount), item.currency)}</span>
+                              {item.currency !== 'USD' && item.currency !== 'USDT' && (
+                                <span className="block text-[10px] text-gray-400">${(Math.round(usd * 100) / 100).toLocaleString()}</span>
+                              )}
+                              {item.currency !== 'VND' && (
+                                <span className="block text-[10px] text-gray-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 지출 섹션 */}
-            <div className="px-4 pt-3.5 pb-5">
-              <div className="flex items-baseline justify-between mb-3">
-                <span className="text-sm font-semibold text-gray-700">📉 지출 · Chi tiêu</span>
-                <div className="text-right">
-                  <span className="text-lg font-bold text-rose-700">${Math.round(expenseUsd).toLocaleString()}</span>
-                  <span className="text-sm text-rose-400 ml-1">(₫{Math.round(expenseUsd * usdToVnd).toLocaleString()})</span>
+            <div>
+              <button
+                onClick={() => setDashExpenseExpanded(v => !v)}
+                className="w-full px-4 pt-3.5 pb-0 text-left"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-semibold text-gray-700">📉 지출 · Chi tiêu</span>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <span className="text-lg font-bold text-rose-700">${Math.round(expenseUsd).toLocaleString()}</span>
+                      <span className="text-sm text-rose-400 ml-1">(₫{Math.round(expenseUsd * usdToVnd).toLocaleString()})</span>
+                    </div>
+                    <span className="text-gray-300 text-xs">{dashExpenseExpanded ? '▲' : '▼'}</span>
+                  </div>
                 </div>
-              </div>
-              {sortedCats.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-2">이번 달 지출 없음 · Chưa có chi tiêu</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {sortedCats.map(([cat, usd]) => {
-                    const pct = Math.round(usd / expenseUsd * 100);
-                    const color = CATEGORY_COLORS[cat] ?? '#94a3b8';
-                    const catVi = EXPENSE_CATEGORY_VI[cat] ?? cat;
-                    return (
-                      <div key={cat}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-700">{cat} <span className="text-gray-400 font-normal text-xs">· {catVi}</span></span>
-                          <div className="text-right">
-                            <span className="text-gray-600">${Math.round(usd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
-                            <span className="block text-xs text-gray-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</span>
+              </button>
+              <div className="px-4 pb-5">
+                {sortedCats.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-2">이번 달 지출 없음 · Chưa có chi tiêu</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {sortedCats.map(([cat, usd]) => {
+                      const pct = Math.round(usd / expenseUsd * 100);
+                      const color = CATEGORY_COLORS[cat] ?? '#94a3b8';
+                      const catVi = EXPENSE_CATEGORY_VI[cat] ?? cat;
+                      return (
+                        <div key={cat}>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-gray-700">{cat} <span className="text-gray-400 font-normal text-xs">· {catVi}</span></span>
+                            <div className="text-right">
+                              <span className="text-gray-600">${Math.round(usd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                              <span className="block text-xs text-gray-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</span>
+                            </div>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
                           </div>
                         </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {/* 지출 개별 항목 */}
+              {dashExpenseExpanded && (
+                <div className="border-t border-gray-100 bg-rose-50/40 divide-y divide-gray-100">
+                  {monthExpenses.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-3">이번 달 지출 항목 없음</p>
+                  ) : (
+                    [...monthExpenses]
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map(item => {
+                        const usd = toUsd(Number(item.amount), item.currency, usdToVnd, usdToKrw);
+                        const catVi = EXPENSE_CATEGORY_VI[item.category] ?? item.category;
+                        const color = CATEGORY_COLORS[item.category] ?? '#94a3b8';
+                        return (
+                          <div key={item.id} className="flex items-start justify-between px-4 py-2.5">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                                <span className="text-xs font-medium text-gray-700">{item.category} · {catVi}</span>
+                              </div>
+                              <div className="text-[10px] text-gray-400 mt-0.5 ml-3.5">
+                                {item.date}{item.merchant ? ` · ${item.merchant}` : ''}{item.description ? ` · ${item.description}` : ''}
+                              </div>
+                            </div>
+                            <div className="text-right ml-3 flex-shrink-0">
+                              <span className="text-xs font-semibold text-gray-700">{fmt(Number(item.amount), item.currency)}</span>
+                              {item.currency !== 'USD' && item.currency !== 'USDT' && (
+                                <span className="block text-[10px] text-gray-400">${(Math.round(usd * 100) / 100).toLocaleString()}</span>
+                              )}
+                              {item.currency !== 'VND' && (
+                                <span className="block text-[10px] text-gray-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
                 </div>
               )}
             </div>
