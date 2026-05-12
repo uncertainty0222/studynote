@@ -80,6 +80,8 @@ export async function initDb(): Promise<void> {
     await sql`ALTER TABLE shopping_items ADD COLUMN IF NOT EXISTS bought_at TIMESTAMPTZ`;
     await sql`ALTER TABLE shopping_items ADD COLUMN IF NOT EXISTS check_memo TEXT NOT NULL DEFAULT ''`;
 
+    await sql`UPDATE personal_expenses SET category = '육아' WHERE category = '교육'`;
+
     await sql`
       CREATE TABLE IF NOT EXISTS shopping_comments (
         id SERIAL PRIMARY KEY,

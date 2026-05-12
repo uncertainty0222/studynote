@@ -15,7 +15,7 @@ type SubTab = 'dashboard' | 'income' | 'expense';
 type Period = 'month' | 'lastmonth' | 'lastlastmonth' | 'year';
 
 const INCOME_CATEGORIES = ['TOUR', 'COIN', '기타'];
-const EXPENSE_CATEGORIES = ['외식', '생활비', '교통', '쇼핑', '주거', '의료', '카페', '구독', '교육', '기타'];
+const EXPENSE_CATEGORIES = ['외식', '생활비', '교통', '쇼핑', '주거', '의료', '카페', '구독', '육아', '기타'];
 const CURRENCIES = ['VND', 'KRW', 'USD', 'USDT'];
 
 const INCOME_CATEGORY_VI: Record<string, string> = {
@@ -25,13 +25,13 @@ const INCOME_CATEGORY_VI: Record<string, string> = {
 const EXPENSE_CATEGORY_VI: Record<string, string> = {
   '외식': 'Ăn ngoài', '생활비': 'Sinh hoạt', '교통': 'Giao thông',
   '쇼핑': 'Mua sắm', '주거': 'Nhà ở', '의료': 'Y tế',
-  '카페': 'Cà phê', '구독': 'Đăng ký', '교육': 'Giáo dục', '기타': 'Khác',
+  '카페': 'Cà phê', '구독': 'Đăng ký', '육아': 'Nuôi con', '기타': 'Khác',
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
   '외식': '#f87171', '생활비': '#fb923c', '교통': '#facc15', '쇼핑': '#f472b6',
   '주거': '#fbbf24', '의료': '#34d399', '카페': '#22d3ee', '구독': '#a78bfa',
-  '교육': '#60a5fa', '기타': '#94a3b8',
+  '육아': '#60a5fa', '기타': '#94a3b8',
 };
 
 function toUsd(amount: number, currency: string, usdToVnd: number, usdToKrw: number): number {
