@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { initDb } from '../lib/db';
 import { startScheduler } from '../lib/trading/scheduler';
 import { sendTelegramAlert } from '../lib/trading/telegram-notifier';
