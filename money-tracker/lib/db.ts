@@ -157,8 +157,17 @@ export async function initDb(): Promise<void> {
         risk_reward_ratio NUMERIC,
         confidence_score NUMERIC,
         raw_analysis JSONB,
+        timing_context JSONB,
+        timing_reasoning TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
+    `;
+
+    await sql`
+      ALTER TABLE ta_patterns ADD COLUMN IF NOT EXISTS timing_context JSONB
+    `;
+    await sql`
+      ALTER TABLE ta_patterns ADD COLUMN IF NOT EXISTS timing_reasoning TEXT
     `;
 
     await sql`
@@ -674,6 +683,8 @@ export interface TaPattern {
   risk_reward_ratio: number | null;
   confidence_score: number | null;
   raw_analysis: Record<string, unknown> | null;
+  timing_context: Record<string, unknown> | null;
+  timing_reasoning: string | null;
   created_at: string;
 }
 
@@ -775,11 +786,13 @@ export async function saveTaPattern(data: Omit<TaPattern, 'id' | 'created_at'>):
   const j = (v: unknown) => v != null ? sql.json(v as any) : null;
   const [row] = await sql<TaPattern[]>`
     INSERT INTO ta_patterns (tweet_id, symbol, timeframe, pattern_type, indicators_used,
-      entry_logic, target_logic, stop_logic, risk_reward_ratio, confidence_score, raw_analysis)
+      entry_logic, target_logic, stop_logic, risk_reward_ratio, confidence_score, raw_analysis,
+      timing_context, timing_reasoning)
     VALUES (${data.tweet_id}, ${data.symbol}, ${data.timeframe}, ${data.pattern_type},
       ${sql.array(data.indicators_used)}, ${j(data.entry_logic)},
       ${j(data.target_logic)}, ${j(data.stop_logic)},
-      ${data.risk_reward_ratio}, ${data.confidence_score}, ${j(data.raw_analysis)})
+      ${data.risk_reward_ratio}, ${data.confidence_score}, ${j(data.raw_analysis)},
+      ${j(data.timing_context)}, ${data.timing_reasoning ?? null})
     RETURNING *
   `;
   return row;
