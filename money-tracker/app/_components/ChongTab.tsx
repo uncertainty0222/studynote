@@ -485,8 +485,14 @@ export default function ChongTab({ user }: { user: { role: string } }) {
     }
   }
 
-  const isTourCat = (cat: string) => cat === 'TOUR' || cat === '투어';
-  const isCoinCat = (cat: string) => cat === 'COIN' || cat === '투자수익';
+  const isTourCat = (cat: string) => {
+    const c = cat.trim();
+    return c === 'TOUR' || c === '투어' || c.startsWith('TOUR') || c.startsWith('투어');
+  };
+  const isCoinCat = (cat: string) => {
+    const c = cat.trim();
+    return c === 'COIN' || c === '투자수익' || c.startsWith('COIN') || c.startsWith('투자수익');
+  };
 
   const tourIncomeUsd = monthIncomes
     .filter(i => isTourCat(i.category))
