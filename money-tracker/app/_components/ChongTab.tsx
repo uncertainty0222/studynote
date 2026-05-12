@@ -153,6 +153,17 @@ function parseIncomeCsv(text: string): { entries: ParsedCsvEntry[]; errors: stri
   return { entries, errors };
 }
 
+function dateSectionLabel(dateStr: string): string {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  const dayB = new Date(now); dayB.setDate(now.getDate() - 2);
+  if (dateStr === todayStr) return '오늘 · Hôm nay';
+  if (dateStr === yest.toISOString().slice(0, 10)) return '어제 · Hôm qua';
+  if (dateStr === dayB.toISOString().slice(0, 10)) return '그저께 · Hôm kia';
+  return dateStr.slice(5).replace('-', '/');
+}
+
 function filterByPeriod<T extends { date: string }>(items: T[], period: Period): T[] {
   const now = new Date();
   return items.filter(i => {
@@ -266,6 +277,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
   // Expense
   const [expenses, setExpenses] = useState<ExpenseEntry[]>([]);
   const [exPeriod, setExPeriod] = useState<Period>('month');
+  const [exViewMode, setExViewMode] = useState<'category' | 'date'>('category');
   const [exAmount, setExAmount] = useState('');
   const [exCurrency, setExCurrency] = useState('VND');
   const [exCategory, setExCategory] = useState('외식');
@@ -1361,15 +1373,23 @@ export default function ChongTab({ user }: { user: { role: string } }) {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-1.5 items-center">
-            <span className="text-xs text-gray-500 font-medium">기간 · <span className="font-normal text-gray-400">Thời gian</span>:</span>
-            {(['month', 'lastmonth', 'lastlastmonth', 'year'] as Period[]).map(p => (
-              <button key={p} onClick={() => setExPeriod(p)}
-                className={`text-center px-2.5 py-1 rounded-full font-medium transition-colors ${exPeriod === p ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
-                <span className="block text-[11px] leading-tight">{periodLabel[p]}</span>
-                <span className="block text-[9px] leading-tight opacity-75">{periodLabelVI[p]}</span>
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-1.5 items-center justify-between">
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-xs text-gray-500 font-medium">기간 · <span className="font-normal text-gray-400">Thời gian</span>:</span>
+              {(['month', 'lastmonth', 'lastlastmonth', 'year'] as Period[]).map(p => (
+                <button key={p} onClick={() => setExPeriod(p)}
+                  className={`text-center px-2.5 py-1 rounded-full font-medium transition-colors ${exPeriod === p ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                  <span className="block text-[11px] leading-tight">{periodLabel[p]}</span>
+                  <span className="block text-[9px] leading-tight opacity-75">{periodLabelVI[p]}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setExViewMode(v => v === 'category' ? 'date' : 'category')}
+              className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition-colors flex-shrink-0 ${exViewMode === 'date' ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-600'}`}
+            >
+              {exViewMode === 'category' ? '📅 날짜별' : '🏷️ 카테고리별'}
+            </button>
           </div>
 
           {(() => {
@@ -1379,6 +1399,142 @@ export default function ChongTab({ user }: { user: { role: string } }) {
               return s + amt;
             }, 0);
 
+            const summaryCard = filteredExpenses.length > 0 && (
+              <div className="bg-rose-50 rounded-xl p-3 border border-rose-100">
+                <p className="text-xs font-semibold text-rose-700">{periodLabel[exPeriod]} 총 지출 · <span className="font-normal text-rose-400">Tổng chi tiêu</span></p>
+                <p className="text-xl font-bold text-rose-800 mt-1">
+                  ${Math.round(totalUsd).toLocaleString()}
+                  <span className="text-sm font-medium text-rose-400 ml-2">(₫{Math.round(totalUsd * usdToVnd).toLocaleString()})</span>
+                </p>
+              </div>
+            );
+
+            // ── 날짜별 보기 ──
+            if (exViewMode === 'date') {
+              if (filteredExpenses.length === 0) {
+                return (
+                  <div className="py-10 text-center text-gray-400 text-sm bg-white rounded-2xl shadow-sm">
+                    <p className="text-2xl mb-2">📉</p>
+                    <p>지출 내역이 없어요</p>
+                    <p className="text-[11px] mt-0.5">Chưa có chi tiêu</p>
+                  </div>
+                );
+              }
+              const byDate: Record<string, typeof filteredExpenses> = {};
+              for (const item of filteredExpenses) {
+                if (!byDate[item.date]) byDate[item.date] = [];
+                byDate[item.date].push(item);
+              }
+              const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+              const itemUsd = (it: ExpenseEntry) => {
+                const n = Number(it.amount);
+                if (it.currency === 'VND') return n / usdToVnd;
+                if (it.currency === 'KRW') return n / usdToKrw;
+                return n;
+              };
+              return (
+                <div className="space-y-3">
+                  {summaryCard}
+                  {sortedDates.map(date => {
+                    const dayUsd = byDate[date].reduce((s, it) => s + itemUsd(it), 0);
+                    return (
+                      <div key={date} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                        <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                          <span className="text-xs font-semibold text-gray-700">{dateSectionLabel(date)}</span>
+                          <span className="text-xs text-rose-600 font-medium">
+                            ${Math.round(dayUsd).toLocaleString()}
+                            <span className="text-rose-300 ml-1">(₫{Math.round(dayUsd * usdToVnd).toLocaleString()})</span>
+                          </span>
+                        </div>
+                        <ul className="divide-y divide-gray-50">
+                          {byDate[date].map(item => {
+                            const n = Number(item.amount);
+                            const usd = itemUsd(item);
+                            const color = CATEGORY_COLORS[item.category] ?? '#94a3b8';
+                            const catVi = EXPENSE_CATEGORY_VI[item.category] ?? item.category;
+                            return (
+                              <li key={item.id}>
+                                <div className="px-4 py-3 flex items-center justify-between gap-3">
+                                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                                    <span className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: color }} />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-medium text-gray-500">{item.category} · {catVi}</p>
+                                      {item.merchant && <p className="text-sm text-gray-800 font-medium truncate">{item.merchant}</p>}
+                                      {item.description && <p className="text-xs text-gray-400 truncate">{item.description}</p>}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    <div className="text-right">
+                                      {item.currency === 'VND' ? (
+                                        <p className="text-sm font-bold text-rose-700">₫{Math.round(n).toLocaleString()}</p>
+                                      ) : item.currency === 'KRW' ? (
+                                        <>
+                                          <p className="text-sm font-bold text-rose-700">₩{Math.round(n).toLocaleString()}</p>
+                                          <p className="text-xs text-rose-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</p>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <p className="text-sm font-bold text-rose-700">${Math.round(n).toLocaleString()}</p>
+                                          <p className="text-xs text-rose-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</p>
+                                        </>
+                                      )}
+                                    </div>
+                                    <button onClick={() => editingId === item.id ? setEditingId(null) : startEdit(item)}
+                                      className={`p-1 transition-colors text-sm ${editingId === item.id ? 'text-indigo-500' : 'text-gray-300 hover:text-indigo-400'}`}>✏️</button>
+                                    <button onClick={() => handleDeleteExpense(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 text-sm">✕</button>
+                                  </div>
+                                </div>
+                                {editingId === item.id && (
+                                  <div className="px-4 pb-3 bg-indigo-50/60 border-t border-indigo-100 space-y-2">
+                                    <div className="flex gap-2 pt-2">
+                                      <div className="flex-1">
+                                        <p className="text-xs text-gray-500 mb-1">카테고리</p>
+                                        <select value={editFields.category} onChange={e => setEditFields(f => ({ ...f, category: e.target.value }))} className={`${selectCls} w-full`}>
+                                          {EXPENSE_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+                                        </select>
+                                      </div>
+                                      <div className="flex-1">
+                                        <p className="text-xs text-gray-500 mb-1">날짜</p>
+                                        <input type="date" value={editFields.date} onChange={e => setEditFields(f => ({ ...f, date: e.target.value }))} className={inputCls} />
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <div className="flex-1">
+                                        <p className="text-xs text-gray-500 mb-1">금액</p>
+                                        <input type="text" inputMode="numeric" value={editFields.amount}
+                                          onChange={e => setEditFields(f => ({ ...f, amount: e.target.value.replace(/[^0-9]/g, '') }))} className={inputCls} />
+                                      </div>
+                                      <div>
+                                        <p className="text-xs text-gray-500 mb-1">통화</p>
+                                        <select value={editFields.currency} onChange={e => setEditFields(f => ({ ...f, currency: e.target.value }))} className={selectCls}>
+                                          {CURRENCIES.map(c => <option key={c}>{c}</option>)}
+                                        </select>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-gray-500 mb-1">상호명</p>
+                                      <input type="text" value={editFields.merchant} onChange={e => setEditFields(f => ({ ...f, merchant: e.target.value }))} className={inputCls} />
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button onClick={() => setEditingId(null)} className="flex-1 py-2 text-xs font-medium rounded-lg bg-gray-100 text-gray-600">취소</button>
+                                      <button onClick={saveEdit} disabled={editSaving} className="flex-1 py-2 text-xs font-medium rounded-lg bg-indigo-600 text-white disabled:opacity-50">
+                                        {editSaving ? '저장 중...' : '저장'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            }
+
+            // ── 카테고리별 보기 ──
             // group filteredExpenses by category
             const grouped: Record<string, typeof filteredExpenses> = {};
             for (const item of filteredExpenses) {
@@ -1398,7 +1554,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
 
             return (
               <>
-                {filteredExpenses.length > 0 && (
+                {summaryCard && (
                   <div className="bg-rose-50 rounded-xl p-3 border border-rose-100">
                     <p className="text-xs font-semibold text-rose-700">{periodLabel[exPeriod]} 총 지출 · <span className="font-normal text-rose-400">Tổng chi tiêu</span></p>
                     <p className="text-xl font-bold text-rose-800 mt-1">
