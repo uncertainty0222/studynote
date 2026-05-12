@@ -14,13 +14,13 @@ interface ExpenseEntry {
 type SubTab = 'dashboard' | 'income' | 'expense';
 type Period = 'month' | 'lastmonth' | 'lastlastmonth' | 'year';
 
-const INCOME_CATEGORIES = ['급여', '투자수익', '부업', '보너스', '투어', '기타'];
+const INCOME_CATEGORIES = ['TOUR', 'COIN', '기타'];
 const EXPENSE_CATEGORIES = ['외식', '생활비', '교통', '쇼핑', '주거', '의료', '카페', '구독', '교육', '기타'];
 const CURRENCIES = ['VND', 'KRW', 'USD', 'USDT'];
 
 const INCOME_CATEGORY_VI: Record<string, string> = {
-  '급여': 'Lương', '투자수익': 'Đầu tư', '부업': 'Việc phụ',
-  '보너스': 'Thưởng', '투어': 'Tour', '기타': 'Khác',
+  'TOUR': 'Tour', 'COIN': 'Coin / Đầu tư', '기타': 'Khác',
+  '투어': 'Tour', '투자수익': 'Đầu tư', '급여': 'Lương', '부업': 'Việc phụ', '보너스': 'Thưởng',
 };
 const EXPENSE_CATEGORY_VI: Record<string, string> = {
   '외식': 'Ăn ngoài', '생활비': 'Sinh hoạt', '교통': 'Giao thông',
@@ -258,7 +258,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
   const [inPeriod, setInPeriod] = useState<Period>('month');
   const [inAmount, setInAmount] = useState('');
   const [inCurrency, setInCurrency] = useState('VND');
-  const [inCategory, setInCategory] = useState('급여');
+  const [inCategory, setInCategory] = useState('TOUR');
   const [inDesc, setInDesc] = useState('');
   const [inDate, setInDate] = useState(new Date().toISOString().slice(0, 10));
   const [inSubmitting, setInSubmitting] = useState(false);
@@ -485,11 +485,14 @@ export default function ChongTab({ user }: { user: { role: string } }) {
     }
   }
 
+  const isTourCat = (cat: string) => cat === 'TOUR' || cat === '투어';
+  const isCoinCat = (cat: string) => cat === 'COIN' || cat === '투자수익';
+
   const tourIncomeUsd = monthIncomes
-    .filter(i => i.category === '투어')
+    .filter(i => isTourCat(i.category))
     .reduce((s, i) => s + toUsd(Number(i.amount), i.currency, usdToVnd, usdToKrw), 0);
   const investIncomeUsd = monthIncomes
-    .filter(i => i.category === '투자수익')
+    .filter(i => isCoinCat(i.category))
     .reduce((s, i) => s + toUsd(Number(i.amount), i.currency, usdToVnd, usdToKrw), 0);
   const otherIncomeUsd = incomeUsd - tourIncomeUsd - investIncomeUsd;
 
@@ -527,9 +530,9 @@ export default function ChongTab({ user }: { user: { role: string } }) {
     const inc = found?.income ?? 0;
     const exp = found?.expense ?? 0;
     const monthIncomes = incomes.filter(i => i.date.startsWith(key));
-    const tourInc = monthIncomes.filter(i => i.category === '투어')
+    const tourInc = monthIncomes.filter(i => isTourCat(i.category))
       .reduce((s, i) => s + toUsd(Number(i.amount), i.currency, usdToVnd, usdToKrw), 0);
-    const coinInc = monthIncomes.filter(i => i.category === '투자수익')
+    const coinInc = monthIncomes.filter(i => isCoinCat(i.category))
       .reduce((s, i) => s + toUsd(Number(i.amount), i.currency, usdToVnd, usdToKrw), 0);
     const otherInc = inc - tourInc - coinInc;
     const expByCat: Record<string, number> = {};
@@ -682,9 +685,9 @@ export default function ChongTab({ user }: { user: { role: string } }) {
               {dashIncomeExpanded && (
                 <div className="border-t border-gray-100 bg-gray-50/60 p-3 space-y-2">
                   {(() => {
-                    const tourItems = monthIncomes.filter(i => i.category === '투어');
-                    const investItems = monthIncomes.filter(i => i.category === '투자수익');
-                    const otherItems = monthIncomes.filter(i => i.category !== '투어' && i.category !== '투자수익');
+                    const tourItems = monthIncomes.filter(i => isTourCat(i.category));
+                    const investItems = monthIncomes.filter(i => isCoinCat(i.category));
+                    const otherItems = monthIncomes.filter(i => !isTourCat(i.category) && !isCoinCat(i.category));
 
                     const renderItem = (item: IncomeEntry) => {
                       const amt = Number(item.amount);
@@ -1109,7 +1112,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                   <div className="flex-1">
                     <label className={labelCls}>카테고리 · <span className="font-normal text-gray-400">Danh mục</span></label>
                     <select value={inCategory} onChange={e => setInCategory(e.target.value)} className={`${selectCls} w-full`}>
-                      {INCOME_CATEGORIES.map(c => <option key={c}>{INCOME_CATEGORY_VI[c] ? `${c} · ${INCOME_CATEGORY_VI[c]}` : c}</option>)}
+                      {INCOME_CATEGORIES.map(c => <option key={c} value={c}>{INCOME_CATEGORY_VI[c] ? `${c} · ${INCOME_CATEGORY_VI[c]}` : c}</option>)}
                     </select>
                   </div>
                   <div className="flex-1">
@@ -1169,9 +1172,9 @@ export default function ChongTab({ user }: { user: { role: string } }) {
           )}
 
           {(() => {
-            const tourItems = filteredIncomes.filter(i => i.category === '투어');
-            const investItems = filteredIncomes.filter(i => i.category === '투자수익');
-            const otherItems = filteredIncomes.filter(i => i.category !== '투어' && i.category !== '투자수익');
+            const tourItems = filteredIncomes.filter(i => isTourCat(i.category));
+            const investItems = filteredIncomes.filter(i => isCoinCat(i.category));
+            const otherItems = filteredIncomes.filter(i => !isTourCat(i.category) && !isCoinCat(i.category));
 
             const renderItem = (item: IncomeEntry) => {
               const amt = Number(item.amount);
