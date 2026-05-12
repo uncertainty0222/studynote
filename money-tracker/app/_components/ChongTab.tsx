@@ -1335,7 +1335,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                   <div className="flex-1">
                     <label className={labelCls}>카테고리 · <span className="font-normal text-gray-400">Danh mục</span></label>
                     <select value={exCategory} onChange={e => setExCategory(e.target.value)} className={`${selectCls} w-full`}>
-                      {EXPENSE_CATEGORIES.map(c => <option key={c}>{EXPENSE_CATEGORY_VI[c] ? `${c} · ${EXPENSE_CATEGORY_VI[c]}` : c}</option>)}
+                      {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{EXPENSE_CATEGORY_VI[c] ? `${c} · ${EXPENSE_CATEGORY_VI[c]}` : c}</option>)}
                     </select>
                   </div>
                   <div className="flex-1">
