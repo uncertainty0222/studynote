@@ -678,41 +678,127 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                   );
                 })()}
               </div>
-              {/* 수입 개별 항목 */}
+              {/* 수입 개별 항목 (수입탭과 동일 레이아웃) */}
               {dashIncomeExpanded && (
-                <div className="border-t border-gray-100 bg-emerald-50/40 divide-y divide-gray-100">
-                  {monthIncomes.length === 0 ? (
-                    <p className="text-xs text-gray-400 text-center py-3">이번 달 수입 항목 없음</p>
-                  ) : (
-                    [...monthIncomes]
-                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                      .map(item => {
-                        const usd = toUsd(Number(item.amount), item.currency, usdToVnd, usdToKrw);
-                        const catVi = INCOME_CATEGORY_VI[item.category] ?? item.category;
-                        const isTour = item.category === '투어';
-                        const isCoin = item.category === '투자수익';
-                        const clr = isTour ? 'text-teal-700' : isCoin ? 'text-blue-700' : 'text-gray-700';
-                        return (
-                          <div key={item.id} className="flex items-start justify-between px-4 py-2.5">
-                            <div className="flex-1 min-w-0">
-                              <div className={`text-xs font-medium ${clr}`}>{item.category} · {catVi}</div>
-                              <div className="text-[10px] text-gray-400 mt-0.5">
-                                {item.date}{item.description ? ` · ${item.description}` : ''}
-                              </div>
-                            </div>
-                            <div className="text-right ml-3 flex-shrink-0">
-                              <span className={`text-xs font-semibold ${clr}`}>{fmt(Number(item.amount), item.currency)}</span>
-                              {item.currency !== 'USD' && item.currency !== 'USDT' && (
-                                <span className="block text-[10px] text-gray-400">${(Math.round(usd * 100) / 100).toLocaleString()}</span>
-                              )}
-                              {item.currency !== 'VND' && (
-                                <span className="block text-[10px] text-gray-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</span>
-                              )}
-                            </div>
+                <div className="border-t border-gray-100 bg-gray-50/60 p-3 space-y-2">
+                  {(() => {
+                    const tourItems = monthIncomes.filter(i => i.category === '투어');
+                    const investItems = monthIncomes.filter(i => i.category === '투자수익');
+                    const otherItems = monthIncomes.filter(i => i.category !== '투어' && i.category !== '투자수익');
+
+                    const renderItem = (item: IncomeEntry) => {
+                      const amt = Number(item.amount);
+                      const neg = amt < 0;
+                      const abs = Math.abs(Math.round(amt));
+                      const color = neg ? 'text-rose-600' : 'text-emerald-700';
+                      const smallColor = neg ? 'text-rose-400' : 'text-emerald-400';
+                      const sign = neg ? '−' : '';
+                      let primary = '';
+                      let vndAmt: number | null = null;
+                      if (item.currency === 'USD' || item.currency === 'USDT') {
+                        primary = `${sign}$${abs.toLocaleString()}`;
+                        vndAmt = Math.round(Math.abs(amt) * usdToVnd);
+                      } else if (item.currency === 'KRW') {
+                        primary = `${sign}₩${abs.toLocaleString()}`;
+                        vndAmt = Math.round(Math.abs(amt) / usdToKrw * usdToVnd);
+                      } else {
+                        primary = `${sign}₫${abs.toLocaleString()}`;
+                      }
+                      return (
+                        <li key={item.id} className="py-2 px-2.5 flex items-start justify-between gap-1 border-b border-gray-50 last:border-0">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[11px] text-gray-700 font-medium truncate">{item.description || item.category}</p>
+                            <p className="text-[10px] text-gray-400">{item.date.slice(5)}</p>
                           </div>
-                        );
-                      })
-                  )}
+                          <div className="text-right flex-shrink-0 flex items-center gap-1">
+                            <div>
+                              <span className={`text-xs font-bold ${color}`}>{primary}</span>
+                              {vndAmt !== null && (
+                                <span className={`block text-[9px] ${smallColor}`}>{sign}₫{vndAmt.toLocaleString()}</span>
+                              )}
+                            </div>
+                            {isHusband && (
+                              <button onClick={() => handleDeleteIncome(item.id)} className="text-gray-200 hover:text-red-400 transition-colors ml-0.5">✕</button>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    };
+
+                    if (monthIncomes.length === 0) {
+                      return (
+                        <div className="bg-white rounded-2xl shadow-sm py-6 text-center text-gray-400 text-sm">
+                          <p className="text-2xl mb-1">📈</p>
+                          <p>이번 달 수입 없음</p>
+                          <p className="text-[11px] mt-0.5">Chưa có thu nhập tháng này</p>
+                        </div>
+                      );
+                    }
+                    return (
+                      <>
+                        {(tourItems.length > 0 || investItems.length > 0) && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {tourItems.length > 0 && (
+                              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                                <p className="text-[11px] font-semibold text-teal-700 px-2.5 pt-2.5 pb-1">🗺️ 투어 · <span className="font-normal text-teal-500">Tour</span></p>
+                                <ul>{tourItems.map(renderItem)}</ul>
+                              </div>
+                            )}
+                            {investItems.length > 0 && (
+                              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                                <p className="text-[11px] font-semibold text-blue-700 px-2.5 pt-2.5 pb-1">📊 투자수익 · <span className="font-normal text-blue-500">Đầu tư</span></p>
+                                <ul>{investItems.map(renderItem)}</ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {otherItems.length > 0 && (
+                          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                            <p className="text-[11px] font-semibold text-gray-500 px-3 pt-2.5 pb-1">기타 수입 · <span className="font-normal text-gray-400">Thu khác</span></p>
+                            <ul className="divide-y divide-gray-50">
+                              {otherItems.map(item => {
+                                const amt = Number(item.amount);
+                                const neg = amt < 0;
+                                const abs = Math.abs(Math.round(amt));
+                                const color = neg ? 'text-rose-600' : 'text-emerald-700';
+                                const smallColor = neg ? 'text-rose-400' : 'text-emerald-400';
+                                const sign = neg ? '−' : '';
+                                let primary = '';
+                                let vndAmt: number | null = null;
+                                if (item.currency === 'USD' || item.currency === 'USDT') {
+                                  primary = `${sign}$${abs.toLocaleString()}`; vndAmt = Math.round(Math.abs(amt) * usdToVnd);
+                                } else if (item.currency === 'KRW') {
+                                  primary = `${sign}₩${abs.toLocaleString()}`; vndAmt = Math.round(Math.abs(amt) / usdToKrw * usdToVnd);
+                                } else {
+                                  primary = `${sign}₫${abs.toLocaleString()}`;
+                                }
+                                return (
+                                  <li key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs bg-emerald-100 text-emerald-700 font-medium px-2 py-0.5 rounded-full">{item.category}</span>
+                                        {item.description && <span className="text-xs text-gray-500 truncate">{item.description}</span>}
+                                      </div>
+                                      <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                      <div className="text-right">
+                                        <span className={`text-sm font-bold ${color}`}>{primary}</span>
+                                        {vndAmt !== null && <span className={`block text-[10px] ${smallColor}`}>{sign}₫{vndAmt.toLocaleString()}</span>}
+                                      </div>
+                                      {isHusband && (
+                                        <button onClick={() => handleDeleteIncome(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
+                                      )}
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -761,42 +847,89 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                   </div>
                 )}
               </div>
-              {/* 지출 개별 항목 */}
+              {/* 지출 개별 항목 (지출탭과 동일 레이아웃) */}
               {dashExpenseExpanded && (
-                <div className="border-t border-gray-100 bg-rose-50/40 divide-y divide-gray-100">
-                  {monthExpenses.length === 0 ? (
-                    <p className="text-xs text-gray-400 text-center py-3">이번 달 지출 항목 없음</p>
-                  ) : (
-                    [...monthExpenses]
-                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                      .map(item => {
-                        const usd = toUsd(Number(item.amount), item.currency, usdToVnd, usdToKrw);
-                        const catVi = EXPENSE_CATEGORY_VI[item.category] ?? item.category;
-                        const color = CATEGORY_COLORS[item.category] ?? '#94a3b8';
-                        return (
-                          <div key={item.id} className="flex items-start justify-between px-4 py-2.5">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                                <span className="text-xs font-medium text-gray-700">{item.category} · {catVi}</span>
-                              </div>
-                              <div className="text-[10px] text-gray-400 mt-0.5 ml-3.5">
-                                {item.date}{item.merchant ? ` · ${item.merchant}` : ''}{item.description ? ` · ${item.description}` : ''}
-                              </div>
-                            </div>
-                            <div className="text-right ml-3 flex-shrink-0">
-                              <span className="text-xs font-semibold text-gray-700">{fmt(Number(item.amount), item.currency)}</span>
-                              {item.currency !== 'USD' && item.currency !== 'USDT' && (
-                                <span className="block text-[10px] text-gray-400">${(Math.round(usd * 100) / 100).toLocaleString()}</span>
-                              )}
-                              {item.currency !== 'VND' && (
-                                <span className="block text-[10px] text-gray-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</span>
-                              )}
-                            </div>
+                <div className="border-t border-gray-100 bg-gray-50/60 p-3 space-y-3">
+                  {(() => {
+                    const grouped: Record<string, ExpenseEntry[]> = {};
+                    for (const item of monthExpenses) {
+                      if (!grouped[item.category]) grouped[item.category] = [];
+                      grouped[item.category].push(item);
+                    }
+                    const sortedGroupedCats = Object.entries(grouped).sort((a, b) => {
+                      const sum = (items: ExpenseEntry[]) => items.reduce((s, it) => {
+                        const n = Number(it.amount);
+                        if (it.currency === 'VND') return s + n / usdToVnd;
+                        if (it.currency === 'KRW') return s + n / usdToKrw;
+                        return s + n;
+                      }, 0);
+                      return sum(b[1]) - sum(a[1]);
+                    });
+
+                    if (monthExpenses.length === 0) {
+                      return (
+                        <div className="bg-white rounded-2xl shadow-sm py-6 text-center text-gray-400 text-sm">
+                          <p className="text-2xl mb-1">📉</p>
+                          <p>이번 달 지출 없음</p>
+                          <p className="text-[11px] mt-0.5">Chưa có chi tiêu tháng này</p>
+                        </div>
+                      );
+                    }
+
+                    return sortedGroupedCats.map(([cat, items]) => {
+                      const catUsd = items.reduce((s, it) => {
+                        const n = Number(it.amount);
+                        if (it.currency === 'VND') return s + n / usdToVnd;
+                        if (it.currency === 'KRW') return s + n / usdToKrw;
+                        return s + n;
+                      }, 0);
+                      return (
+                        <div key={cat} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                          <div className="px-4 py-2.5 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
+                            <span className="text-xs font-semibold text-rose-700">{cat} · <span className="font-normal text-rose-400">{EXPENSE_CATEGORY_VI[cat] ?? cat}</span></span>
+                            <span className="text-xs font-bold text-rose-800">
+                              ${Math.round(catUsd).toLocaleString()}
+                              <span className="font-medium text-rose-400 ml-1">(₫{Math.round(catUsd * usdToVnd).toLocaleString()})</span>
+                            </span>
                           </div>
-                        );
-                      })
-                  )}
+                          <ul className="divide-y divide-gray-50">
+                            {items.map(item => {
+                              const n = Number(item.amount);
+                              const itemUsd = item.currency === 'VND' ? n / usdToVnd : item.currency === 'KRW' ? n / usdToKrw : n;
+                              return (
+                                <li key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    {item.merchant && <p className="text-xs text-gray-700 font-medium truncate">{item.merchant}</p>}
+                                    <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    <div className="text-right">
+                                      {item.currency === 'VND' ? (
+                                        <p className="text-sm font-bold text-rose-700">₫{Math.round(n).toLocaleString()}</p>
+                                      ) : item.currency === 'KRW' ? (
+                                        <>
+                                          <p className="text-sm font-bold text-rose-700">₩{Math.round(n).toLocaleString()}</p>
+                                          <p className="text-xs text-rose-400">₫{Math.round(itemUsd * usdToVnd).toLocaleString()}</p>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <p className="text-sm font-bold text-rose-700">${Math.round(n).toLocaleString()}</p>
+                                          <p className="text-xs text-rose-400">₫{Math.round(itemUsd * usdToVnd).toLocaleString()}</p>
+                                        </>
+                                      )}
+                                    </div>
+                                    {isHusband && (
+                                      <button onClick={() => handleDeleteExpense(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 text-sm">✕</button>
+                                    )}
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </div>
