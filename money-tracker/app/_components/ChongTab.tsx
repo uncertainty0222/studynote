@@ -607,24 +607,27 @@ export default function ChongTab({ user }: { user: { role: string } }) {
             </div>
 
             {/* 수입 섹션 */}
-            <div className="px-4 pt-3 pb-3 border-b border-gray-100">
-              <div className="flex items-baseline justify-between mb-2.5">
-                <span className="text-xs font-semibold text-gray-700">📈 수입 · Thu nhập</span>
+            <div className="px-4 pt-3.5 pb-3.5 border-b border-gray-100">
+              <div className="flex items-baseline justify-between mb-3">
+                <span className="text-sm font-semibold text-gray-700">📈 수입 · Thu nhập</span>
                 <div className="text-right">
-                  <span className="text-base font-bold text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
-                  <span className="text-xs text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
+                  <span className="text-lg font-bold text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
+                  <span className="text-sm text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
                 </div>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {tourIncomeUsd !== 0 && (() => {
                   const pct = Math.round(tourIncomeUsd / incomeUsd * 100);
                   return (
                     <div>
-                      <div className="flex justify-between text-xs mb-1">
+                      <div className="flex justify-between text-sm mb-1">
                         <span className="font-medium text-teal-700">🗺️ TOUR</span>
-                        <span className="text-teal-700">${Math.round(tourIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                        <div className="text-right">
+                          <span className="text-teal-700">${Math.round(tourIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                          <span className="block text-xs text-teal-400">₫{Math.round(tourIncomeUsd * usdToVnd).toLocaleString()}</span>
+                        </div>
                       </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full bg-teal-400 rounded-full" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
@@ -634,11 +637,14 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                   const pct = Math.round(investIncomeUsd / incomeUsd * 100);
                   return (
                     <div>
-                      <div className="flex justify-between text-xs mb-1">
+                      <div className="flex justify-between text-sm mb-1">
                         <span className="font-medium text-blue-700">🪙 COIN</span>
-                        <span className="text-blue-700">${Math.round(investIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                        <div className="text-right">
+                          <span className="text-blue-700">${Math.round(investIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                          <span className="block text-xs text-blue-400">₫{Math.round(investIncomeUsd * usdToVnd).toLocaleString()}</span>
+                        </div>
                       </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
@@ -648,11 +654,14 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                   const pct = Math.round(Math.abs(otherIncomeUsd) / incomeUsd * 100);
                   return (
                     <div>
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-500">기타</span>
-                        <span className="text-gray-500">${Math.round(otherIncomeUsd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-500">기타 · Khác</span>
+                        <div className="text-right">
+                          <span className="text-gray-500">${Math.round(otherIncomeUsd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                          <span className="block text-xs text-gray-400">₫{Math.round(otherIncomeUsd * usdToVnd).toLocaleString()}</span>
+                        </div>
                       </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full bg-gray-300 rounded-full" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
@@ -662,28 +671,32 @@ export default function ChongTab({ user }: { user: { role: string } }) {
             </div>
 
             {/* 지출 섹션 */}
-            <div className="px-4 pt-3 pb-4">
-              <div className="flex items-baseline justify-between mb-2.5">
-                <span className="text-xs font-semibold text-gray-700">📉 지출 · Chi tiêu</span>
+            <div className="px-4 pt-3.5 pb-5">
+              <div className="flex items-baseline justify-between mb-3">
+                <span className="text-sm font-semibold text-gray-700">📉 지출 · Chi tiêu</span>
                 <div className="text-right">
-                  <span className="text-base font-bold text-rose-700">${Math.round(expenseUsd).toLocaleString()}</span>
-                  <span className="text-xs text-rose-400 ml-1">(₫{Math.round(expenseUsd * usdToVnd).toLocaleString()})</span>
+                  <span className="text-lg font-bold text-rose-700">${Math.round(expenseUsd).toLocaleString()}</span>
+                  <span className="text-sm text-rose-400 ml-1">(₫{Math.round(expenseUsd * usdToVnd).toLocaleString()})</span>
                 </div>
               </div>
               {sortedCats.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-2">이번 달 지출 없음 · Chưa có chi tiêu</p>
+                <p className="text-sm text-gray-400 text-center py-2">이번 달 지출 없음 · Chưa có chi tiêu</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {sortedCats.map(([cat, usd]) => {
                     const pct = Math.round(usd / expenseUsd * 100);
                     const color = CATEGORY_COLORS[cat] ?? '#94a3b8';
+                    const catVi = EXPENSE_CATEGORY_VI[cat] ?? cat;
                     return (
                       <div key={cat}>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-gray-700">{cat}</span>
-                          <span className="text-gray-600">${Math.round(usd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-gray-700">{cat} <span className="text-gray-400 font-normal text-xs">· {catVi}</span></span>
+                          <div className="text-right">
+                            <span className="text-gray-600">${Math.round(usd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                            <span className="block text-xs text-gray-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</span>
+                          </div>
                         </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
                         </div>
                       </div>
