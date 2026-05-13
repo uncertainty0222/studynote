@@ -365,6 +365,8 @@ export interface ShoppingItem {
   check_memo: string;
   created_at: string;
   comment_count: number;
+  first_comment_content: string | null;
+  first_comment_author: string | null;
 }
 
 export interface ShoppingComment {
@@ -379,7 +381,10 @@ export async function getShoppingItems(): Promise<ShoppingItem[]> {
   await initDb();
   const sql = getSql();
   return sql<ShoppingItem[]>`
-    SELECT si.*, COUNT(sc.id)::int AS comment_count
+    SELECT si.*,
+      COUNT(sc.id)::int AS comment_count,
+      (SELECT sc2.content FROM shopping_comments sc2 WHERE sc2.item_id = si.id ORDER BY sc2.created_at ASC LIMIT 1) AS first_comment_content,
+      (SELECT sc2.author FROM shopping_comments sc2 WHERE sc2.item_id = si.id ORDER BY sc2.created_at ASC LIMIT 1) AS first_comment_author
     FROM shopping_items si
     LEFT JOIN shopping_comments sc ON sc.item_id = si.id
     WHERE si.status = 'needed'
@@ -393,7 +398,7 @@ export async function createShoppingItem(name: string, addedBy: 'husband' | 'wif
   await initDb();
   const sql = getSql();
   const [row] = await sql<ShoppingItem[]>`
-    INSERT INTO shopping_items (name, added_by) VALUES (${name}, ${addedBy}) RETURNING *, 0 AS comment_count
+    INSERT INTO shopping_items (name, added_by) VALUES (${name}, ${addedBy}) RETURNING *, 0 AS comment_count, NULL AS first_comment_content, NULL AS first_comment_author
   `;
   return row;
 }
@@ -405,7 +410,7 @@ export async function checkShoppingItem(id: number, buyerRole: 'husband' | 'wife
     UPDATE shopping_items
     SET status = 'bought', bought_by = ${buyerRole}, bought_at = NOW(), check_memo = ${memo}
     WHERE id = ${id}
-    RETURNING *, 0 AS comment_count
+    RETURNING *, 0 AS comment_count, NULL AS first_comment_content, NULL AS first_comment_author
   `;
   return row ?? null;
 }
@@ -417,7 +422,7 @@ export async function uncheckShoppingItem(id: number): Promise<ShoppingItem | nu
     UPDATE shopping_items
     SET status = 'needed', bought_by = NULL, bought_at = NULL, check_memo = ''
     WHERE id = ${id}
-    RETURNING *, 0 AS comment_count
+    RETURNING *, 0 AS comment_count, NULL AS first_comment_content, NULL AS first_comment_author
   `;
   return row ?? null;
 }

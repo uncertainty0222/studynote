@@ -20,6 +20,7 @@ interface ShoppingItem {
   status: 'needed' | 'bought'; bought_by: 'husband' | 'wife' | null;
   bought_at: string | null; check_memo: string;
   created_at: string; comment_count: number;
+  first_comment_content: string | null; first_comment_author: string | null;
 }
 interface ShoppingComment {
   id: number; item_id: number; author: 'husband' | 'wife'; content: string; created_at: string;
@@ -333,6 +334,10 @@ export default function Home() {
     const memo = checkMemos[id]?.trim() ?? '';
     setCheckingItemId(null);
     await fetch(`/api/shopping/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memo }) });
+    if (memo) {
+      await fetch(`/api/shopping/${id}/comments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: memo }) });
+    }
+    setCheckMemos(prev => { const n = { ...prev }; delete n[id]; return n; });
     await fetchShopData();
   }
 
@@ -632,11 +637,26 @@ export default function Home() {
                             onClick={() => setCheckingItemId(isChecking ? null : item.id)}
                             className={`w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-xs font-bold transition-colors ${isChecking ? 'border-green-400 bg-green-50 text-green-500' : 'border-gray-300 text-transparent hover:border-green-400'}`}
                           >✓</button>
-                          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleExpandItem(item.id)}>
+                          <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                            {/* 첫 번째 댓글 인라인 표시 */}
+                            {item.first_comment_content && !isExpanded && (
+                              <p className="text-xs text-indigo-500 mt-0.5 truncate">
+                                💬 {item.first_comment_content}
+                              </p>
+                            )}
                             <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
                               <span>{item.added_by === 'husband' ? t.husband : t.wife}</span>
-                              {item.comment_count > 0 && <span>{t.shopCommentCount(item.comment_count)}</span>}
+                              {item.comment_count > 0 && (
+                                <button onClick={() => handleExpandItem(item.id)} className="text-indigo-400 hover:text-indigo-600">
+                                  {isExpanded ? '▲ 접기' : `▼ 댓글 ${item.comment_count}개`}
+                                </button>
+                              )}
+                              {item.comment_count === 0 && (
+                                <button onClick={() => handleExpandItem(item.id)} className="text-gray-300 hover:text-indigo-400">
+                                  + 댓글
+                                </button>
+                              )}
                             </p>
                           </div>
                           <button onClick={() => handleDeleteShopItem(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 flex-shrink-0">✕</button>
@@ -650,7 +670,7 @@ export default function Home() {
                               value={checkMemos[item.id] ?? ''}
                               onChange={e => setCheckMemos(prev => ({ ...prev, [item.id]: e.target.value }))}
                               onKeyDown={e => { if (e.key === 'Enter') handleCheckShopItem(item.id); if (e.key === 'Escape') setCheckingItemId(null); }}
-                              placeholder="메모 (선택) · Ghi chú tùy chọn"
+                              placeholder="구매 후 한마디... (선택) · Ghi chú tùy chọn"
                               className="w-full border border-green-200 rounded-lg px-3 py-1.5 text-xs bg-green-50 focus:outline-none focus:ring-2 focus:ring-green-300"
                             />
                             <div className="flex gap-2">
@@ -716,20 +736,71 @@ export default function Home() {
                         const daysLeft = item.bought_at
                           ? Math.ceil((new Date(item.bought_at).getTime() + 7 * 86400000 - Date.now()) / 86400000)
                           : 7;
+                        const isExpanded = expandedItem === item.id;
+                        const itemComments = comments[item.id] ?? [];
+                        const firstComment = item.first_comment_content;
                         return (
-                          <li key={item.id} className="px-4 py-2.5 flex items-start gap-3">
-                            <button
-                              onClick={() => handleUncheckShopItem(item.id)}
-                              className="w-7 h-7 rounded-full bg-green-100 border-2 border-green-400 flex items-center justify-center flex-shrink-0 text-xs font-bold text-green-600 hover:bg-green-200 transition-colors mt-0.5"
-                            >✓</button>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-gray-400 line-through">{item.name}</p>
-                              {item.check_memo && <p className="text-xs text-gray-500 mt-0.5">💬 {item.check_memo}</p>}
-                              <p className="text-[10px] text-gray-300 mt-0.5">
-                                {buyerName} · {daysLeft > 0 ? `${daysLeft}일 후 삭제` : '오늘 삭제'}
-                              </p>
+                          <li key={item.id} className="px-4 py-2.5">
+                            <div className="flex items-start gap-3">
+                              <button
+                                onClick={() => handleUncheckShopItem(item.id)}
+                                className="w-7 h-7 rounded-full bg-green-100 border-2 border-green-400 flex items-center justify-center flex-shrink-0 text-xs font-bold text-green-600 hover:bg-green-200 transition-colors mt-0.5"
+                              >✓</button>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-gray-400 line-through">{item.name}</p>
+                                {/* 첫 번째 댓글 인라인 표시 */}
+                                {firstComment && !isExpanded && (
+                                  <p className="text-xs text-indigo-400 mt-0.5 truncate">💬 {firstComment}</p>
+                                )}
+                                <p className="text-[10px] text-gray-300 mt-0.5 flex items-center gap-1.5">
+                                  <span>{buyerName} · {daysLeft > 0 ? `${daysLeft}일 후 삭제` : '오늘 삭제'}</span>
+                                  {item.comment_count > 0 && (
+                                    <button onClick={() => handleExpandItem(item.id)} className="text-indigo-300 hover:text-indigo-500">
+                                      {isExpanded ? '▲ 접기' : `▼ 댓글 ${item.comment_count}개`}
+                                    </button>
+                                  )}
+                                  {item.comment_count === 0 && (
+                                    <button onClick={() => handleExpandItem(item.id)} className="text-gray-200 hover:text-indigo-300">
+                                      + 댓글
+                                    </button>
+                                  )}
+                                </p>
+                              </div>
+                              <button onClick={() => handleDeleteShopItem(item.id)} className="text-gray-200 hover:text-red-400 transition-colors p-1 flex-shrink-0 text-xs mt-0.5">✕</button>
                             </div>
-                            <button onClick={() => handleDeleteShopItem(item.id)} className="text-gray-200 hover:text-red-400 transition-colors p-1 flex-shrink-0 text-xs mt-0.5">✕</button>
+                            {/* 댓글 펼침 */}
+                            {isExpanded && (
+                              <div className="mt-3 pl-10 space-y-2">
+                                {loadingComments[item.id] ? (
+                                  <p className="text-xs text-gray-400">{t.loading}</p>
+                                ) : (
+                                  <>
+                                    {itemComments.map(c => (
+                                      <div key={c.id} className={`flex items-end gap-2 ${c.author === user?.role ? 'flex-row-reverse' : ''}`}>
+                                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${c.author === 'husband' ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-600'}`}>
+                                          {c.author === 'husband' ? t.husbandInitial : t.wifeInitial}
+                                        </div>
+                                        <div className={`rounded-2xl px-3 py-1.5 text-xs max-w-[75%] ${c.author === user?.role ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                                          {c.content}
+                                        </div>
+                                      </div>
+                                    ))}
+                                    <div className="flex gap-2 pt-1">
+                                      <input
+                                        value={commentInput[item.id] ?? ''}
+                                        onChange={e => setCommentInput(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddComment(item.id); } }}
+                                        placeholder={t.shopCommentPlaceholder}
+                                        className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                      />
+                                      <button onClick={() => handleAddComment(item.id)} disabled={!commentInput[item.id]?.trim()} className="bg-indigo-600 disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg transition-colors">
+                                        {t.shopSend}
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </li>
                         );
                       })}
