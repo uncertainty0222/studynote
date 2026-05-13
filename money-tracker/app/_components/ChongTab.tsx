@@ -926,7 +926,10 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                                   <div className="flex items-center gap-1.5 flex-shrink-0">
                                     <div className="text-right">
                                       {item.currency === 'VND' ? (
-                                        <p className="text-sm font-bold text-rose-700">₫{Math.round(n).toLocaleString()}</p>
+                                        <>
+                                          <p className="text-sm font-bold text-rose-700">₫{Math.round(n).toLocaleString()}</p>
+                                          <p className="text-xs text-rose-400">${(n / usdToVnd).toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+                                        </>
                                       ) : item.currency === 'KRW' ? (
                                         <>
                                           <p className="text-sm font-bold text-rose-700">₩{Math.round(n).toLocaleString()}</p>
@@ -1466,7 +1469,10 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                                   <div className="flex items-center gap-1.5 flex-shrink-0">
                                     <div className="text-right">
                                       {item.currency === 'VND' ? (
-                                        <p className="text-sm font-bold text-rose-700">₫{Math.round(n).toLocaleString()}</p>
+                                        <>
+                                          <p className="text-sm font-bold text-rose-700">₫{Math.round(n).toLocaleString()}</p>
+                                          <p className="text-xs text-rose-400">${(n / usdToVnd).toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+                                        </>
                                       ) : item.currency === 'KRW' ? (
                                         <>
                                           <p className="text-sm font-bold text-rose-700">₩{Math.round(n).toLocaleString()}</p>
