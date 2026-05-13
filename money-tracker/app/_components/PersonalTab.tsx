@@ -24,6 +24,13 @@ function fmtIncomeAmt(amount: number, currency: string, usdToVnd: number, usdToK
   const usdAmt = currency === 'USD' ? amount : currency === 'KRW' ? amount / usdToKrw : amount / usdToVnd;
   return `$${usdAmt.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
 }
+function toVndAmt(amount: number, currency: string, usdToVnd: number, usdToKrw: number): string {
+  let vnd: number;
+  if (currency === 'VND') vnd = amount;
+  else if (currency === 'KRW') vnd = (amount / usdToKrw) * usdToVnd;
+  else vnd = amount * usdToVnd; // USD
+  return `₫${Math.round(vnd / 1000).toLocaleString()}k`;
+}
 
 function getWeekKey(date: Date): string {
   const d = new Date(date.getTime());
@@ -283,6 +290,9 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
                   <span className="text-base font-bold text-emerald-600">
                     {fmtIncomeAmt(Number(latest.amount), latest.currency, usdToVnd, usdToKrw)}
                   </span>
+                  {latest.currency !== 'VND' && (
+                    <span className="text-xs text-emerald-400">{toVndAmt(Number(latest.amount), latest.currency, usdToVnd, usdToKrw)}</span>
+                  )}
                   <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium">{catLabel}</span>
                   {latest.description && <span className="text-xs text-gray-400 truncate max-w-[120px]">{latest.description}</span>}
                 </div>
@@ -297,7 +307,10 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
                     <div className="flex items-center gap-2">
                       <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{INCOME_CATEGORY_LABEL[item.category] ?? item.category}</span>
                       <div>
-                        <p className="text-xs font-medium text-gray-800">{fmtIncomeAmt(Number(item.amount), item.currency, usdToVnd, usdToKrw)}</p>
+                        <p className="text-xs font-medium text-gray-800">
+                          {fmtIncomeAmt(Number(item.amount), item.currency, usdToVnd, usdToKrw)}
+                          {item.currency !== 'VND' && <span className="text-gray-400 ml-1">{toVndAmt(Number(item.amount), item.currency, usdToVnd, usdToKrw)}</span>}
+                        </p>
                         {item.description && <p className="text-xs text-gray-400">{item.description}</p>}
                       </div>
                     </div>
