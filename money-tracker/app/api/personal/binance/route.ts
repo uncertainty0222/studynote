@@ -29,7 +29,7 @@ export async function GET() {
     const [pricesR, spotR, futuresR, fundingR, fxR] = await Promise.allSettled([
       fetch('https://api.binance.com/api/v3/ticker/price'),
       fetch(`https://api.binance.com/api/v3/account?${qs}&signature=${sig}`, { headers: h }),
-      fetch(`https://fapi.binance.com/fapi/v2/account?${qs}&signature=${sig}`, { headers: h }),
+      fetch(`https://fapi.binance.com/fapi/v3/account?${qs}&signature=${sig}`, { headers: h }),
       fetch(`https://api.binance.com/sapi/v1/asset/get-funding-asset?${qs}&signature=${sig}`, { method: 'POST', headers: h }),
       fetch('https://open.er-api.com/v6/latest/USD'),
     ]);
@@ -48,6 +48,8 @@ export async function GET() {
       return 0;
     }
 
+    const sectionErrors: Record<string, string> = {};
+
     // SPOT
     let spotUsdt = 0;
     let spotHoldings: { asset: string; total: number; usdtValue: number }[] = [];
@@ -62,6 +64,10 @@ export async function GET() {
         .filter(h => h.usdtValue > 0.01)
         .sort((a, b) => b.usdtValue - a.usdtValue);
       spotUsdt = spotHoldings.reduce((s, h) => s + h.usdtValue, 0);
+    } else if (spotR.status === 'rejected') {
+      sectionErrors['spot'] = String(spotR.reason);
+    } else if (spotR.status === 'fulfilled' && !spotR.value.ok) {
+      sectionErrors['spot'] = `HTTP ${spotR.value.status}`;
     }
 
     // FUTURES (USDT-M)
@@ -69,6 +75,11 @@ export async function GET() {
     if (futuresR.status === 'fulfilled' && futuresR.value.ok) {
       const data = await futuresR.value.json() as FuturesAccount;
       futuresUsdt = parseFloat(data.totalMarginBalance) || 0;
+    } else if (futuresR.status === 'rejected') {
+      sectionErrors['futures'] = String(futuresR.reason);
+    } else if (futuresR.status === 'fulfilled' && !futuresR.value.ok) {
+      const body = await futuresR.value.text().catch(() => '');
+      sectionErrors['futures'] = `HTTP ${futuresR.value.status}: ${body.slice(0, 200)}`;
     }
 
     // FUNDING
@@ -86,6 +97,10 @@ export async function GET() {
           .sort((a, b) => b.usdtValue - a.usdtValue);
         fundingUsdt = fundingHoldings.reduce((s, h) => s + h.usdtValue, 0);
       }
+    } else if (fundingR.status === 'rejected') {
+      sectionErrors['funding'] = String(fundingR.reason);
+    } else if (fundingR.status === 'fulfilled' && !fundingR.value.ok) {
+      sectionErrors['funding'] = `HTTP ${fundingR.value.status}`;
     }
 
     // Exchange rates (1 USD ≈ 1 USDT)
@@ -109,6 +124,7 @@ export async function GET() {
       usdToVnd,
       usdToKrw,
       updatedAt: new Date().toISOString(),
+      ...(Object.keys(sectionErrors).length > 0 && { sectionErrors }),
     });
   } catch (e) {
     return Response.json({ error: `연결 실패: ${String(e)}` }, { status: 500 });

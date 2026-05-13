@@ -18,6 +18,7 @@ interface Balance { husbandOwes: number; husbandTotal: number; wifeTotal: number
 interface ShoppingItem {
   id: number; name: string; added_by: 'husband' | 'wife';
   status: 'needed' | 'bought'; bought_by: 'husband' | 'wife' | null;
+  bought_at: string | null; check_memo: string;
   created_at: string; comment_count: number;
 }
 interface ShoppingComment {
@@ -55,7 +56,7 @@ const T = {
     deletionPending: '삭제 요청 중',
     errGeneral: '오류가 발생했습니다',
     unit: '원',
-    tabMoney: 'vợ chồng ❤️', tabShopping: '장보기', tabPersonal: 'Tiền của anh! 😜', tabChong: 'chồng',
+    tabMoney: '남편과 아내', tabShopping: '장보기', tabPersonal: '우리의 자산 (쑥쑥 자라라!)', tabChong: '현금 흐름 한눈에 보기',
     shopPlaceholder: '쓰레기봉투, 세제 등...', shopAdd: '추가',
     shopEmpty: '필요한 물건을 추가해보세요',
     shopBoughtBy: (n: string) => `${n}이(가) 구매`,
@@ -91,7 +92,7 @@ const T = {
     deletionPending: 'Đang yêu cầu xóa',
     errGeneral: 'Đã xảy ra lỗi',
     unit: '₩',
-    tabMoney: 'vợ chồng ❤️', tabShopping: 'Mua Sắm', tabPersonal: 'Tiền của anh! 😜', tabChong: 'chồng',
+    tabMoney: 'Chồng và Vợ ❤️', tabShopping: 'Mua Sắm', tabPersonal: 'Tài sản của chúng ta 🌱', tabChong: 'Dòng tiền tổng quan',
     shopPlaceholder: 'Túi rác, xà phòng,...', shopAdd: 'Thêm',
     shopEmpty: 'Hãy thêm đồ cần mua',
     shopBoughtBy: (n: string) => `${n} đã mua`,
@@ -154,7 +155,7 @@ export default function Home() {
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const [activeTab, setActiveTab] = useState<'couple' | 'personal' | 'chong'>('couple');
+  const [activeTab, setActiveTab] = useState<'couple' | 'personal' | 'chong'>('personal');
   const [shopItems, setShopItems] = useState<ShoppingItem[]>([]);
   const [shopInput, setShopInput] = useState('');
   const [shopSubmitting, setShopSubmitting] = useState(false);
@@ -162,6 +163,9 @@ export default function Home() {
   const [comments, setComments] = useState<Record<number, ShoppingComment[]>>({});
   const [commentInput, setCommentInput] = useState<Record<number, string>>({});
   const [loadingComments, setLoadingComments] = useState<Record<number, boolean>>({});
+  const [checkingItemId, setCheckingItemId] = useState<number | null>(null);
+  const [checkMemos, setCheckMemos] = useState<Record<number, string>>({});
+  const [boughtExpanded, setBoughtExpanded] = useState(false);
 
   // Form state
   const [payer, setPayer] = useState<'husband' | 'wife'>('husband');
@@ -320,8 +324,15 @@ export default function Home() {
     await fetchShopData();
   }
 
-  async function handleToggleShopItem(id: number) {
-    await fetch(`/api/shopping/${id}`, { method: 'PATCH' });
+  async function handleCheckShopItem(id: number) {
+    const memo = checkMemos[id]?.trim() ?? '';
+    setCheckingItemId(null);
+    await fetch(`/api/shopping/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memo }) });
+    await fetchShopData();
+  }
+
+  async function handleUncheckShopItem(id: number) {
+    await fetch(`/api/shopping/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'uncheck' }) });
     await fetchShopData();
   }
 
@@ -481,14 +492,14 @@ export default function Home() {
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
         {/* Tab Navigation */}
         <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
-          <button onClick={() => setActiveTab('couple')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'couple' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
-            {t.tabMoney}
-          </button>
           <button onClick={() => setActiveTab('personal')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'personal' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
             {t.tabPersonal}
           </button>
           <button onClick={() => setActiveTab('chong')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'chong' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
             {t.tabChong}
+          </button>
+          <button onClick={() => setActiveTab('couple')} className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${activeTab === 'couple' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
+            {t.tabMoney}
           </button>
         </div>
 
@@ -498,8 +509,8 @@ export default function Home() {
         )}
 
         {/* ── Chong Tab (수입 + 지출) ── */}
-        {activeTab === 'chong' && (
-          <ChongTab />
+        {activeTab === 'chong' && user && (
+          <ChongTab user={user} />
         )}
 
         {/* ── Couple Tab (가계부 + 장보기 통합) ── */}
@@ -585,81 +596,154 @@ export default function Home() {
         )}
 
         {/* ── Shopping List ── */}
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-700">🛒 {t.tabShopping}</p>
-          </div>
-          <div className="px-4 py-3 border-b border-gray-50">
-            <form onSubmit={handleAddShopItem} className="flex gap-2">
-              <input
-                value={shopInput}
-                onChange={e => setShopInput(e.target.value)}
-                placeholder={t.shopPlaceholder}
-                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              />
-              <button type="submit" disabled={shopSubmitting || !shopInput.trim()} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-                {t.shopAdd}
-              </button>
-            </form>
-          </div>
-          {shopItems.filter(i => i.status === 'needed').length === 0 ? (
-            <div className="py-8 text-center text-gray-400 text-sm">{t.shopEmpty}</div>
-          ) : (
-            <ul className="divide-y divide-gray-50">
-              {shopItems.filter(i => i.status === 'needed').map(item => {
-                const isExpanded = expandedItem === item.id;
-                const itemComments = comments[item.id] ?? [];
-                return (
-                  <li key={item.id} className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => handleToggleShopItem(item.id)} className="w-7 h-7 rounded-full border-2 border-gray-300 flex items-center justify-center flex-shrink-0 text-xs font-bold text-transparent hover:border-green-400 transition-colors">✓</button>
-                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleExpandItem(item.id)}>
-                        <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                        <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
-                          <span>{item.added_by === 'husband' ? t.husband : t.wife}</span>
-                          {item.comment_count > 0 && <span>{t.shopCommentCount(item.comment_count)}</span>}
-                        </p>
-                      </div>
-                      <button onClick={() => handleDeleteShopItem(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 flex-shrink-0">✕</button>
-                    </div>
-                    {isExpanded && (
-                      <div className="mt-3 pl-10 space-y-2">
-                        {loadingComments[item.id] ? (
-                          <p className="text-xs text-gray-400">{t.loading}</p>
-                        ) : (
-                          <>
-                            {itemComments.map(c => (
-                              <div key={c.id} className={`flex items-end gap-2 ${c.author === user?.role ? 'flex-row-reverse' : ''}`}>
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${c.author === 'husband' ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-600'}`}>
-                                  {c.author === 'husband' ? t.husbandInitial : t.wifeInitial}
-                                </div>
-                                <div className={`rounded-2xl px-3 py-1.5 text-xs max-w-[75%] ${c.author === user?.role ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
-                                  {c.content}
-                                </div>
-                              </div>
-                            ))}
-                            <div className="flex gap-2 pt-1">
-                              <input
-                                value={commentInput[item.id] ?? ''}
-                                onChange={e => setCommentInput(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddComment(item.id); } }}
-                                placeholder={t.shopCommentPlaceholder}
-                                className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                              />
-                              <button onClick={() => handleAddComment(item.id)} disabled={!commentInput[item.id]?.trim()} className="bg-indigo-600 disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg transition-colors">
-                                {t.shopSend}
-                              </button>
+        {(() => {
+          const neededItems = shopItems.filter(i => i.status === 'needed');
+          const boughtItems = shopItems.filter(i => i.status === 'bought');
+          return (
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <p className="text-sm font-semibold text-gray-700">🛒 {t.tabShopping}</p>
+              </div>
+              <div className="px-4 py-3 border-b border-gray-50">
+                <form onSubmit={handleAddShopItem} className="flex gap-2">
+                  <input
+                    value={shopInput}
+                    onChange={e => setShopInput(e.target.value)}
+                    placeholder={t.shopPlaceholder}
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  />
+                  <button type="submit" disabled={shopSubmitting || !shopInput.trim()} className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+                    {t.shopAdd}
+                  </button>
+                </form>
+              </div>
+
+              {/* 미완료 항목 */}
+              {neededItems.length === 0 && boughtItems.length === 0 ? (
+                <div className="py-8 text-center text-gray-400 text-sm">{t.shopEmpty}</div>
+              ) : neededItems.length === 0 ? (
+                <div className="py-4 text-center text-gray-400 text-xs">남은 항목 없음 · Không còn gì cần mua</div>
+              ) : (
+                <ul className="divide-y divide-gray-50">
+                  {neededItems.map(item => {
+                    const isChecking = checkingItemId === item.id;
+                    const isExpanded = expandedItem === item.id;
+                    const itemComments = comments[item.id] ?? [];
+                    return (
+                      <li key={item.id} className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setCheckingItemId(isChecking ? null : item.id)}
+                            className={`w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 text-xs font-bold transition-colors ${isChecking ? 'border-green-400 bg-green-50 text-green-500' : 'border-gray-300 text-transparent hover:border-green-400'}`}
+                          >✓</button>
+                          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleExpandItem(item.id)}>
+                            <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                            <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+                              <span>{item.added_by === 'husband' ? t.husband : t.wife}</span>
+                              {item.comment_count > 0 && <span>{t.shopCommentCount(item.comment_count)}</span>}
+                            </p>
+                          </div>
+                          <button onClick={() => handleDeleteShopItem(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 flex-shrink-0">✕</button>
+                        </div>
+
+                        {/* 체크 확인 UI */}
+                        {isChecking && (
+                          <div className="mt-2.5 ml-10 space-y-2">
+                            <input
+                              autoFocus
+                              value={checkMemos[item.id] ?? ''}
+                              onChange={e => setCheckMemos(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              onKeyDown={e => { if (e.key === 'Enter') handleCheckShopItem(item.id); if (e.key === 'Escape') setCheckingItemId(null); }}
+                              placeholder="메모 (선택) · Ghi chú tùy chọn"
+                              className="w-full border border-green-200 rounded-lg px-3 py-1.5 text-xs bg-green-50 focus:outline-none focus:ring-2 focus:ring-green-300"
+                            />
+                            <div className="flex gap-2">
+                              <button onClick={() => handleCheckShopItem(item.id)} className="flex-1 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors">✓ 구매 완료 · Đã mua</button>
+                              <button onClick={() => setCheckingItemId(null)} className="px-3 py-1.5 bg-gray-100 text-gray-500 text-xs rounded-lg transition-colors">취소</button>
                             </div>
-                          </>
+                          </div>
                         )}
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+
+                        {/* 댓글 펼침 */}
+                        {isExpanded && !isChecking && (
+                          <div className="mt-3 pl-10 space-y-2">
+                            {loadingComments[item.id] ? (
+                              <p className="text-xs text-gray-400">{t.loading}</p>
+                            ) : (
+                              <>
+                                {itemComments.map(c => (
+                                  <div key={c.id} className={`flex items-end gap-2 ${c.author === user?.role ? 'flex-row-reverse' : ''}`}>
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${c.author === 'husband' ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-600'}`}>
+                                      {c.author === 'husband' ? t.husbandInitial : t.wifeInitial}
+                                    </div>
+                                    <div className={`rounded-2xl px-3 py-1.5 text-xs max-w-[75%] ${c.author === user?.role ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
+                                      {c.content}
+                                    </div>
+                                  </div>
+                                ))}
+                                <div className="flex gap-2 pt-1">
+                                  <input
+                                    value={commentInput[item.id] ?? ''}
+                                    onChange={e => setCommentInput(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddComment(item.id); } }}
+                                    placeholder={t.shopCommentPlaceholder}
+                                    className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                  />
+                                  <button onClick={() => handleAddComment(item.id)} disabled={!commentInput[item.id]?.trim()} className="bg-indigo-600 disabled:opacity-50 text-white text-xs px-3 py-1.5 rounded-lg transition-colors">
+                                    {t.shopSend}
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {/* 완료된 항목 펼치기 */}
+              {boughtItems.length > 0 && (
+                <div className="border-t border-gray-100">
+                  <button
+                    onClick={() => setBoughtExpanded(v => !v)}
+                    className="w-full px-4 py-2.5 flex items-center justify-between text-xs text-gray-500 hover:bg-gray-50 transition-colors"
+                  >
+                    <span>✅ 구매 완료 {boughtItems.length}개 · {boughtItems.length}개 đã mua</span>
+                    <span className="text-gray-300">{boughtExpanded ? '▲ 접기' : '▼ 펼치기'}</span>
+                  </button>
+                  {boughtExpanded && (
+                    <ul className="divide-y divide-gray-50 bg-gray-50/50">
+                      {boughtItems.map(item => {
+                        const buyerName = item.bought_by === 'husband' ? t.husband : item.bought_by === 'wife' ? t.wife : '';
+                        const daysLeft = item.bought_at
+                          ? Math.ceil((new Date(item.bought_at).getTime() + 7 * 86400000 - Date.now()) / 86400000)
+                          : 7;
+                        return (
+                          <li key={item.id} className="px-4 py-2.5 flex items-start gap-3">
+                            <button
+                              onClick={() => handleUncheckShopItem(item.id)}
+                              className="w-7 h-7 rounded-full bg-green-100 border-2 border-green-400 flex items-center justify-center flex-shrink-0 text-xs font-bold text-green-600 hover:bg-green-200 transition-colors mt-0.5"
+                            >✓</button>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-gray-400 line-through">{item.name}</p>
+                              {item.check_memo && <p className="text-xs text-gray-500 mt-0.5">💬 {item.check_memo}</p>}
+                              <p className="text-[10px] text-gray-300 mt-0.5">
+                                {buyerName} · {daysLeft > 0 ? `${daysLeft}일 후 삭제` : '오늘 삭제'}
+                              </p>
+                            </div>
+                            <button onClick={() => handleDeleteShopItem(item.id)} className="text-gray-200 hover:text-red-400 transition-colors p-1 flex-shrink-0 text-xs mt-0.5">✕</button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Approved Transactions ── */}
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">

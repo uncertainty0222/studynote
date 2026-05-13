@@ -1,10 +1,10 @@
 import { getAuthUser } from '@/lib/auth';
-import { toggleShoppingItem, deleteShoppingItem } from '@/lib/db';
+import { checkShoppingItem, uncheckShoppingItem, deleteShoppingItem } from '@/lib/db';
 import { broadcastUpdate } from '@/lib/broadcast';
 import { sendPushToRole } from '@/lib/push';
 
 export async function PATCH(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getAuthUser();
@@ -14,7 +14,15 @@ export async function PATCH(
   const numId = parseInt(id);
   if (isNaN(numId)) return Response.json({ error: '잘못된 ID' }, { status: 400 });
 
-  const item = await toggleShoppingItem(numId, user.role);
+  const body = await request.json().catch(() => ({}));
+  const { action, memo = '' } = body as { action?: string; memo?: string };
+
+  let item;
+  if (action === 'uncheck') {
+    item = await uncheckShoppingItem(numId);
+  } else {
+    item = await checkShoppingItem(numId, user.role, memo);
+  }
   if (!item) return Response.json({ error: '항목을 찾을 수 없습니다' }, { status: 404 });
 
   broadcastUpdate();

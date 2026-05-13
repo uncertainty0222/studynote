@@ -77,6 +77,11 @@ export async function initDb(): Promise<void> {
       )
     `;
 
+    await sql`ALTER TABLE shopping_items ADD COLUMN IF NOT EXISTS bought_at TIMESTAMPTZ`;
+    await sql`ALTER TABLE shopping_items ADD COLUMN IF NOT EXISTS check_memo TEXT NOT NULL DEFAULT ''`;
+
+    await sql`UPDATE personal_expenses SET category = '육아' WHERE category = '교육'`;
+
     await sql`
       CREATE TABLE IF NOT EXISTS shopping_comments (
         id SERIAL PRIMARY KEY,
@@ -127,6 +132,17 @@ export async function initDb(): Promise<void> {
         role TEXT NOT NULL CHECK(role IN ('husband', 'wife')),
         subscription TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS asset_snapshots (
+        id SERIAL PRIMARY KEY,
+        total_usd DOUBLE PRECISION NOT NULL,
+        vault_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+        binance_usd DOUBLE PRECISION NOT NULL DEFAULT 0,
+        usd_to_vnd DOUBLE PRECISION NOT NULL DEFAULT 25800,
+        snapshot_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
 
@@ -345,6 +361,8 @@ export interface ShoppingItem {
   added_by: 'husband' | 'wife';
   status: 'needed' | 'bought';
   bought_by: 'husband' | 'wife' | null;
+  bought_at: string | null;
+  check_memo: string;
   created_at: string;
   comment_count: number;
 }
@@ -364,8 +382,10 @@ export async function getShoppingItems(): Promise<ShoppingItem[]> {
     SELECT si.*, COUNT(sc.id)::int AS comment_count
     FROM shopping_items si
     LEFT JOIN shopping_comments sc ON sc.item_id = si.id
+    WHERE si.status = 'needed'
+       OR (si.status = 'bought' AND (si.bought_at IS NULL OR si.bought_at > NOW() - INTERVAL '7 days'))
     GROUP BY si.id
-    ORDER BY status DESC, si.created_at DESC
+    ORDER BY si.status ASC, si.created_at DESC
   `;
 }
 
@@ -378,18 +398,28 @@ export async function createShoppingItem(name: string, addedBy: 'husband' | 'wif
   return row;
 }
 
-export async function toggleShoppingItem(id: number, buyerRole: 'husband' | 'wife'): Promise<ShoppingItem | null> {
+export async function checkShoppingItem(id: number, buyerRole: 'husband' | 'wife', memo: string): Promise<ShoppingItem | null> {
   await initDb();
   const sql = getSql();
-  const [current] = await sql<ShoppingItem[]>`SELECT * FROM shopping_items WHERE id = ${id}`;
-  if (!current) return null;
-  const newStatus = current.status === 'needed' ? 'bought' : 'needed';
-  const boughtBy = newStatus === 'bought' ? buyerRole : null;
   const [row] = await sql<ShoppingItem[]>`
-    UPDATE shopping_items SET status = ${newStatus}, bought_by = ${boughtBy}
-    WHERE id = ${id} RETURNING *, 0 AS comment_count
+    UPDATE shopping_items
+    SET status = 'bought', bought_by = ${buyerRole}, bought_at = NOW(), check_memo = ${memo}
+    WHERE id = ${id}
+    RETURNING *, 0 AS comment_count
   `;
-  return row;
+  return row ?? null;
+}
+
+export async function uncheckShoppingItem(id: number): Promise<ShoppingItem | null> {
+  await initDb();
+  const sql = getSql();
+  const [row] = await sql<ShoppingItem[]>`
+    UPDATE shopping_items
+    SET status = 'needed', bought_by = NULL, bought_at = NULL, check_memo = ''
+    WHERE id = ${id}
+    RETURNING *, 0 AS comment_count
+  `;
+  return row ?? null;
 }
 
 export async function deleteShoppingItem(id: number): Promise<void> {
@@ -479,6 +509,21 @@ export async function deletePersonalExpense(id: number): Promise<void> {
   await sql`DELETE FROM personal_expenses WHERE id = ${id}`;
 }
 
+export async function updatePersonalExpense(id: number, fields: { category?: string; merchant?: string; amount?: number; currency?: string; date?: string }): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  const { category, merchant, amount, currency, date } = fields;
+  await sql`
+    UPDATE personal_expenses SET
+      category  = COALESCE(${category  ?? null}, category),
+      merchant  = COALESCE(${merchant  ?? null}, merchant),
+      amount    = COALESCE(${amount    ?? null}, amount),
+      currency  = COALESCE(${currency  ?? null}, currency),
+      date      = COALESCE(${date      ?? null}, date)
+    WHERE id = ${id}
+  `;
+}
+
 // ─── Push Subscriptions ───────────────────────────────────────────────────────
 
 export async function upsertPushSubscription(role: 'husband' | 'wife', endpoint: string, subscription: string): Promise<void> {
@@ -503,6 +548,32 @@ export async function deletePushSubscription(endpoint: string): Promise<void> {
   await initDb();
   const sql = getSql();
   await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
+}
+
+// ─── Asset Snapshots ──────────────────────────────────────────────────────────
+
+export interface AssetSnapshot {
+  id: number;
+  total_usd: number;
+  vault_usd: number;
+  binance_usd: number;
+  usd_to_vnd: number;
+  snapshot_at: string;
+}
+
+export async function createAssetSnapshot(data: { totalUsd: number; vaultUsd: number; binanceUsd: number; usdToVnd: number }): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`
+    INSERT INTO asset_snapshots (total_usd, vault_usd, binance_usd, usd_to_vnd)
+    VALUES (${data.totalUsd}, ${data.vaultUsd}, ${data.binanceUsd}, ${data.usdToVnd})
+  `;
+}
+
+export async function getAssetSnapshots(): Promise<AssetSnapshot[]> {
+  await initDb();
+  const sql = getSql();
+  return sql<AssetSnapshot[]>`SELECT * FROM asset_snapshots ORDER BY snapshot_at ASC`;
 }
 
 // ─── Balance ──────────────────────────────────────────────────────────────────
