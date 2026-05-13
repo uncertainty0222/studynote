@@ -245,21 +245,26 @@ export default function Home() {
     return () => es.close();
   }, [user, fetchData]);
 
-  // 푸시 알림 상태 확인 (자동 권한 요청 안 함 - iOS는 사용자 탭 필요)
+  // 푸시 알림 자동 활성화 (로그인 후 권한 요청 + 구독)
   useEffect(() => {
     if (!user) return;
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) { setPushEnabled(false); return; }
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') { setPushEnabled(false); return; }
     navigator.serviceWorker.register('/sw.js').then(async reg => {
       await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.getSubscription();
-      if (sub) {
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) {
         setPushEnabled(true);
-        // 서버에 구독 재등록 (DB 초기화 대비)
-        fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) }).catch(() => {});
-      } else {
-        setPushEnabled(false);
+        fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(existing) }).catch(() => {});
+        return;
       }
+      // 권한 요청 (아직 없으면)
+      const permission = typeof Notification !== 'undefined' ? await Notification.requestPermission() : 'denied';
+      if (permission !== 'granted') { setPushEnabled(false); return; }
+      const { publicKey } = await fetch('/api/push/vapid-key').then(r => r.json());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(publicKey) as any });
+      await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) });
+      setPushEnabled(true);
     }).catch(() => setPushEnabled(false));
   }, [user]);
 
@@ -463,15 +468,6 @@ export default function Home() {
               <span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
                 {pendingCount}
               </span>
-            )}
-            {pushEnabled !== null && (
-              <button
-                onClick={pushEnabled ? disablePush : enablePush}
-                className={`text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${pushEnabled ? 'border-indigo-300 text-indigo-600 hover:bg-indigo-50' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
-                title={pushEnabled ? (lang === 'ko' ? '알림 끄기' : 'Tắt thông báo') : (lang === 'ko' ? '알림 켜기' : 'Bật thông báo')}
-              >
-                {pushEnabled ? '🔔' : '🔕'}
-              </button>
             )}
             <button onClick={toggleLang} className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
               {lang === 'ko' ? '🇻🇳' : '🇰🇷'}

@@ -15,6 +15,15 @@ interface VaultResponse {
 
 interface AssetSnapshot { id: number; total_usd: number; vault_usd: number; binance_usd: number; usd_to_vnd: number; snapshot_at: string; }
 interface Candle { weekKey: string; label: string; open: number; close: number; high: number; low: number; }
+interface IncomeEntry { id: number; amount: number; currency: string; category: string; description: string; date: string; created_at: string; }
+
+const INCOME_CATEGORY_LABEL: Record<string, string> = { 'TOUR': '🗺️ TOUR', 'COIN': '🪙 COIN', '기타': '📦 기타', '투어': '🗺️ TOUR', '투자수익': '🪙 COIN' };
+function fmtIncomeAmt(amount: number, currency: string, usdToVnd: number, usdToKrw: number): string {
+  if (currency === 'VND') return `₫${Math.round(amount / 1000).toLocaleString()}k`;
+  if (currency === 'KRW') return `₩${Math.round(amount).toLocaleString()}`;
+  const usdAmt = currency === 'USD' ? amount : currency === 'KRW' ? amount / usdToKrw : amount / usdToVnd;
+  return `$${usdAmt.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
 
 function getWeekKey(date: Date): string {
   const d = new Date(date.getTime());
@@ -159,6 +168,8 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
 
   const [husbandOwes, setHusbandOwes] = useState<number | null>(null);
   const [snapshots, setSnapshots] = useState<AssetSnapshot[]>([]);
+  const [recentIncomes, setRecentIncomes] = useState<IncomeEntry[]>([]);
+  const [incomeExpanded, setIncomeExpanded] = useState(false);
 
   const fetchBinance = useCallback(async () => {
     setBinanceLoading(true); setBinanceErr('');
@@ -183,10 +194,16 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
     if (res.ok) setSnapshots(await res.json());
   }, []);
 
+  const fetchRecentIncomes = useCallback(async () => {
+    const res = await fetch('/api/personal/income');
+    if (res.ok) { const d = await res.json(); setRecentIncomes((d.items ?? []).slice(0, 20)); }
+  }, []);
+
   useEffect(() => { if (!binance && !binanceLoading && !binanceErr) fetchBinance(); }, [binance, binanceLoading, binanceErr, fetchBinance]);
   useEffect(() => { fetchVault(); }, [fetchVault]);
   useEffect(() => { fetchBalance(); }, [fetchBalance]);
   useEffect(() => { fetchSnapshots(); }, [fetchSnapshots]);
+  useEffect(() => { fetchRecentIncomes(); }, [fetchRecentIncomes]);
 
   async function saveVault() {
     if (!vaultDraft) return;
@@ -251,6 +268,53 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
           </p>
         )}
       </div>
+
+      {/* ── 최근 수익 카드 ── */}
+      {recentIncomes.length > 0 && (() => {
+        const latest = recentIncomes[0];
+        const shown = incomeExpanded ? recentIncomes : [latest];
+        const catLabel = INCOME_CATEGORY_LABEL[latest.category] ?? latest.category;
+        return (
+          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">최근 수익 · Thu nhập gần đây</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-base font-bold text-emerald-600">
+                    {fmtIncomeAmt(Number(latest.amount), latest.currency, usdToVnd, usdToKrw)}
+                  </span>
+                  <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium">{catLabel}</span>
+                  {latest.description && <span className="text-xs text-gray-400 truncate max-w-[120px]">{latest.description}</span>}
+                </div>
+                <p className="text-xs text-gray-400 mt-0.5">{latest.date}</p>
+              </div>
+              <div className="text-2xl animate-bounce">🎉</div>
+            </div>
+            {incomeExpanded && (
+              <ul className="border-t border-gray-50 divide-y divide-gray-50">
+                {shown.slice(1).map(item => (
+                  <li key={item.id} className="px-4 py-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{INCOME_CATEGORY_LABEL[item.category] ?? item.category}</span>
+                      <div>
+                        <p className="text-xs font-medium text-gray-800">{fmtIncomeAmt(Number(item.amount), item.currency, usdToVnd, usdToKrw)}</p>
+                        {item.description && <p className="text-xs text-gray-400">{item.description}</p>}
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400">{item.date}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              onClick={() => setIncomeExpanded(v => !v)}
+              className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors border-t border-gray-50"
+            >
+              {incomeExpanded ? '▲ 접기' : `▼ 더보기 (${recentIncomes.length}건)`}
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ── 자산 차트 ── */}
       <div className="bg-white rounded-2xl shadow-sm p-4">
