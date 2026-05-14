@@ -167,6 +167,10 @@ export default function Home() {
   const [checkingItemId, setCheckingItemId] = useState<number | null>(null);
   const [checkMemos, setCheckMemos] = useState<Record<number, string>>({});
   const [boughtExpanded, setBoughtExpanded] = useState(false);
+  const [txExpanded, setTxExpanded] = useState(false);
+  const [txSearchMode, setTxSearchMode] = useState(false);
+  const [txSearchYear, setTxSearchYear] = useState(() => new Date().getFullYear());
+  const [txSearchMonth, setTxSearchMonth] = useState(() => new Date().getMonth() + 1);
 
   // Form state
   const [payer, setPayer] = useState<'husband' | 'wife'>('husband');
@@ -516,6 +520,15 @@ export default function Home() {
 
         {/* ── Couple Tab (가계부 + 장보기 통합) ── */}
         {activeTab === 'couple' && <>
+        {/* 거래 추가 버튼 */}
+        <button
+          onClick={() => { setShowForm(true); setFormError(''); }}
+          className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-2xl shadow-sm transition-colors text-center"
+        >
+          <span className="text-sm">+ 거래 추가</span>
+          <span className="text-sm ml-2 opacity-80">· Thêm giao dịch</span>
+        </button>
+
         {/* Balance Card */}
         {bal && (
           <div className={`rounded-2xl border p-4 ${bal.bg}`}>
@@ -596,6 +609,88 @@ export default function Home() {
           </div>
         )}
 
+        {/* ── Approved Transactions ── */}
+        {(() => {
+          const thisMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+          const searchKey = `${txSearchYear}-${String(txSearchMonth).padStart(2, '0')}`;
+          const filtered = txSearchMode
+            ? approved.filter(tx => tx.date.startsWith(searchKey))
+            : txExpanded
+              ? approved.filter(tx => tx.date.startsWith(thisMonth))
+              : approved.slice(0, 3);
+          return (
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-700">거래 내역 <span className="font-normal text-gray-400 text-xs">· Lịch sử giao dịch</span></h2>
+                {!txSearchMode && (
+                  <button onClick={() => setTxSearchMode(true)} className="text-xs text-indigo-400 hover:text-indigo-600">🔍 더 찾기</button>
+                )}
+                {txSearchMode && (
+                  <button onClick={() => { setTxSearchMode(false); setTxSearchYear(new Date().getFullYear()); setTxSearchMonth(new Date().getMonth() + 1); }} className="text-xs text-gray-400 hover:text-gray-600">✕ 닫기</button>
+                )}
+              </div>
+              {txSearchMode && (
+                <div className="px-4 py-2.5 border-b border-gray-50 flex items-center gap-2">
+                  <select value={txSearchYear} onChange={e => setTxSearchYear(Number(e.target.value))} className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 bg-white">
+                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}년</option>)}
+                  </select>
+                  <select value={txSearchMonth} onChange={e => setTxSearchMonth(Number(e.target.value))} className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 bg-white">
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}월</option>)}
+                  </select>
+                  <span className="text-xs text-gray-400">{filtered.length}건</span>
+                </div>
+              )}
+              {loading ? (
+                <div className="py-8 text-center text-gray-400 text-sm">{t.loading}</div>
+              ) : filtered.length === 0 ? (
+                <div className="py-8 text-center text-gray-400 text-sm">
+                  <p className="text-2xl mb-2">💸</p>
+                  <p>{t.emptyTitle}</p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-50">
+                  {filtered.map(tx => {
+                    const isPendingDel = hasPendingDeletion(tx.id);
+                    return (
+                      <li key={tx.id} className={`px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${isPendingDel ? 'opacity-50' : ''}`}>
+                        <PayerBadge role={tx.payer} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{tx.memo}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {tx.payer === 'husband' ? t.husband : t.wife} · {fmtDate(tx.date)}
+                            {isPendingDel && <span className="ml-2 text-orange-400">{t.deletionPending}</span>}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`text-sm font-semibold ${tx.payer === 'husband' ? 'text-blue-700' : 'text-rose-600'}`}>
+                            {formatAmt(tx.amount, lang)}
+                          </span>
+                          {!isPendingDel && (
+                            <button onClick={() => setDeleteTarget(tx)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {!txSearchMode && (
+                <div className="border-t border-gray-50">
+                  {!txExpanded ? (
+                    <button onClick={() => setTxExpanded(true)} className="w-full py-2.5 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
+                      ▼ 이번 달 전체 보기 · Xem cả tháng
+                    </button>
+                  ) : (
+                    <button onClick={() => setTxExpanded(false)} className="w-full py-2.5 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
+                      ▲ 접기 · Thu gọn
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* ── Shopping List ── */}
         {(() => {
           const neededItems = shopItems.filter(i => i.status === 'needed');
@@ -603,7 +698,7 @@ export default function Home() {
           return (
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-100">
-                <p className="text-sm font-semibold text-gray-700">🛒 {t.tabShopping}</p>
+                <p className="text-sm font-semibold text-gray-700">🛒 필요한 물건 <span className="font-normal text-gray-400">· Những thứ cần mua</span></p>
               </div>
               <div className="px-4 py-3 border-b border-gray-50">
                 <form onSubmit={handleAddShopItem} className="flex gap-2">
@@ -812,47 +907,6 @@ export default function Home() {
           );
         })()}
 
-        {/* ── Approved Transactions ── */}
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-700">{t.historyTitle}</h2>
-          </div>
-          {loading ? (
-            <div className="py-12 text-center text-gray-400 text-sm">{t.loading}</div>
-          ) : approved.length === 0 ? (
-            <div className="py-12 text-center text-gray-400 text-sm">
-              <p className="text-3xl mb-2">💸</p>
-              <p>{t.emptyTitle}</p>
-              <p className="text-xs mt-1">{t.emptySub}</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-50">
-              {approved.map(tx => {
-                const isPendingDel = hasPendingDeletion(tx.id);
-                return (
-                  <li key={tx.id} className={`px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${isPendingDel ? 'opacity-50' : ''}`}>
-                    <PayerBadge role={tx.payer} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{tx.memo}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {tx.payer === 'husband' ? t.husband : t.wife} · {fmtDate(tx.date)}
-                        {isPendingDel && <span className="ml-2 text-orange-400">{t.deletionPending}</span>}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className={`text-sm font-semibold ${tx.payer === 'husband' ? 'text-blue-700' : 'text-rose-600'}`}>
-                        {formatAmt(tx.amount, lang)}
-                      </span>
-                      {!isPendingDel && (
-                        <button onClick={() => setDeleteTarget(tx)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
         </>}
       </main>
 
