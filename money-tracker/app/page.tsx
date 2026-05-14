@@ -481,12 +481,6 @@ export default function Home() {
             <button onClick={toggleLang} className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
               {lang === 'ko' ? '🇻🇳' : '🇰🇷'}
             </button>
-            <button
-              onClick={() => { setShowForm(true); setFormError(''); }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors"
-            >
-              {t.addBtn}
-            </button>
             <button onClick={handleLogout} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1.5">
               {t.logout}
             </button>
