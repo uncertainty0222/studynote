@@ -517,10 +517,14 @@ export default function Home() {
         {/* 거래 추가 버튼 */}
         <button
           onClick={() => { setShowForm(true); setFormError(''); }}
-          className="w-full py-3 bg-rose-500 hover:bg-rose-600 text-white font-semibold rounded-2xl shadow-sm transition-colors text-center"
+          className="w-full py-4 rounded-2xl text-white text-center transition-all active:scale-95"
+          style={{
+            background: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)',
+            boxShadow: '0 6px 0 #9f1239, 0 8px 16px rgba(244,63,94,0.4)',
+          }}
         >
-          <span className="text-sm">+ 거래 추가</span>
-          <span className="text-sm ml-2 opacity-80">· Thêm giao dịch</span>
+          <span className="text-xl font-black tracking-tight">+ 거래 추가</span>
+          <span className="text-xl font-black tracking-tight ml-2" style={{ opacity: 0.85 }}>· Thêm giao dịch</span>
         </button>
 
         {/* Balance Card */}
