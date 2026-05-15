@@ -264,6 +264,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
   const [drillCat, setDrillCat] = useState<string | null>(null);
   const [incomeOpen, setIncomeOpen] = useState(false);
   const [expenseOpen, setExpenseOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'income' | 'expense'; id: number; label: string } | null>(null);
 
   // Income
   const [incomes, setIncomes] = useState<IncomeEntry[]>([]);
@@ -592,6 +593,36 @@ export default function ChongTab({ user }: { user: { role: string } }) {
 
   return (
     <div className="space-y-3">
+      {/* 삭제 확인 모달 */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setDeleteConfirm(null)}>
+          <div className="w-full bg-white rounded-t-3xl px-5 pt-6 pb-10 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+            <p className="text-xs font-semibold text-gray-400 text-center tracking-widest uppercase mb-2">삭제 확인 · Xác nhận xoá</p>
+            <p className="text-base font-bold text-gray-800 text-center mb-1 truncate px-4">{deleteConfirm.label}</p>
+            <p className="text-sm text-gray-400 text-center mb-6">이 항목을 삭제하면 복구할 수 없어요.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-3.5 rounded-2xl bg-gray-100 text-gray-600 font-bold text-sm active:opacity-70 transition-opacity"
+              >
+                취소 · Huỷ
+              </button>
+              <button
+                onClick={async () => {
+                  const d = deleteConfirm;
+                  setDeleteConfirm(null);
+                  if (d.type === 'expense') await handleDeleteExpense(d.id);
+                  else await handleDeleteIncome(d.id);
+                }}
+                className="flex-1 py-3.5 rounded-2xl bg-rose-500 text-white font-bold text-sm active:brightness-95 transition-all"
+              >
+                삭제 · Xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Sub-tab nav */}
       <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
         <button onClick={() => setSubTab('dashboard')}
@@ -1139,7 +1170,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                         <span className={`block text-[9px] ${smallColor}`}>{sign}₫{vndAmt.toLocaleString()}</span>
                       )}
                     </div>
-                    <button onClick={() => handleDeleteIncome(item.id)} className="text-gray-200 hover:text-red-400 transition-colors ml-0.5">✕</button>
+                    <button onClick={() => setDeleteConfirm({ type: 'income', id: item.id, label: item.description || item.category })} className="text-gray-200 hover:text-red-400 transition-colors ml-0.5">✕</button>
                   </div>
                 </li>
               );
@@ -1206,7 +1237,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                                 <span className={`text-sm font-bold ${color}`}>{primary}</span>
                                 {vndAmt !== null && <span className={`block text-[10px] ${smallColor}`}>{sign}₫{vndAmt.toLocaleString()}</span>}
                               </div>
-                              <button onClick={() => handleDeleteIncome(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
+                              <button onClick={() => setDeleteConfirm({ type: 'income', id: item.id, label: item.description || item.category })} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
                             </div>
                           </li>
                         );
@@ -1398,7 +1429,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                                     </div>
                                     <button onClick={() => editingId === item.id ? setEditingId(null) : startEdit(item)}
                                       className={`p-1 transition-colors text-sm ${editingId === item.id ? 'text-indigo-500' : 'text-gray-300 hover:text-indigo-400'}`}>✏️</button>
-                                    <button onClick={() => handleDeleteExpense(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 text-sm">✕</button>
+                                    <button onClick={() => setDeleteConfirm({ type: 'expense', id: item.id, label: item.merchant || item.description || item.category })} className="text-gray-300 hover:text-red-400 transition-colors p-1 text-sm">✕</button>
                                   </div>
                                 </div>
                                 {editingId === item.id && (
@@ -1534,7 +1565,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                                       </div>
                                       <button onClick={() => editingId === item.id ? setEditingId(null) : startEdit(item)}
                                         className={`p-1 transition-colors text-sm ${editingId === item.id ? 'text-indigo-500' : 'text-gray-300 hover:text-indigo-400'}`}>✏️</button>
-                                      <button onClick={() => handleDeleteExpense(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 text-sm">✕</button>
+                                      <button onClick={() => setDeleteConfirm({ type: 'expense', id: item.id, label: item.merchant || item.description || item.category })} className="text-gray-300 hover:text-red-400 transition-colors p-1 text-sm">✕</button>
                                     </div>
                                   </div>
                                   {editingId === item.id && (
