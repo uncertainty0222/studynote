@@ -492,6 +492,18 @@ export async function deletePersonalIncome(id: number): Promise<void> {
   const sql = getSql();
   await sql`DELETE FROM personal_income WHERE id = ${id}`;
 }
+export async function deletePersonalIncomeByMonth(yearMonth: string): Promise<number> {
+  await initDb();
+  const sql = getSql();
+  const res = await sql`DELETE FROM personal_income WHERE date >= ${yearMonth + '-01'} AND date < ${yearMonth + '-32'} RETURNING id`;
+  return res.length;
+}
+export async function deletePersonalExpensesByMonth(yearMonth: string): Promise<number> {
+  await initDb();
+  const sql = getSql();
+  const res = await sql`DELETE FROM personal_expenses WHERE date >= ${yearMonth + '-01'} AND date < ${yearMonth + '-32'} RETURNING id`;
+  return res.length;
+}
 
 export async function getPersonalExpenses(): Promise<PersonalExpense[]> {
   await initDb();

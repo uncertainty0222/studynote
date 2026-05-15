@@ -802,15 +802,20 @@ export default function ChongTab({ user }: { user: { role: string } }) {
             <div>
               <button
                 onClick={() => { setExpenseOpen(v => !v); if (expenseOpen) setDrillCat(null); }}
-                className="w-full px-4 py-3 bg-rose-50 border-b border-rose-100 flex items-center justify-between active:opacity-70 transition-opacity"
+                className="w-full px-5 py-4 bg-gradient-to-br from-rose-500 via-rose-500 to-pink-600 flex items-center justify-between active:brightness-95 transition-all duration-150"
               >
-                <span className="text-sm font-bold text-rose-700">📉 지출 · Chi tiêu</span>
-                <div className="flex items-center gap-2">
-                  <div className="text-right">
-                    <span className="text-base font-black text-rose-700">${Math.round(expenseUsd).toLocaleString()}</span>
-                    <span className="text-xs text-rose-400 ml-1">(₫{Math.round(expenseUsd * usdToVnd).toLocaleString()})</span>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                    <span className="text-base leading-none">📉</span>
                   </div>
-                  <span className="text-rose-400 text-lg leading-none">{expenseOpen ? '▾' : '▸'}</span>
+                  <div className="text-left">
+                    <p className="text-[10px] font-bold text-rose-100 tracking-[0.12em] uppercase leading-none mb-1.5">지출 · Chi tiêu</p>
+                    <p className="text-[22px] font-black text-white leading-none tracking-tight">${Math.round(expenseUsd).toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <p className="text-xs text-rose-100">₫{Math.round(expenseUsd * usdToVnd).toLocaleString()}</p>
+                  <div className={`w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white text-xs transition-transform duration-200 ${expenseOpen ? 'rotate-90' : ''}`}>▶</div>
                 </div>
               </button>
               {expenseOpen && <div className="px-4 py-3.5">
