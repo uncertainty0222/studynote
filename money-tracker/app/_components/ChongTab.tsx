@@ -263,6 +263,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
   const [exFormOpen, setExFormOpen] = useState(false);
   const [dashIncomeExpanded, setDashIncomeExpanded] = useState(false);
   const [dashExpenseExpanded, setDashExpenseExpanded] = useState(false);
+  const [drillCat, setDrillCat] = useState<string | null>(null);
 
   // Income
   const [incomes, setIncomes] = useState<IncomeEntry[]>([]);
@@ -592,22 +593,20 @@ export default function ChongTab({ user }: { user: { role: string } }) {
   return (
     <div className="space-y-3">
       {/* Sub-tab nav */}
-      {isHusband && (
-        <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
-          <button onClick={() => setSubTab('dashboard')}
-            className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'dashboard' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
-            📊 대시보드
-          </button>
-          <button onClick={() => setSubTab('income')}
-            className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'income' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>
-            📈 수입
-          </button>
-          <button onClick={() => setSubTab('expense')}
-            className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'expense' ? 'bg-white shadow-sm text-rose-600' : 'text-gray-500'}`}>
-            📉 지출
-          </button>
-        </div>
-      )}
+      <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
+        <button onClick={() => setSubTab('dashboard')}
+          className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'dashboard' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
+          📊 대시보드
+        </button>
+        <button onClick={() => setSubTab('income')}
+          className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'income' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500'}`}>
+          📈 수입
+        </button>
+        <button onClick={() => setSubTab('expense')}
+          className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${subTab === 'expense' ? 'bg-white shadow-sm text-rose-600' : 'text-gray-500'}`}>
+          📉 지출
+        </button>
+      </div>
 
       {/* ── 대시보드 ── */}
       {subTab === 'dashboard' && (
@@ -850,18 +849,51 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                       const pct = Math.round(usd / expenseUsd * 100);
                       const color = CATEGORY_COLORS[cat] ?? '#94a3b8';
                       const catVi = EXPENSE_CATEGORY_VI[cat] ?? cat;
+                      const isDrill = drillCat === cat;
+                      const drillItems = monthExpenses.filter(e => e.category === cat);
                       return (
                         <div key={cat}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-700">{cat} <span className="text-gray-400 font-normal text-xs">· {catVi}</span></span>
-                            <div className="text-right">
-                              <span className="text-gray-600">${Math.round(usd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
-                              <span className="block text-xs text-gray-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</span>
+                          <button className="w-full text-left" onClick={() => setDrillCat(isDrill ? null : cat)}>
+                            <div className="flex justify-between text-sm mb-1">
+                              <span className="text-gray-700">{cat} <span className="text-gray-400 font-normal text-xs">· {catVi}</span> <span className="text-gray-300 text-xs">{isDrill ? '▲' : '▼'}</span></span>
+                              <div className="text-right">
+                                <span className="text-gray-600">${Math.round(usd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                                <span className="block text-xs text-gray-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</span>
+                              </div>
                             </div>
-                          </div>
-                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
-                          </div>
+                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+                            </div>
+                          </button>
+                          {isDrill && (
+                            <ul className="mt-2 mb-1 bg-gray-50 rounded-xl overflow-hidden divide-y divide-gray-100">
+                              {drillItems.map(item => {
+                                const n = Number(item.amount);
+                                const itemUsd = item.currency === 'VND' ? n / usdToVnd : item.currency === 'KRW' ? n / usdToKrw : n;
+                                return (
+                                  <li key={item.id} className="px-3 py-2 flex items-center justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-medium text-gray-700 truncate">{item.merchant || item.description || cat}</p>
+                                      <p className="text-[10px] text-gray-400">{item.date}</p>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      {item.currency === 'VND' ? (
+                                        <>
+                                          <p className="text-xs font-bold text-rose-700">₫{Math.round(n).toLocaleString()}</p>
+                                          <p className="text-[10px] text-rose-400">${(n / usdToVnd).toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <p className="text-xs font-bold text-rose-700">${Math.round(itemUsd).toLocaleString()}</p>
+                                          <p className="text-[10px] text-rose-400">₫{Math.round(itemUsd * usdToVnd).toLocaleString()}</p>
+                                        </>
+                                      )}
+                                    </div>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
                         </div>
                       );
                     })}
@@ -1095,7 +1127,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
       )}
 
       {/* ── 수입 탭 ── */}
-      {isHusband && subTab === 'income' && (
+      {subTab === 'income' && (
         <div className="space-y-3">
 
           {/* 입력하기 토글 버튼 */}
@@ -1310,7 +1342,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
       )}
 
       {/* ── 지출 탭 ── */}
-      {isHusband && subTab === 'expense' && (
+      {subTab === 'expense' && (
         <div className="space-y-3">
 
           {/* 입력하기 토글 버튼 + OCR */}
