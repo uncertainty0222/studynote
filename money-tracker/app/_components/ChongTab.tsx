@@ -261,7 +261,6 @@ export default function ChongTab({ user }: { user: { role: string } }) {
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
   const [inFormOpen, setInFormOpen] = useState(false);
   const [exFormOpen, setExFormOpen] = useState(false);
-  const [dashIncomeExpanded, setDashIncomeExpanded] = useState(false);
   const [dashExpenseExpanded, setDashExpenseExpanded] = useState(false);
   const [drillCat, setDrillCat] = useState<string | null>(null);
 
@@ -612,6 +611,32 @@ export default function ChongTab({ user }: { user: { role: string } }) {
       {subTab === 'dashboard' && (
         <div className="space-y-3">
 
+          {/* 빠른 입력 버튼 */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => { setSubTab('income'); setInFormOpen(true); }}
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                boxShadow: '0 5px 0 #047857, 0 7px 14px rgba(16,185,129,0.35)',
+              }}
+              className="flex-1 py-4 rounded-2xl text-white active:translate-y-1 active:shadow-none transition-all flex flex-col items-center justify-center"
+            >
+              <span className="text-lg font-black">+ 수입</span>
+              <span className="text-xs font-semibold opacity-80 mt-0.5">Thu nhập</span>
+            </button>
+            <button
+              onClick={() => { setSubTab('expense'); setExFormOpen(true); }}
+              style={{
+                background: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)',
+                boxShadow: '0 5px 0 #9f1239, 0 7px 14px rgba(244,63,94,0.35)',
+              }}
+              className="flex-1 py-4 rounded-2xl text-white active:translate-y-1 active:shadow-none transition-all flex flex-col items-center justify-center"
+            >
+              <span className="text-lg font-black">+ 지출</span>
+              <span className="text-xs font-semibold opacity-80 mt-0.5">Chi tiêu</span>
+            </button>
+          </div>
+
           {/* ▶ 이번달 현금흐름 종합 */}
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
 
@@ -630,197 +655,143 @@ export default function ChongTab({ user }: { user: { role: string } }) {
 
             {/* 수입 섹션 */}
             <div className="border-b border-gray-100">
-              <button
-                onClick={() => setDashIncomeExpanded(v => !v)}
-                className="w-full px-4 pt-3.5 pb-0 text-left"
-              >
+              <div className="w-full px-4 pt-3.5 pb-0">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-semibold text-gray-700">📈 수입 · Thu nhập</span>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <span className="text-lg font-bold text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
-                      <span className="text-sm text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
-                    </div>
-                    <span className="text-gray-300 text-xs">{dashIncomeExpanded ? '▲' : '▼'}</span>
+                  <div className="text-right">
+                    <span className="text-lg font-bold text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
+                    <span className="text-sm text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
                   </div>
                 </div>
-              </button>
+              </div>
               <div className="px-4 pb-3.5 space-y-2.5">
                 {tourIncomeUsd !== 0 && (() => {
                   const pct = Math.round(tourIncomeUsd / incomeUsd * 100);
+                  const isDrill = drillCat === 'TOUR';
+                  const items = monthIncomes.filter(i => isTourCat(i.category));
                   return (
                     <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="font-medium text-teal-700">🗺️ TOUR</span>
-                        <div className="text-right">
-                          <span className="text-teal-700">${Math.round(tourIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
-                          <span className="block text-xs text-teal-400">₫{Math.round(tourIncomeUsd * usdToVnd).toLocaleString()}</span>
+                      <button className="w-full text-left" onClick={() => setDrillCat(isDrill ? null : 'TOUR')}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="font-medium text-teal-700">🗺️ TOUR <span className="text-gray-300 text-xs">{isDrill ? '▲' : '▼'}</span></span>
+                          <div className="text-right">
+                            <span className="text-teal-700">${Math.round(tourIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                            <span className="block text-xs text-teal-400">₫{Math.round(tourIncomeUsd * usdToVnd).toLocaleString()}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-teal-400 rounded-full" style={{ width: `${pct}%` }} />
-                      </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-teal-400 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </button>
+                      {isDrill && (
+                        <ul className="mt-2 mb-1 bg-gray-50 rounded-xl overflow-hidden divide-y divide-gray-100">
+                          {items.map(item => {
+                            const amt = Number(item.amount);
+                            const neg = amt < 0;
+                            const usdVal = toUsd(Math.abs(amt), item.currency, usdToVnd, usdToKrw);
+                            return (
+                              <li key={item.id} className="px-3 py-2 flex items-center justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-gray-700 truncate">{item.description || item.category}</p>
+                                  <p className="text-[10px] text-gray-400">{item.date}</p>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className={`text-xs font-bold ${neg ? 'text-rose-600' : 'text-emerald-700'}`}>{neg ? '−' : ''}${Math.round(usdVal).toLocaleString()}</p>
+                                  <p className={`text-[10px] ${neg ? 'text-rose-400' : 'text-emerald-400'}`}>₫{Math.round(usdVal * usdToVnd).toLocaleString()}</p>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </div>
                   );
                 })()}
                 {investIncomeUsd !== 0 && (() => {
                   const pct = Math.round(investIncomeUsd / incomeUsd * 100);
+                  const isDrill = drillCat === 'COIN';
+                  const items = monthIncomes.filter(i => isCoinCat(i.category));
                   return (
                     <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="font-medium text-blue-700">🪙 COIN</span>
-                        <div className="text-right">
-                          <span className="text-blue-700">${Math.round(investIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
-                          <span className="block text-xs text-blue-400">₫{Math.round(investIncomeUsd * usdToVnd).toLocaleString()}</span>
+                      <button className="w-full text-left" onClick={() => setDrillCat(isDrill ? null : 'COIN')}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="font-medium text-blue-700">🪙 COIN <span className="text-gray-300 text-xs">{isDrill ? '▲' : '▼'}</span></span>
+                          <div className="text-right">
+                            <span className="text-blue-700">${Math.round(investIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                            <span className="block text-xs text-blue-400">₫{Math.round(investIncomeUsd * usdToVnd).toLocaleString()}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />
-                      </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </button>
+                      {isDrill && (
+                        <ul className="mt-2 mb-1 bg-gray-50 rounded-xl overflow-hidden divide-y divide-gray-100">
+                          {items.map(item => {
+                            const amt = Number(item.amount);
+                            const neg = amt < 0;
+                            const usdVal = toUsd(Math.abs(amt), item.currency, usdToVnd, usdToKrw);
+                            return (
+                              <li key={item.id} className="px-3 py-2 flex items-center justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-gray-700 truncate">{item.description || item.category}</p>
+                                  <p className="text-[10px] text-gray-400">{item.date}</p>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className={`text-xs font-bold ${neg ? 'text-rose-600' : 'text-emerald-700'}`}>{neg ? '−' : ''}${Math.round(usdVal).toLocaleString()}</p>
+                                  <p className={`text-[10px] ${neg ? 'text-rose-400' : 'text-emerald-400'}`}>₫{Math.round(usdVal * usdToVnd).toLocaleString()}</p>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </div>
                   );
                 })()}
                 {Math.abs(otherIncomeUsd) >= 1 && (() => {
                   const pct = Math.round(Math.abs(otherIncomeUsd) / incomeUsd * 100);
+                  const isDrill = drillCat === '기타수입';
+                  const items = monthIncomes.filter(i => !isTourCat(i.category) && !isCoinCat(i.category));
                   return (
                     <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-gray-500">기타 · Khác</span>
-                        <div className="text-right">
-                          <span className="text-gray-500">${Math.round(otherIncomeUsd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
-                          <span className="block text-xs text-gray-400">₫{Math.round(otherIncomeUsd * usdToVnd).toLocaleString()}</span>
+                      <button className="w-full text-left" onClick={() => setDrillCat(isDrill ? null : '기타수입')}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-gray-500">기타 · Khác <span className="text-gray-300 text-xs">{isDrill ? '▲' : '▼'}</span></span>
+                          <div className="text-right">
+                            <span className="text-gray-500">${Math.round(otherIncomeUsd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
+                            <span className="block text-xs text-gray-400">₫{Math.round(otherIncomeUsd * usdToVnd).toLocaleString()}</span>
+                          </div>
                         </div>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-gray-300 rounded-full" style={{ width: `${pct}%` }} />
-                      </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-gray-300 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                      </button>
+                      {isDrill && (
+                        <ul className="mt-2 mb-1 bg-gray-50 rounded-xl overflow-hidden divide-y divide-gray-100">
+                          {items.map(item => {
+                            const amt = Number(item.amount);
+                            const neg = amt < 0;
+                            const usdVal = toUsd(Math.abs(amt), item.currency, usdToVnd, usdToKrw);
+                            return (
+                              <li key={item.id} className="px-3 py-2 flex items-center justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium text-gray-700 truncate">{item.description || item.category}</p>
+                                  <p className="text-[10px] text-gray-400">{item.date}</p>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <p className={`text-xs font-bold ${neg ? 'text-rose-600' : 'text-emerald-700'}`}>{neg ? '−' : ''}${Math.round(usdVal).toLocaleString()}</p>
+                                  <p className={`text-[10px] ${neg ? 'text-rose-400' : 'text-emerald-400'}`}>₫{Math.round(usdVal * usdToVnd).toLocaleString()}</p>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </div>
                   );
                 })()}
               </div>
-              {/* 수입 개별 항목 (수입탭과 동일 레이아웃) */}
-              {dashIncomeExpanded && (
-                <div className="border-t border-gray-100 bg-gray-50/60 p-3 space-y-2">
-                  {(() => {
-                    const tourItems = monthIncomes.filter(i => isTourCat(i.category));
-                    const investItems = monthIncomes.filter(i => isCoinCat(i.category));
-                    const otherItems = monthIncomes.filter(i => !isTourCat(i.category) && !isCoinCat(i.category));
-
-                    const renderItem = (item: IncomeEntry) => {
-                      const amt = Number(item.amount);
-                      const neg = amt < 0;
-                      const abs = Math.abs(Math.round(amt));
-                      const color = neg ? 'text-rose-600' : 'text-emerald-700';
-                      const smallColor = neg ? 'text-rose-400' : 'text-emerald-400';
-                      const sign = neg ? '−' : '';
-                      let primary = '';
-                      let vndAmt: number | null = null;
-                      if (item.currency === 'USD' || item.currency === 'USDT') {
-                        primary = `${sign}$${abs.toLocaleString()}`;
-                        vndAmt = Math.round(Math.abs(amt) * usdToVnd);
-                      } else if (item.currency === 'KRW') {
-                        primary = `${sign}₩${abs.toLocaleString()}`;
-                        vndAmt = Math.round(Math.abs(amt) / usdToKrw * usdToVnd);
-                      } else {
-                        primary = `${sign}₫${abs.toLocaleString()}`;
-                      }
-                      return (
-                        <li key={item.id} className="py-2 px-2.5 flex items-start justify-between gap-1 border-b border-gray-50 last:border-0">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[11px] text-gray-700 font-medium truncate">{item.description || item.category}</p>
-                            <p className="text-[10px] text-gray-400">{item.date.slice(5)}</p>
-                          </div>
-                          <div className="text-right flex-shrink-0 flex items-center gap-1">
-                            <div>
-                              <span className={`text-xs font-bold ${color}`}>{primary}</span>
-                              {vndAmt !== null && (
-                                <span className={`block text-[9px] ${smallColor}`}>{sign}₫{vndAmt.toLocaleString()}</span>
-                              )}
-                            </div>
-                            {isHusband && (
-                              <button onClick={() => handleDeleteIncome(item.id)} className="text-gray-200 hover:text-red-400 transition-colors ml-0.5">✕</button>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    };
-
-                    if (monthIncomes.length === 0) {
-                      return (
-                        <div className="bg-white rounded-2xl shadow-sm py-6 text-center text-gray-400 text-sm">
-                          <p className="text-2xl mb-1">📈</p>
-                          <p>이번 달 수입 없음</p>
-                          <p className="text-[11px] mt-0.5">Chưa có thu nhập tháng này</p>
-                        </div>
-                      );
-                    }
-                    return (
-                      <>
-                        {(tourItems.length > 0 || investItems.length > 0) && (
-                          <div className="grid grid-cols-2 gap-2">
-                            {tourItems.length > 0 && (
-                              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                                <p className="text-[11px] font-semibold text-teal-700 px-2.5 pt-2.5 pb-1">🗺️ 투어 · <span className="font-normal text-teal-500">Tour</span></p>
-                                <ul>{tourItems.map(renderItem)}</ul>
-                              </div>
-                            )}
-                            {investItems.length > 0 && (
-                              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                                <p className="text-[11px] font-semibold text-blue-700 px-2.5 pt-2.5 pb-1">📊 투자수익 · <span className="font-normal text-blue-500">Đầu tư</span></p>
-                                <ul>{investItems.map(renderItem)}</ul>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {otherItems.length > 0 && (
-                          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                            <p className="text-[11px] font-semibold text-gray-500 px-3 pt-2.5 pb-1">기타 수입 · <span className="font-normal text-gray-400">Thu khác</span></p>
-                            <ul className="divide-y divide-gray-50">
-                              {otherItems.map(item => {
-                                const amt = Number(item.amount);
-                                const neg = amt < 0;
-                                const abs = Math.abs(Math.round(amt));
-                                const color = neg ? 'text-rose-600' : 'text-emerald-700';
-                                const smallColor = neg ? 'text-rose-400' : 'text-emerald-400';
-                                const sign = neg ? '−' : '';
-                                let primary = '';
-                                let vndAmt: number | null = null;
-                                if (item.currency === 'USD' || item.currency === 'USDT') {
-                                  primary = `${sign}$${abs.toLocaleString()}`; vndAmt = Math.round(Math.abs(amt) * usdToVnd);
-                                } else if (item.currency === 'KRW') {
-                                  primary = `${sign}₩${abs.toLocaleString()}`; vndAmt = Math.round(Math.abs(amt) / usdToKrw * usdToVnd);
-                                } else {
-                                  primary = `${sign}₫${abs.toLocaleString()}`;
-                                }
-                                return (
-                                  <li key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs bg-emerald-100 text-emerald-700 font-medium px-2 py-0.5 rounded-full">{item.category}</span>
-                                        {item.description && <span className="text-xs text-gray-500 truncate">{item.description}</span>}
-                                      </div>
-                                      <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
-                                    </div>
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                      <div className="text-right">
-                                        <span className={`text-sm font-bold ${color}`}>{primary}</span>
-                                        {vndAmt !== null && <span className={`block text-[10px] ${smallColor}`}>{sign}₫{vndAmt.toLocaleString()}</span>}
-                                      </div>
-                                      {isHusband && (
-                                        <button onClick={() => handleDeleteIncome(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
-                                      )}
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
             </div>
 
             {/* 지출 섹션 */}
