@@ -1112,7 +1112,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <label className={labelCls}>금액 · <span className="font-normal text-gray-400">Số tiền</span></label>
-                    <input type="text" inputMode="numeric" value={inAmount}
+                    <input type="text" value={inAmount}
                       onChange={e => setInAmount(e.target.value.replace(/[^0-9-]/g, '').replace(/(?!^)-/g, ''))}
                       placeholder="0 또는 -100" required className={inputCls} autoFocus />
                     {(inCurrency === 'USD' || inCurrency === 'USDT') && inAmount && !Number.isNaN(Number(inAmount)) && Number(inAmount) !== 0 && (
