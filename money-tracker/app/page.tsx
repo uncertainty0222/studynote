@@ -518,17 +518,18 @@ export default function Home() {
         {/* ── Couple Tab (가계부 + 장보기 통합) ── */}
         {activeTab === 'couple' && <>
         {/* 거래 추가 버튼 */}
-        <button
-          onClick={() => { setShowForm(true); setFormError(''); }}
-          className="w-full py-4 rounded-2xl text-white text-center transition-all active:scale-95"
-          style={{
-            background: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)',
-            boxShadow: '0 6px 0 #9f1239, 0 8px 16px rgba(244,63,94,0.4)',
-          }}
-        >
-          <span className="text-xl font-black tracking-tight">+ 거래 추가</span>
-          <span className="text-xl font-black tracking-tight ml-2" style={{ opacity: 0.85 }}>· Thêm giao dịch</span>
-        </button>
+        <div className="flex justify-center">
+          <button
+            onClick={() => { setShowForm(true); setFormError(''); }}
+            className="flex items-center gap-2.5 px-7 py-3 bg-rose-500 text-white rounded-full shadow-sm active:brightness-90 transition-all"
+          >
+            <span className="w-5 h-5 rounded-full bg-white/25 flex items-center justify-center text-sm font-black leading-none">+</span>
+            <div className="text-left">
+              <span className="block text-[13px] font-bold leading-tight">거래 추가</span>
+              <span className="block text-[11px] leading-tight opacity-75">Thêm giao dịch</span>
+            </div>
+          </button>
+        </div>
 
         {/* Balance Card */}
         {bal && (
