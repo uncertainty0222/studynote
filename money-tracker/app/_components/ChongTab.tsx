@@ -1196,33 +1196,22 @@ export default function ChongTab({ user }: { user: { role: string } }) {
             ))}
           </div>
 
-          {Object.keys(incomeTotal).length > 0 && (
-            <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
-              <p className="text-xs font-semibold text-emerald-700 mb-1">{periodLabel[inPeriod]} 총 수입 · <span className="font-normal text-emerald-500">Tổng thu nhập</span></p>
-              {Object.entries(incomeTotal).map(([cur, amt]) => {
-                const r = Math.round(amt);
-                let display = '';
-                let vnd: number | null = null;
-                if (cur === 'USD' || cur === 'USDT') {
-                  display = `$${r.toLocaleString()}`;
-                  vnd = Math.round(amt * usdToVnd);
-                } else if (cur === 'KRW') {
-                  display = `₩${r.toLocaleString()}`;
-                  vnd = Math.round(amt / usdToKrw * usdToVnd);
-                } else {
-                  display = `₫${r.toLocaleString()}`;
-                }
-                return (
-                  <p key={cur} className="text-base font-bold text-emerald-800">
-                    {display}
-                    {vnd !== null && (
-                      <span className="text-sm font-normal text-emerald-600 ml-1.5">(₫{vnd.toLocaleString()})</span>
-                    )}
-                  </p>
-                );
-              })}
-            </div>
-          )}
+          {Object.keys(incomeTotal).length > 0 && (() => {
+            const totalUsd = Object.entries(incomeTotal).reduce((s, [cur, amt]) => {
+              if (cur === 'USD' || cur === 'USDT') return s + amt;
+              if (cur === 'KRW') return s + amt / usdToKrw;
+              return s + amt / usdToVnd; // VND
+            }, 0);
+            return (
+              <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                <p className="text-xs font-semibold text-emerald-700 mb-1">{periodLabel[inPeriod]} 총 수입 · <span className="font-normal text-emerald-500">Tổng thu nhập</span></p>
+                <p className="text-base font-bold text-emerald-800">
+                  ${Math.round(totalUsd).toLocaleString()}
+                  <span className="text-sm font-normal text-emerald-600 ml-1.5">(₫{Math.round(totalUsd * usdToVnd).toLocaleString()})</span>
+                </p>
+              </div>
+            );
+          })()}
 
           {(() => {
             const tourItems = filteredIncomes.filter(i => isTourCat(i.category));
