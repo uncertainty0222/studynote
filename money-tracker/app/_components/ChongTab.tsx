@@ -261,7 +261,6 @@ export default function ChongTab({ user }: { user: { role: string } }) {
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
   const [inFormOpen, setInFormOpen] = useState(false);
   const [exFormOpen, setExFormOpen] = useState(false);
-  const [dashExpenseExpanded, setDashExpenseExpanded] = useState(false);
   const [drillCat, setDrillCat] = useState<string | null>(null);
 
   // Income
@@ -611,69 +610,61 @@ export default function ChongTab({ user }: { user: { role: string } }) {
       {subTab === 'dashboard' && (
         <div className="space-y-3">
 
-          {/* 빠른 입력 버튼 */}
-          <div className="flex gap-3">
-            <button
-              onClick={() => { setSubTab('income'); setInFormOpen(true); }}
-              style={{
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                boxShadow: '0 5px 0 #047857, 0 7px 14px rgba(16,185,129,0.35)',
-              }}
-              className="flex-1 py-4 rounded-2xl text-white active:translate-y-1 active:shadow-none transition-all flex flex-col items-center justify-center"
-            >
-              <span className="text-lg font-black">+ 수입</span>
-              <span className="text-xs font-semibold opacity-80 mt-0.5">Thu nhập</span>
-            </button>
-            <button
-              onClick={() => { setSubTab('expense'); setExFormOpen(true); }}
-              style={{
-                background: 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)',
-                boxShadow: '0 5px 0 #9f1239, 0 7px 14px rgba(244,63,94,0.35)',
-              }}
-              className="flex-1 py-4 rounded-2xl text-white active:translate-y-1 active:shadow-none transition-all flex flex-col items-center justify-center"
-            >
-              <span className="text-lg font-black">+ 지출</span>
-              <span className="text-xs font-semibold opacity-80 mt-0.5">Chi tiêu</span>
-            </button>
-          </div>
-
           {/* ▶ 이번달 현금흐름 종합 */}
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
 
             {/* 순현금흐름 헤더 */}
-            <div className={`px-4 pt-4 pb-3 ${netUsd >= 0 ? 'bg-emerald-50' : 'bg-rose-50'}`}>
+            <div className={`px-4 pt-4 pb-4 ${netUsd >= 0 ? 'bg-emerald-50' : 'bg-rose-50'}`}>
               <p className={`text-xs font-semibold ${netUsd >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                 이번 달 순현금흐름 · <span className="font-normal">Dòng tiền tháng này</span>
               </p>
-              <p className={`text-4xl font-bold mt-1 tracking-tight ${netUsd >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
-                {netUsd >= 0 ? '+' : '−'}${Math.round(Math.abs(netUsd)).toLocaleString()}
-              </p>
-              <p className={`text-sm mt-0.5 ${netUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                ({netUsd >= 0 ? '+' : '−'}₫{Math.round(Math.abs(netUsd) * usdToVnd).toLocaleString()})
-              </p>
+              <div className="flex items-end justify-between mt-1">
+                <div>
+                  <p className={`text-4xl font-bold tracking-tight ${netUsd >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>
+                    {netUsd >= 0 ? '+' : '−'}${Math.round(Math.abs(netUsd)).toLocaleString()}
+                  </p>
+                  <p className={`text-sm mt-0.5 ${netUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    ({netUsd >= 0 ? '+' : '−'}₫{Math.round(Math.abs(netUsd) * usdToVnd).toLocaleString()})
+                  </p>
+                </div>
+                {incomeUsd > 0 && (
+                  <div className="text-right">
+                    <p className={`text-2xl font-black ${selfControl >= 30 ? 'text-emerald-700' : 'text-amber-600'}`}>{selfControl}%</p>
+                    <p className={`text-[10px] font-medium ${selfControl >= 30 ? 'text-emerald-500' : 'text-amber-500'}`}>저축률 · Tiết kiệm</p>
+                  </div>
+                )}
+              </div>
+              {incomeUsd > 0 && (
+                <div className="mt-3">
+                  <div className="h-2 bg-white/60 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${selfControl >= 30 ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                      style={{ width: `${Math.min(selfControl, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 수입 섹션 */}
             <div className="border-b border-gray-100">
-              <div className="w-full px-4 pt-3.5 pb-0">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-semibold text-gray-700">📈 수입 · Thu nhập</span>
-                  <div className="text-right">
-                    <span className="text-lg font-bold text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
-                    <span className="text-sm text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
-                  </div>
+              <div className="px-4 py-2.5 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+                <span className="text-sm font-bold text-emerald-700">📈 수입 · Thu nhập</span>
+                <div className="text-right">
+                  <span className="text-base font-black text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
+                  <span className="text-xs text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
                 </div>
               </div>
-              <div className="px-4 pb-3.5 space-y-2.5">
+              <div className="px-4 py-3.5 space-y-2.5">
                 {tourIncomeUsd !== 0 && (() => {
                   const pct = Math.round(tourIncomeUsd / incomeUsd * 100);
                   const isDrill = drillCat === 'TOUR';
                   const items = monthIncomes.filter(i => isTourCat(i.category));
                   return (
                     <div>
-                      <button className="w-full text-left" onClick={() => setDrillCat(isDrill ? null : 'TOUR')}>
+                      <button className="w-full text-left active:opacity-60 transition-opacity" onClick={() => setDrillCat(isDrill ? null : 'TOUR')}>
                         <div className="flex justify-between text-sm mb-1">
-                          <span className="font-medium text-teal-700">🗺️ TOUR <span className="text-gray-300 text-xs">{isDrill ? '▲' : '▼'}</span></span>
+                          <span className="font-medium text-teal-700">🗺️ TOUR <span className="text-teal-400 text-sm">{isDrill ? '▾' : '▸'}</span></span>
                           <div className="text-right">
                             <span className="text-teal-700">${Math.round(tourIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
                             <span className="block text-xs text-teal-400">₫{Math.round(tourIncomeUsd * usdToVnd).toLocaleString()}</span>
@@ -713,9 +704,9 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                   const items = monthIncomes.filter(i => isCoinCat(i.category));
                   return (
                     <div>
-                      <button className="w-full text-left" onClick={() => setDrillCat(isDrill ? null : 'COIN')}>
+                      <button className="w-full text-left active:opacity-60 transition-opacity" onClick={() => setDrillCat(isDrill ? null : 'COIN')}>
                         <div className="flex justify-between text-sm mb-1">
-                          <span className="font-medium text-blue-700">🪙 COIN <span className="text-gray-300 text-xs">{isDrill ? '▲' : '▼'}</span></span>
+                          <span className="font-medium text-blue-700">🪙 COIN <span className="text-blue-400 text-sm">{isDrill ? '▾' : '▸'}</span></span>
                           <div className="text-right">
                             <span className="text-blue-700">${Math.round(investIncomeUsd).toLocaleString()} <span className="text-gray-400 font-normal">({pct}%)</span></span>
                             <span className="block text-xs text-blue-400">₫{Math.round(investIncomeUsd * usdToVnd).toLocaleString()}</span>
@@ -755,9 +746,9 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                   const items = monthIncomes.filter(i => !isTourCat(i.category) && !isCoinCat(i.category));
                   return (
                     <div>
-                      <button className="w-full text-left" onClick={() => setDrillCat(isDrill ? null : '기타수입')}>
+                      <button className="w-full text-left active:opacity-60 transition-opacity" onClick={() => setDrillCat(isDrill ? null : '기타수입')}>
                         <div className="flex justify-between text-sm mb-1">
-                          <span className="text-gray-500">기타 · Khác <span className="text-gray-300 text-xs">{isDrill ? '▲' : '▼'}</span></span>
+                          <span className="text-gray-500">기타 · Khác <span className="text-gray-400 text-sm">{isDrill ? '▾' : '▸'}</span></span>
                           <div className="text-right">
                             <span className="text-gray-500">${Math.round(otherIncomeUsd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
                             <span className="block text-xs text-gray-400">₫{Math.round(otherIncomeUsd * usdToVnd).toLocaleString()}</span>
@@ -796,22 +787,14 @@ export default function ChongTab({ user }: { user: { role: string } }) {
 
             {/* 지출 섹션 */}
             <div>
-              <button
-                onClick={() => setDashExpenseExpanded(v => !v)}
-                className="w-full px-4 pt-3.5 pb-0 text-left"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-semibold text-gray-700">📉 지출 · Chi tiêu</span>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
-                      <span className="text-lg font-bold text-rose-700">${Math.round(expenseUsd).toLocaleString()}</span>
-                      <span className="text-sm text-rose-400 ml-1">(₫{Math.round(expenseUsd * usdToVnd).toLocaleString()})</span>
-                    </div>
-                    <span className="text-gray-300 text-xs">{dashExpenseExpanded ? '▲' : '▼'}</span>
-                  </div>
+              <div className="px-4 py-2.5 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
+                <span className="text-sm font-bold text-rose-700">📉 지출 · Chi tiêu</span>
+                <div className="text-right">
+                  <span className="text-base font-black text-rose-700">${Math.round(expenseUsd).toLocaleString()}</span>
+                  <span className="text-xs text-rose-400 ml-1">(₫{Math.round(expenseUsd * usdToVnd).toLocaleString()})</span>
                 </div>
-              </button>
-              <div className="px-4 pb-5">
+              </div>
+              <div className="px-4 py-3.5">
                 {sortedCats.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-2">이번 달 지출 없음 · Chưa có chi tiêu</p>
                 ) : (
@@ -824,9 +807,9 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                       const drillItems = monthExpenses.filter(e => e.category === cat);
                       return (
                         <div key={cat}>
-                          <button className="w-full text-left" onClick={() => setDrillCat(isDrill ? null : cat)}>
+                          <button className="w-full text-left active:opacity-60 transition-opacity" onClick={() => setDrillCat(isDrill ? null : cat)}>
                             <div className="flex justify-between text-sm mb-1">
-                              <span className="text-gray-700">{cat} <span className="text-gray-400 font-normal text-xs">· {catVi}</span> <span className="text-gray-300 text-xs">{isDrill ? '▲' : '▼'}</span></span>
+                              <span className="text-gray-700">{cat} <span className="text-gray-400 font-normal text-xs">· {catVi}</span> <span className="text-sm" style={{ color: color }}>{isDrill ? '▾' : '▸'}</span></span>
                               <div className="text-right">
                                 <span className="text-gray-600">${Math.round(usd).toLocaleString()} <span className="text-gray-400">({pct}%)</span></span>
                                 <span className="block text-xs text-gray-400">₫{Math.round(usd * usdToVnd).toLocaleString()}</span>
@@ -871,94 +854,6 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                   </div>
                 )}
               </div>
-              {/* 지출 개별 항목 (지출탭과 동일 레이아웃) */}
-              {dashExpenseExpanded && (
-                <div className="border-t border-gray-100 bg-gray-50/60 p-3 space-y-3">
-                  {(() => {
-                    const grouped: Record<string, ExpenseEntry[]> = {};
-                    for (const item of monthExpenses) {
-                      if (!grouped[item.category]) grouped[item.category] = [];
-                      grouped[item.category].push(item);
-                    }
-                    const sortedGroupedCats = Object.entries(grouped).sort((a, b) => {
-                      const sum = (items: ExpenseEntry[]) => items.reduce((s, it) => {
-                        const n = Number(it.amount);
-                        if (it.currency === 'VND') return s + n / usdToVnd;
-                        if (it.currency === 'KRW') return s + n / usdToKrw;
-                        return s + n;
-                      }, 0);
-                      return sum(b[1]) - sum(a[1]);
-                    });
-
-                    if (monthExpenses.length === 0) {
-                      return (
-                        <div className="bg-white rounded-2xl shadow-sm py-6 text-center text-gray-400 text-sm">
-                          <p className="text-2xl mb-1">📉</p>
-                          <p>이번 달 지출 없음</p>
-                          <p className="text-[11px] mt-0.5">Chưa có chi tiêu tháng này</p>
-                        </div>
-                      );
-                    }
-
-                    return sortedGroupedCats.map(([cat, items]) => {
-                      const catUsd = items.reduce((s, it) => {
-                        const n = Number(it.amount);
-                        if (it.currency === 'VND') return s + n / usdToVnd;
-                        if (it.currency === 'KRW') return s + n / usdToKrw;
-                        return s + n;
-                      }, 0);
-                      return (
-                        <div key={cat} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                          <div className="px-4 py-2.5 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
-                            <span className="text-xs font-semibold text-rose-700">{cat} · <span className="font-normal text-rose-400">{EXPENSE_CATEGORY_VI[cat] ?? cat}</span></span>
-                            <span className="text-xs font-bold text-rose-800">
-                              ${Math.round(catUsd).toLocaleString()}
-                              <span className="font-medium text-rose-400 ml-1">(₫{Math.round(catUsd * usdToVnd).toLocaleString()})</span>
-                            </span>
-                          </div>
-                          <ul className="divide-y divide-gray-50">
-                            {items.map(item => {
-                              const n = Number(item.amount);
-                              const itemUsd = item.currency === 'VND' ? n / usdToVnd : item.currency === 'KRW' ? n / usdToKrw : n;
-                              return (
-                                <li key={item.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                                  <div className="flex-1 min-w-0">
-                                    {item.merchant && <p className="text-xs text-gray-700 font-medium truncate">{item.merchant}</p>}
-                                    <p className="text-xs text-gray-400 mt-0.5">{item.date}</p>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                                    <div className="text-right">
-                                      {item.currency === 'VND' ? (
-                                        <>
-                                          <p className="text-sm font-bold text-rose-700">₫{Math.round(n).toLocaleString()}</p>
-                                          <p className="text-xs text-rose-400">${(n / usdToVnd).toLocaleString('en-US', { maximumFractionDigits: 0 })}</p>
-                                        </>
-                                      ) : item.currency === 'KRW' ? (
-                                        <>
-                                          <p className="text-sm font-bold text-rose-700">₩{Math.round(n).toLocaleString()}</p>
-                                          <p className="text-xs text-rose-400">₫{Math.round(itemUsd * usdToVnd).toLocaleString()}</p>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <p className="text-sm font-bold text-rose-700">${Math.round(n).toLocaleString()}</p>
-                                          <p className="text-xs text-rose-400">₫{Math.round(itemUsd * usdToVnd).toLocaleString()}</p>
-                                        </>
-                                      )}
-                                    </div>
-                                    {isHusband && (
-                                      <button onClick={() => handleDeleteExpense(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 text-sm">✕</button>
-                                    )}
-                                  </div>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              )}
             </div>
           </div>
 
