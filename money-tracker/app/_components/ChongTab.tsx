@@ -652,15 +652,20 @@ export default function ChongTab({ user }: { user: { role: string } }) {
             <div className="border-b border-gray-100">
               <button
                 onClick={() => { setIncomeOpen(v => !v); if (incomeOpen) setDrillCat(null); }}
-                className="w-full px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between active:opacity-70 transition-opacity"
+                className="w-full px-5 py-4 bg-gradient-to-br from-emerald-500 via-emerald-500 to-teal-600 flex items-center justify-between active:brightness-95 transition-all duration-150"
               >
-                <span className="text-sm font-bold text-emerald-700">📈 수입 · Thu nhập</span>
-                <div className="flex items-center gap-2">
-                  <div className="text-right">
-                    <span className="text-base font-black text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
-                    <span className="text-xs text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                    <span className="text-base leading-none">📈</span>
                   </div>
-                  <span className="text-emerald-400 text-lg leading-none">{incomeOpen ? '▾' : '▸'}</span>
+                  <div className="text-left">
+                    <p className="text-[10px] font-bold text-emerald-100 tracking-[0.12em] uppercase leading-none mb-1.5">수입 · Thu nhập</p>
+                    <p className="text-[22px] font-black text-white leading-none tracking-tight">${Math.round(incomeUsd).toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <p className="text-xs text-emerald-100">₫{Math.round(incomeUsd * usdToVnd).toLocaleString()}</p>
+                  <div className={`w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white text-xs transition-transform duration-200 ${incomeOpen ? 'rotate-90' : ''}`}>▶</div>
                 </div>
               </button>
               {incomeOpen && <div className="px-4 py-3.5 space-y-2.5">
