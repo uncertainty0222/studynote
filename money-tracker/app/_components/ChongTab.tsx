@@ -262,6 +262,8 @@ export default function ChongTab({ user }: { user: { role: string } }) {
   const [inFormOpen, setInFormOpen] = useState(false);
   const [exFormOpen, setExFormOpen] = useState(false);
   const [drillCat, setDrillCat] = useState<string | null>(null);
+  const [incomeOpen, setIncomeOpen] = useState(false);
+  const [expenseOpen, setExpenseOpen] = useState(false);
 
   // Income
   const [incomes, setIncomes] = useState<IncomeEntry[]>([]);
@@ -648,14 +650,20 @@ export default function ChongTab({ user }: { user: { role: string } }) {
 
             {/* 수입 섹션 */}
             <div className="border-b border-gray-100">
-              <div className="px-4 py-2.5 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+              <button
+                onClick={() => { setIncomeOpen(v => !v); if (incomeOpen) setDrillCat(null); }}
+                className="w-full px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between active:opacity-70 transition-opacity"
+              >
                 <span className="text-sm font-bold text-emerald-700">📈 수입 · Thu nhập</span>
-                <div className="text-right">
-                  <span className="text-base font-black text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
-                  <span className="text-xs text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <span className="text-base font-black text-emerald-700">${Math.round(incomeUsd).toLocaleString()}</span>
+                    <span className="text-xs text-emerald-400 ml-1">(₫{Math.round(incomeUsd * usdToVnd).toLocaleString()})</span>
+                  </div>
+                  <span className="text-emerald-400 text-lg leading-none">{incomeOpen ? '▾' : '▸'}</span>
                 </div>
-              </div>
-              <div className="px-4 py-3.5 space-y-2.5">
+              </button>
+              {incomeOpen && <div className="px-4 py-3.5 space-y-2.5">
                 {tourIncomeUsd !== 0 && (() => {
                   const pct = Math.round(tourIncomeUsd / incomeUsd * 100);
                   const isDrill = drillCat === 'TOUR';
@@ -782,19 +790,25 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                     </div>
                   );
                 })()}
-              </div>
+              </div>}
             </div>
 
             {/* 지출 섹션 */}
             <div>
-              <div className="px-4 py-2.5 bg-rose-50 border-b border-rose-100 flex items-center justify-between">
+              <button
+                onClick={() => { setExpenseOpen(v => !v); if (expenseOpen) setDrillCat(null); }}
+                className="w-full px-4 py-3 bg-rose-50 border-b border-rose-100 flex items-center justify-between active:opacity-70 transition-opacity"
+              >
                 <span className="text-sm font-bold text-rose-700">📉 지출 · Chi tiêu</span>
-                <div className="text-right">
-                  <span className="text-base font-black text-rose-700">${Math.round(expenseUsd).toLocaleString()}</span>
-                  <span className="text-xs text-rose-400 ml-1">(₫{Math.round(expenseUsd * usdToVnd).toLocaleString()})</span>
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <span className="text-base font-black text-rose-700">${Math.round(expenseUsd).toLocaleString()}</span>
+                    <span className="text-xs text-rose-400 ml-1">(₫{Math.round(expenseUsd * usdToVnd).toLocaleString()})</span>
+                  </div>
+                  <span className="text-rose-400 text-lg leading-none">{expenseOpen ? '▾' : '▸'}</span>
                 </div>
-              </div>
-              <div className="px-4 py-3.5">
+              </button>
+              {expenseOpen && <div className="px-4 py-3.5">
                 {sortedCats.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-2">이번 달 지출 없음 · Chưa có chi tiêu</p>
                 ) : (
@@ -853,7 +867,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
                     })}
                   </div>
                 )}
-              </div>
+              </div>}
             </div>
           </div>
 
