@@ -491,17 +491,17 @@ export default function Home() {
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
         {/* Tab Navigation */}
         <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
-          <button onClick={() => setActiveTab('personal')} className={`flex-1 py-2.5 text-center rounded-lg transition-colors leading-tight ${activeTab === 'personal' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
-            <span className="block text-[11px] font-semibold">우리, 얼마나 있어?</span>
-            <span className="block text-[9px] opacity-60 mt-0.5">Mình có bao nhiêu?</span>
+          <button onClick={() => setActiveTab('personal')} className={`flex-1 py-3 text-center rounded-lg transition-colors ${activeTab === 'personal' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400'}`}>
+            <span className="block text-[13px] font-bold leading-tight">우리, 얼마나 있어?</span>
+            <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Mình có bao nhiêu?</span>
           </button>
-          <button onClick={() => setActiveTab('chong')} className={`flex-1 py-2.5 text-center rounded-lg transition-colors leading-tight ${activeTab === 'chong' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
-            <span className="block text-[11px] font-semibold">돈은 들어오고 또 나가고</span>
-            <span className="block text-[9px] opacity-60 mt-0.5">Tiền vào rồi lại ra</span>
+          <button onClick={() => setActiveTab('chong')} className={`flex-1 py-3 text-center rounded-lg transition-colors ${activeTab === 'chong' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400'}`}>
+            <span className="block text-[13px] font-bold leading-tight">돈은 들어오고 또 나가고</span>
+            <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Tiền vào rồi lại ra</span>
           </button>
-          <button onClick={() => setActiveTab('couple')} className={`flex-1 py-2.5 text-center rounded-lg transition-colors leading-tight ${activeTab === 'couple' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500'}`}>
-            <span className="block text-[11px] font-semibold">남편과 아내 사이의 볼 일</span>
-            <span className="block text-[9px] opacity-60 mt-0.5">Chuyện vợ chồng</span>
+          <button onClick={() => setActiveTab('couple')} className={`flex-1 py-3 text-center rounded-lg transition-colors ${activeTab === 'couple' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400'}`}>
+            <span className="block text-[13px] font-bold leading-tight">남편과 아내 사이의 볼 일</span>
+            <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Chuyện vợ chồng</span>
           </button>
         </div>
 
