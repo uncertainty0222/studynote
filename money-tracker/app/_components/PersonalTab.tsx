@@ -54,15 +54,17 @@ function weekLabel(weekKey: string): string {
 
 function buildCandles(snapshots: AssetSnapshot[]): Candle[] {
   if (!snapshots.length) return [];
-  const byWeek: Record<string, number[]> = {};
+  const byDay: Record<string, number[]> = {};
   for (const s of snapshots) {
-    const wk = getWeekKey(new Date(s.snapshot_at));
-    if (!byWeek[wk]) byWeek[wk] = [];
-    byWeek[wk].push(Number(s.total_usd));
+    const day = new Date(s.snapshot_at).toISOString().slice(0, 10);
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push(Number(s.total_usd));
   }
-  return Object.keys(byWeek).sort().map(wk => {
-    const vals = byWeek[wk];
-    return { weekKey: wk, label: weekLabel(wk), open: vals[0], close: vals[vals.length - 1], high: Math.max(...vals), low: Math.min(...vals) };
+  return Object.keys(byDay).sort().map(day => {
+    const vals = byDay[day];
+    const d = new Date(day);
+    const label = `${d.getMonth() + 1}/${d.getDate()}`;
+    return { weekKey: day, label, open: vals[0], close: vals[vals.length - 1], high: Math.max(...vals), low: Math.min(...vals) };
   });
 }
 
@@ -172,6 +174,7 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
   const [vaultDraft, setVaultDraft] = useState<VaultData | null>(null);
   const [vaultOpen, setVaultOpen] = useState(false);
   const [vaultSaving, setVaultSaving] = useState(false);
+  const [binanceOpen, setBinanceOpen] = useState(false);
 
   const [husbandOwes, setHusbandOwes] = useState<number | null>(null);
   const [snapshots, setSnapshots] = useState<AssetSnapshot[]>([]);
@@ -211,6 +214,23 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
   useEffect(() => { fetchBalance(); }, [fetchBalance]);
   useEffect(() => { fetchSnapshots(); }, [fetchSnapshots]);
   useEffect(() => { fetchRecentIncomes(); }, [fetchRecentIncomes]);
+
+  // 자동 스냅샷: 바이낸스+금고 모두 로드된 후, 마지막 스냅샷이 1시간 이상 지났으면 저장
+  useEffect(() => {
+    if (!binance || !vaultResp || husbandOwes === null) return;
+    const last = snapshots.length > 0 ? new Date(snapshots[snapshots.length - 1].snapshot_at) : null;
+    if (last && Date.now() - last.getTime() < 60 * 60 * 1000) return;
+    const vU = vaultResp.totalUsd ?? 0;
+    const bU = binance.totalUsdt ?? 0;
+    const bal = -(husbandOwes / (vaultResp.usdToVnd ?? 25800));
+    const usdVnd = vaultResp.usdToVnd ?? 25800;
+    fetch('/api/personal/asset-snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ totalUsd: vU + bU + bal, vaultUsd: vU, binanceUsd: bU, usdToVnd: usdVnd }),
+    }).then(() => fetchSnapshots());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [binance, vaultResp, husbandOwes]);
 
   async function saveVault() {
     if (!vaultDraft) return;
@@ -299,22 +319,22 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
             <div className="grid grid-cols-3 gap-2">
               <button onClick={() => setVaultOpen(v => !v)}
                 className="bg-white/10 active:bg-white/20 rounded-xl px-3 py-3 text-left transition-colors">
-                <p className="text-[10px] opacity-60 mb-1">🏦 금고</p>
-                <p className="text-sm font-bold">{fmtUsd(vaultUsd)}</p>
-                <p className="text-[10px] opacity-50 mt-0.5">{((vaultUsd / totalUsd) * 100).toFixed(0)}% {vaultOpen ? '▲' : '▼'}</p>
+                <p className="text-xs opacity-60 mb-1.5">🏦 금고</p>
+                <p className="text-base font-black leading-tight">{fmtUsd(vaultUsd)}</p>
+                <p className="text-xs opacity-55 mt-1">{((vaultUsd / totalUsd) * 100).toFixed(0)}% {vaultOpen ? '▲' : '▼'}</p>
               </button>
-              <button onClick={fetchBinance} disabled={binanceLoading}
+              <button onClick={() => setBinanceOpen(v => !v)}
                 className="bg-white/10 active:bg-white/20 rounded-xl px-3 py-3 text-left transition-colors">
-                <p className="text-[10px] opacity-60 mb-1">📊 바이낸스</p>
-                <p className="text-sm font-bold">{binanceLoading ? '...' : fmtUsd(binanceUsd)}</p>
-                <p className="text-[10px] opacity-50 mt-0.5">{binance && totalUsd > 0 ? `${((binanceUsd / totalUsd) * 100).toFixed(0)}%` : '—'}</p>
+                <p className="text-xs opacity-60 mb-1.5">📊 바이낸스</p>
+                <p className="text-base font-black leading-tight">{binanceLoading ? '...' : fmtUsd(binanceUsd)}</p>
+                <p className="text-xs opacity-55 mt-1">{binance && totalUsd > 0 ? `${((binanceUsd / totalUsd) * 100).toFixed(0)}%` : '—'} {binanceOpen ? '▲' : '▼'}</p>
               </button>
               <div className="bg-white/10 rounded-xl px-3 py-3">
-                <p className="text-[10px] opacity-60 mb-1">💑 부부잔액</p>
-                <p className={`text-sm font-bold ${husbandOwes !== null && husbandOwes > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
+                <p className="text-xs opacity-60 mb-1.5">💑 부부잔액</p>
+                <p className={`text-base font-black leading-tight ${husbandOwes !== null && husbandOwes > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
                   {husbandOwes !== null ? (balanceUsd >= 0 ? '+' : '') + fmtUsd(balanceUsd) : '—'}
                 </p>
-                <p className="text-[10px] opacity-50 mt-0.5">
+                <p className="text-xs opacity-55 mt-1">
                   {husbandOwes === null || husbandOwes === 0 ? '정산됨 ✓' : husbandOwes > 0 ? '내가 줄 돈' : '받을 돈'}
                 </p>
               </div>
@@ -441,17 +461,20 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
       )}
 
       {/* ── 바이낸스 상세 ── */}
-      {(binanceErr || binance?.sectionErrors || binance) && (
+      {binanceOpen && (
         <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
           <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-amber-800">📊 바이낸스 · Binance</p>
               {binance && <p className="text-base font-bold text-gray-800">{fmtUsd(binanceUsd)}</p>}
             </div>
-            <button onClick={fetchBinance} disabled={binanceLoading}
-              className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-50 font-medium px-2.5 py-1.5 rounded-lg transition-colors">
-              {binanceLoading ? '...' : '🔄'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={fetchBinance} disabled={binanceLoading}
+                className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-50 font-medium px-2.5 py-1.5 rounded-lg transition-colors">
+                {binanceLoading ? '...' : '🔄'}
+              </button>
+              <button onClick={() => setBinanceOpen(false)} className="text-amber-300 text-lg leading-none">✕</button>
+            </div>
           </div>
           {binanceErr && <div className="mx-4 my-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">⚠️ {binanceErr}</div>}
           {binance?.sectionErrors && Object.entries(binance.sectionErrors).map(([k, v]) => (
@@ -562,7 +585,7 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
         <div className="flex items-start justify-between mb-2">
           <div>
             <p className="text-sm font-semibold text-gray-800">자산 히스토리 <span className="text-gray-400 font-normal text-xs">Lịch sử tài sản</span></p>
-            <p className="text-[10px] text-gray-400">주간 캔들차트 · Biểu đồ nến theo tuần</p>
+            <p className="text-[10px] text-gray-400">일별 캔들차트 (시간당 스냅샷) · Biểu đồ nến theo ngày</p>
           </div>
           {weekChange !== null && (
             <div className="text-right">
@@ -570,7 +593,7 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
                 {weekChange >= 0 ? '+' : ''}{fmtUsd(weekChange)}
               </p>
               <p className={`text-[10px] ${weekChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                주간 {weekChange >= 0 ? '▲' : '▼'} {Math.abs((weekChange / (candles[candles.length - 2]?.close || 1)) * 100).toFixed(1)}%
+                전일比 {weekChange >= 0 ? '▲' : '▼'} {Math.abs((weekChange / (candles[candles.length - 2]?.close || 1)) * 100).toFixed(1)}%
               </p>
             </div>
           )}
