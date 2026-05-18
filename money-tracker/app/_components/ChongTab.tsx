@@ -279,7 +279,7 @@ export default function ChongTab({ user }: { user: { role: string } }) {
   // Expense
   const [expenses, setExpenses] = useState<ExpenseEntry[]>([]);
   const [exPeriod, setExPeriod] = useState<Period>('month');
-  const [exViewMode, setExViewMode] = useState<'category' | 'date'>('category');
+  const [exViewMode, setExViewMode] = useState<'category' | 'date'>('date');
   const [exAmount, setExAmount] = useState('');
   const [exCurrency, setExCurrency] = useState('VND');
   const [exCategory, setExCategory] = useState('외식');
