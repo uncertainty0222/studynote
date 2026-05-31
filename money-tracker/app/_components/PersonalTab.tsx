@@ -69,6 +69,7 @@ function buildCandles(snapshots: AssetSnapshot[]): Candle[] {
 }
 
 function CandlestickChart({ candles }: { candles: Candle[] }) {
+  const [hovered, setHovered] = useState<number | null>(null);
   const visible = candles.slice(-16);
   if (!visible.length) {
     return (
@@ -108,8 +109,13 @@ function CandlestickChart({ candles }: { candles: Candle[] }) {
   };
   const yTicks = [0.2, 0.4, 0.6, 0.8].map(f => vMin + vRange * f);
 
+  const tip = hovered !== null ? visible[hovered] : null;
+  const TW = 90, TH = 70;
+  const tipX = hovered !== null ? Math.max(PL, Math.min(W - PR - TW, toX(hovered) - TW / 2)) : 0;
+  const bullishTip = tip ? tip.close >= tip.open : true;
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full block">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full block" onMouseLeave={() => setHovered(null)}>
       {yTicks.map((t, i) => (
         <g key={i}>
           <line x1={PL} x2={W - PR} y1={toY(t)} y2={toY(t)} stroke="#e2e8f0" strokeWidth={0.8} />
@@ -123,8 +129,15 @@ function CandlestickChart({ candles }: { candles: Candle[] }) {
         const bodyT = toY(Math.max(c.open, c.close));
         const bodyB = toY(Math.min(c.open, c.close));
         const bodyH = Math.max(2, bodyB - bodyT);
+        const isHovered = hovered === i;
         return (
-          <g key={c.weekKey}>
+          <g key={c.weekKey}
+            onMouseEnter={() => setHovered(i)}
+            onTouchStart={() => setHovered(hovered === i ? null : i)}
+            style={{ cursor: 'crosshair' }}
+          >
+            <rect x={x - spacing / 2} y={PT} width={spacing} height={innerH}
+              fill={isHovered ? 'rgba(148,163,184,0.12)' : 'transparent'} />
             <line x1={x} x2={x} y1={toY(c.high)} y2={toY(c.low)} stroke={col} strokeWidth={1} strokeLinecap="round" />
             <rect x={x - bw / 2} y={bodyT} width={bw} height={bodyH} fill={col} rx={1.5} />
           </g>
@@ -136,6 +149,24 @@ function CandlestickChart({ candles }: { candles: Candle[] }) {
           <text key={c.weekKey} x={toX(i)} y={H - 6} textAnchor="middle" fontSize={7.5} fill="#94a3b8">{c.label}</text>
         );
       })}
+      {tip && (
+        <g>
+          <rect x={tipX} y={PT} width={TW} height={TH} rx={5} fill="rgba(15,23,42,0.88)" />
+          <text x={tipX + TW / 2} y={PT + 12} textAnchor="middle" fontSize={8} fontWeight="600" fill="#e2e8f0">{tip.label}</text>
+          <line x1={tipX + 6} x2={tipX + TW - 6} y1={PT + 17} y2={PT + 17} stroke="rgba(255,255,255,0.12)" strokeWidth={0.8} />
+          {[
+            { label: '시가', val: tip.open, color: '#94a3b8' },
+            { label: '종가', val: tip.close, color: bullishTip ? '#34d399' : '#fb7185' },
+            { label: '최고가', val: tip.high, color: '#34d399' },
+            { label: '최저가', val: tip.low, color: '#fb7185' },
+          ].map(({ label, val, color }, ri) => (
+            <g key={label}>
+              <text x={tipX + 8} y={PT + 27 + ri * 11} fontSize={7.5} fill="#94a3b8">{label}</text>
+              <text x={tipX + TW - 6} y={PT + 27 + ri * 11} textAnchor="end" fontSize={7.5} fontWeight="600" fill={color}>{fmtK(val)}</text>
+            </g>
+          ))}
+        </g>
+      )}
     </svg>
   );
 }
