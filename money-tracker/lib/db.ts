@@ -593,6 +593,20 @@ export async function getAssetSnapshots(): Promise<AssetSnapshot[]> {
   return sql<AssetSnapshot[]>`SELECT * FROM asset_snapshots ORDER BY snapshot_at ASC`;
 }
 
+export async function deleteAssetSnapshotsByRange(from: string, to: string): Promise<number> {
+  await initDb();
+  const sql = getSql();
+  const res = await sql`DELETE FROM asset_snapshots WHERE snapshot_at >= ${from}::timestamptz AND snapshot_at <= ${to}::timestamptz RETURNING id`;
+  return res.length;
+}
+
+export async function deleteAssetSnapshotsAbove(thresholdUsd: number): Promise<number> {
+  await initDb();
+  const sql = getSql();
+  const res = await sql`DELETE FROM asset_snapshots WHERE total_usd > ${thresholdUsd} RETURNING id`;
+  return res.length;
+}
+
 // ─── Balance ──────────────────────────────────────────────────────────────────
 
 export async function getBalance(): Promise<Balance> {
