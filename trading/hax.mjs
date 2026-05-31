@@ -7,7 +7,12 @@
 // 데이터: Binance USDⓈ-M 선물 공개 API (키 불필요). 이 환경의 네트워크
 // 허용목록에 fapi.binance.com 이 있어야 동작한다. README 참고.
 
+import { readFileSync, appendFileSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
 const FAPI = 'https://fapi.binance.com';
+const JOURNAL = process.env.HAX_JOURNAL || join(dirname(fileURLToPath(import.meta.url)), 'journal.jsonl');
 
 // ── 공통 유틸 ────────────────────────────────────────────────
 function normSymbol(raw) {
@@ -242,6 +247,176 @@ function cmdSize(flags) {
   console.log(out.join('\n'));
 }
 
+// ── 저널 (트레이드 로그) ────────────────────────────────────
+function loadJournal() {
+  if (!existsSync(JOURNAL)) return [];
+  return readFileSync(JOURNAL, 'utf8')
+    .split('\n').map(l => l.trim()).filter(Boolean)
+    .map(l => { try { return JSON.parse(l); } catch { return null; } })
+    .filter(Boolean);
+}
+
+// log — 트레이드 한 건 기록 (append-only)
+function cmdLog(flags) {
+  const symbol = normSymbol(flags._pos || flags.symbol);
+  if (!symbol) { console.error('사용법: node trading/hax.mjs log <SYMBOL> --entry .. --sl .. --risk .. [--exit .. | --pnl .. | --r ..] [--side long|short] [--note ".."]'); process.exit(1); }
+  const side = (flags.side === 'short') ? 'short' : 'long';
+  const entry = num(flags.entry), sl = num(flags.sl), risk = num(flags.risk);
+  const dir = side === 'long' ? 1 : -1;
+
+  let qty = num(flags.qty);
+  if (!Number.isFinite(qty) && Number.isFinite(entry) && Number.isFinite(sl) && Number.isFinite(risk))
+    qty = risk / Math.abs(entry - sl);
+
+  const exit = num(flags.exit);
+  let pnl = num(flags.pnl);
+  if (!Number.isFinite(pnl) && Number.isFinite(exit) && Number.isFinite(qty) && Number.isFinite(entry))
+    pnl = (exit - entry) * qty * dir;
+
+  let r = num(flags.r);
+  if (!Number.isFinite(r) && Number.isFinite(pnl) && Number.isFinite(risk) && risk !== 0)
+    r = pnl / risk;
+
+  const closed = Number.isFinite(pnl) || Number.isFinite(exit) || Number.isFinite(r);
+  const rec = {
+    ts: Date.now(),
+    date: flags.date || new Date().toISOString().slice(0, 10),
+    symbol, side,
+    entry: Number.isFinite(entry) ? entry : null,
+    sl: Number.isFinite(sl) ? sl : null,
+    risk: Number.isFinite(risk) ? risk : null,
+    qty: Number.isFinite(qty) ? +qty.toFixed(6) : null,
+    exit: Number.isFinite(exit) ? exit : null,
+    pnl: Number.isFinite(pnl) ? +pnl.toFixed(2) : null,
+    r: Number.isFinite(r) ? +r.toFixed(3) : null,
+    status: closed ? 'closed' : 'open',
+    note: typeof flags.note === 'string' ? flags.note : '',
+  };
+  appendFileSync(JOURNAL, JSON.stringify(rec) + '\n');
+
+  console.log(`✓ 기록됨 → trading/journal.jsonl`);
+  console.log(`  ${rec.date}  ${symbol} ${side}  진입 ${rec.entry ?? '—'}  손절 ${rec.sl ?? '—'}  1R ${rec.risk != null ? fmtUsd(rec.risk) : '—'}`);
+  console.log(`  상태 ${rec.status}` + (rec.pnl != null ? `  손익 ${fmtUsd(rec.pnl)}  ${rec.r >= 0 ? '+' : ''}${rec.r}R` : '') + (rec.note ? `  「${rec.note}」` : ''));
+  console.log(`  ※ 컨테이너는 휘발성 — 보존하려면 커밋: git add trading/journal.jsonl && git commit`);
+}
+
+// list — 최근 기록
+function cmdList(flags) {
+  const all = loadJournal();
+  if (!all.length) { console.log('기록 없음. log 커맨드로 추가하세요.'); return; }
+  const n = parseInt(flags.n) || 20;
+  const rows = all.slice(-n);
+  console.log(`━━━ 트레이드 로그 (최근 ${rows.length}/${all.length}건) ━━━`);
+  console.log(`날짜        심볼         방향   1R       손익        R      상태`);
+  for (const t of rows) {
+    console.log(
+      `${(t.date || '').padEnd(11)} ${(t.symbol || '').padEnd(11)} ${(t.side || '').padEnd(5)} ` +
+      `${(t.risk != null ? fmtUsd(t.risk) : '—').padEnd(8)} ` +
+      `${(t.pnl != null ? fmtUsd(t.pnl) : '—').padEnd(11)} ` +
+      `${(t.r != null ? (t.r >= 0 ? '+' : '') + t.r : '—').toString().padEnd(6)} ${t.status}` +
+      (t.note ? `  「${t.note}」` : '')
+    );
+  }
+}
+
+// stats — 닫힌 트레이드의 실측 통계 + 실측 켈리
+function cmdStats() {
+  const closed = loadJournal().filter(t => t.status === 'closed' && Number.isFinite(t.r));
+  if (closed.length < 1) { console.log('닫힌 트레이드(R배수 보유)가 없음. 표본을 쌓으세요.'); return; }
+  const Rs = closed.map(t => t.r);
+  const n = Rs.length;
+  const wins = Rs.filter(r => r > 0), losses = Rs.filter(r => r <= 0);
+  const p = wins.length / n;
+  const avgWin = wins.length ? wins.reduce((s, x) => s + x, 0) / wins.length : 0;
+  const avgLoss = losses.length ? losses.reduce((s, x) => s + x, 0) / losses.length : 0;
+  const expectancy = Rs.reduce((s, x) => s + x, 0) / n;
+  const grossWin = wins.reduce((s, x) => s + x, 0);
+  const grossLoss = Math.abs(losses.reduce((s, x) => s + x, 0));
+  const pf = grossLoss ? grossWin / grossLoss : Infinity;
+
+  const out = [];
+  out.push(`━━━ 실측 통계 (닫힌 ${n}건) ━━━`);
+  out.push(`승률 p = ${(p * 100).toFixed(1)}%  (${wins.length}승 ${losses.length}패)`);
+  out.push(`평균 수익 +${avgWin.toFixed(2)}R   평균 손실 ${avgLoss.toFixed(2)}R`);
+  out.push(`기댓값(expectancy) ${expectancy >= 0 ? '+' : ''}${expectancy.toFixed(3)}R / 트레이드`);
+  out.push(`Profit Factor ${pf === Infinity ? '∞' : pf.toFixed(2)}`);
+
+  if (expectancy <= 0) {
+    out.push(`\n⛔ 기댓값 ≤ 0. 전략 자체가 음(-)의 기댓값 — 사이징으로 해결 불가.`);
+    out.push(`   켈리 이전에 진입/청산 규칙부터 점검할 것.`);
+  } else {
+    // 이항 근사 켈리 (평균 수익 R을 손익비로)
+    const Rbin = avgLoss !== 0 ? avgWin / Math.abs(avgLoss) : avgWin;
+    const fBin = p - (1 - p) / Rbin;
+    // 실측 켈리: mean(ln(1+f·Ri)) 최대화 (수치 탐색)
+    let bestF = 0, bestG = -Infinity;
+    for (let f = 0; f < 0.99; f += 0.001) {
+      let g = 0, ok = true;
+      for (const r of Rs) { const x = 1 + f * r; if (x <= 0) { ok = false; break; } g += Math.log(x); }
+      if (!ok) break;
+      g /= n;
+      if (g > bestG) { bestG = g; bestF = f; }
+    }
+    out.push(`\n━━━ 켈리 (실측 R배수 기반) ━━━`);
+    out.push(`이항 근사 (R=${Rbin.toFixed(2)}):  f* = ${(fBin * 100).toFixed(1)}%`);
+    out.push(`실측 켈리 (성장률 최대화):  f* = ${(bestF * 100).toFixed(1)}%`);
+    out.push(`권장: 하프 ${(bestF * 50).toFixed(1)}%  /  쿼터 ${(bestF * 25).toFixed(1)}%`);
+    if (n < 30) out.push(`⚠ 표본 ${n}건은 작음 — 30~50건 이상 쌓일 때까지 풀 켈리 금지, 쿼터 이하 권장.`);
+  }
+  // 데이터 위생 경고
+  const dirty = Rs.filter(r => r < -1.05);
+  if (dirty.length) out.push(`\n⚠ -1R보다 큰 손실 ${dirty.length}건 (예: ${dirty.map(r => r.toFixed(1) + 'R').slice(0, 3).join(', ')}). 물타기/손절미준수 의심 — 켈리 무효화.`);
+  console.log(out.join('\n'));
+}
+
+// checklist — 진입 전 게이트
+function cmdChecklist(flags) {
+  const entry = num(flags.entry), sl = num(flags.sl), risk = num(flags.risk), seed = num(flags.seed) || 5000;
+  const tp1 = num(flags.tp1), lev = num(flags.lev);
+  const side = (flags.side === 'short') ? 'short' : 'long';
+  const items = [];
+  const check = (label, pass, detail) => items.push({ label, pass, detail });
+
+  check('손절가(SL)를 진입 전에 정했는가', Number.isFinite(sl),
+    Number.isFinite(sl) ? `SL ${fmtPrice(sl)}` : '--sl 누락 → SL 없는 진입 금지');
+  if (Number.isFinite(sl) && Number.isFinite(entry)) {
+    const slOk = side === 'long' ? sl < entry : sl > entry;
+    check('SL 방향이 올바른가', slOk, slOk ? 'OK' : `${side}인데 SL이 진입가 반대편`);
+  }
+  if (Number.isFinite(risk)) {
+    const pctSeed = risk / seed * 100;
+    check('리스크가 시드의 1~2% 이내인가', pctSeed <= 2, `1R ${fmtUsd(risk)} = 시드의 ${pctSeed.toFixed(1)}%`);
+  } else check('리스크(1R)를 고정했는가', false, '--risk 누락');
+  if (Number.isFinite(entry) && Number.isFinite(sl) && Number.isFinite(tp1)) {
+    const r1 = (side === 'long' ? tp1 - entry : entry - tp1) / Math.abs(entry - sl);
+    check('TP1 손익비가 +1R 이상인가', r1 >= 1, `TP1 = ${r1 >= 0 ? '+' : ''}${r1.toFixed(2)}R`);
+  }
+  if (Number.isFinite(lev) && Number.isFinite(entry) && Number.isFinite(sl)) {
+    const liq = liqPrice(entry, lev, side);
+    const liqBeforeSL = side === 'long' ? liq >= sl : liq <= sl;
+    check('청산가가 SL보다 멀리 있는가', !liqBeforeSL, `${lev}x 청산 ${fmtPrice(liq)} (추정)`);
+  }
+  // 규율 서약 (자동 판단 불가 → 항상 상기)
+  const manual = [
+    '물타기 안 한다 — SL 닿으면 추가 진입 없이 청산',
+    '진입과 동시에 SL 주문을 등록한다',
+    '레버리지를 올려 증거금 부족을 메우지 않는다 (수량을 줄인다)',
+    '"본절까지만 버틴다"는 매몰비용 — 지금 신규 진입할 자리인지로만 판단',
+  ];
+
+  const out = [];
+  out.push(`━━━ 진입 전 체크리스트 ━━━`);
+  let allPass = true;
+  for (const it of items) {
+    if (!it.pass) allPass = false;
+    out.push(`  ${it.pass ? '✅' : '❌'} ${it.label}  —  ${it.detail}`);
+  }
+  out.push(`\n  [수동 확인 — 규율]`);
+  for (const m of manual) out.push(`  ☐ ${m}`);
+  out.push(`\n  판정: ${allPass ? '✅ 자동 항목 통과 (위 수동 항목 확인 후 진입)' : '⛔ 미통과 항목 있음 — 진입 보류'}`);
+  console.log(out.join('\n'));
+}
+
 // ── 엔트리 ──────────────────────────────────────────────────
 async function main() {
   const [, , cmd, ...rest] = process.argv;
@@ -249,18 +424,32 @@ async function main() {
   try {
     if (cmd === 'market') await cmdMarket(flags);
     else if (cmd === 'size') cmdSize(flags);
+    else if (cmd === 'log') cmdLog(flags);
+    else if (cmd === 'list') cmdList(flags);
+    else if (cmd === 'stats') cmdStats(flags);
+    else if (cmd === 'checklist' || cmd === 'check') cmdChecklist(flags);
     else {
       console.log(`HaxKai 트레이딩 어시스턴트 CLI
 
-  node trading/hax.mjs market <SYMBOL> [--tf 4h,1d] [--limit 200]
+  market <SYMBOL> [--tf 4h,1d] [--limit 200]
       라이브 현재가·펀딩비·캔들·지지/저항·ATR·스파크라인
 
-  node trading/hax.mjs size --entry <가격> --sl <가격> --risk <$> \\
-       [--tp1 .. --tp2 .. --p 0.55 --side long|short --seed 5000]
+  size --entry <가격> --sl <가격> --risk <$> [--tp1 .. --p 0.55 --side long|short --seed 5000]
       포지션 수량·명목·레버리지표·청산가·R배수·켈리 f*
 
+  checklist --entry .. --sl .. --risk .. [--tp1 .. --lev .. --seed 5000]
+      진입 전 게이트 (SL·리스크·손익비·청산·물타기 규율)
+
+  log <SYMBOL> --entry .. --sl .. --risk .. [--exit .. | --pnl .. | --r ..] [--side --note]
+      트레이드 한 건을 journal.jsonl 에 기록
+
+  list [--n 20]      최근 트레이드 로그
+  stats              닫힌 표본의 승률·기댓값·Profit Factor·실측 켈리
+
 예) node trading/hax.mjs market TA
-    node trading/hax.mjs size --entry 0.0245 --sl 0.021481 --risk 250 --tp1 0.027001`);
+    node trading/hax.mjs checklist --entry 0.0245 --sl 0.021481 --risk 250 --tp1 0.027001 --lev 3
+    node trading/hax.mjs log HUMA --entry 0.0245 --sl 0.021481 --risk 250 --exit 0.0300 --note "HaxKai 지지 리테스트"
+    node trading/hax.mjs stats`);
     }
   } catch (e) {
     console.error('오류: ' + e.message);
