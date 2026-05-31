@@ -8,6 +8,39 @@
 import { getConfigValue, setConfigValue } from './db';
 import { sendPushToRole } from './push';
 
+// 알림 전송 — 텔레그램(설정 시) + 웹푸시(설정 시). 둘 다 있으면 둘 다 보냄.
+// 텔레그램이 설정이 가장 간단하므로 권장 경로.
+async function notify(title: string, body: string): Promise<{ telegram: boolean; push: boolean }> {
+  const sent = { telegram: false, push: false };
+  const text = `${title}\n${body}`;
+
+  // 1) 텔레그램
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (token && chatId) {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+      });
+      sent.telegram = res.ok;
+    } catch {
+      sent.telegram = false;
+    }
+  }
+
+  // 2) 웹푸시 (구독이 있으면)
+  const role = (process.env.WATCH_PUSH_ROLE as 'husband' | 'wife') || 'husband';
+  try {
+    await sendPushToRole(role, title, body);
+    sent.push = true;
+  } catch {
+    sent.push = false;
+  }
+  return sent;
+}
+
 // 감시 셋업 정의 — 현재는 FOLKS 단일. 추후 다중 확장 시 배열로.
 export interface WatchSetup {
   symbol: string;        // Binance USDⓈ-M perp 심볼 (예: FOLKSUSDT)
@@ -76,8 +109,6 @@ function fmt(n: number, d = 4) {
   return Number.isFinite(n) ? n.toFixed(d) : String(n);
 }
 
-const PUSH_ROLE = (process.env.WATCH_PUSH_ROLE as 'husband' | 'wife') || 'husband';
-
 // 단일 셋업 확인 + (충족 & 미발송이면) 알림
 export async function checkSetup(s: WatchSetup): Promise<CheckResult> {
   const stateKey = `breakout_fired:${s.symbol}:${s.interval}:${s.trigger}`;
@@ -118,11 +149,12 @@ export async function checkSetup(s: WatchSetup): Promise<CheckResult> {
     `수량 ${qty.toFixed(0)} · 명목 $${notional.toFixed(0)} · TP1 ${fmt(s.tps[0])} (+${tp1R.toFixed(2)}R)\n` +
     `※ 직접 주문 넣고, 진입과 동시에 SL 등록할 것.`;
 
-  await sendPushToRole(PUSH_ROLE, title, body);
+  const sent = await notify(title, body);
   await setConfigValue(stateKey, String(candle.openTime));
 
   base.fired = true;
-  base.reason = `돌파 발동 — 알림 발송 (종가 ${fmt(candle.close)} > ${fmt(s.trigger)})`;
+  const ch = [sent.telegram ? '텔레그램' : null, sent.push ? '웹푸시' : null].filter(Boolean).join('+') || '없음(채널 미설정)';
+  base.reason = `돌파 발동 — 알림 발송 [${ch}] (종가 ${fmt(candle.close)} > ${fmt(s.trigger)})`;
   return base;
 }
 
