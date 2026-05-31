@@ -29,13 +29,36 @@
 > 수량 1592 · 명목 $2326 · TP1 1.7180 (+1.64R)
 > ※ 직접 주문 넣고, 진입과 동시에 SL 등록할 것.
 
+## 알림 채널 — 텔레그램(권장, 가장 쉬움) 또는 웹푸시
+
+워처는 **텔레그램**과 **웹푸시**를 모두 지원한다. 설정된 채널로 전부 보낸다.
+설치·구독이 필요 없는 **텔레그램이 가장 간단**하므로 이걸 권장.
+
+### 텔레그램 설정 (3단계)
+1. 텔레그램에서 **@BotFather** 와 대화 → `/newbot` → 봇 이름 정하면 **봇 토큰** 발급.
+   (예: `123456:ABC-DEF...`)
+2. 만든 봇과 대화 시작(아무 메시지나 전송) 후, **내 채팅 ID** 확인:
+   - 브라우저에서 `https://api.telegram.org/bot<봇토큰>/getUpdates` 열기
+   - 응답 JSON의 `chat.id` 숫자가 내 채팅 ID (예: `987654321`)
+3. Railway 환경변수에 추가:
+   - `TELEGRAM_BOT_TOKEN` = 봇 토큰
+   - `TELEGRAM_CHAT_ID` = 채팅 ID
+   - `CRON_SECRET` = 임의의 긴 문자열 (cron 인증용)
+
+설정 확인:
+```
+https://<배포주소>/api/cron/breakout/test?key=<CRON_SECRET>
+```
+→ 텔레그램으로 "✅ 워처 테스트" 메시지가 오면 성공. 응답 JSON에 `telegramSent:true`.
+
+### (선택) 웹푸시
+앱을 폰에 설치하고 알림 권한 허용 → `push_subscriptions`에 저장됨.
+`WATCH_PUSH_ROLE` = `husband`(기본)/`wife` 로 받을 역할 지정.
+텔레그램을 쓰면 웹푸시는 굳이 설정 안 해도 됨.
+
 ## 배포 설정 (Railway)
-1. **환경변수 추가**
-   - `CRON_SECRET` — 임의의 긴 문자열 (cron 호출 인증용).
-   - (선택) `WATCH_PUSH_ROLE` — `husband`(기본) 또는 `wife`. 알림 받을 역할.
-2. **푸시 구독 선행**: 앱(money-tracker PWA)을 폰에 설치하고 알림 권한을 허용해
-   `push_subscriptions`에 구독이 저장돼 있어야 함. (기존 가계부 알림과 동일 메커니즘)
-3. **외부 cron 등록** (예: https://cron-job.org 무료)
+1. **환경변수 추가** — 위 텔레그램 3단계의 `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` / `CRON_SECRET`.
+2. **외부 cron 등록** (예: https://cron-job.org 무료)
    - URL: `https://<배포주소>/api/cron/breakout?key=<CRON_SECRET>`
    - 주기: 1D 기준이면 **매시 정각**이면 충분 (봉 마감 직후 한 번이면 되고, 중복은 자동 차단).
    - 또는 헤더 방식: `Authorization: Bearer <CRON_SECRET>`
