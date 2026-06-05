@@ -1,0 +1,2 @@
+{"ts":1780635304947,"date":"2026-06-05","symbol":"GENIUSUSDT","side":"long","entry":0.4292,"sl":0.3709,"risk":250,"qty":4288.164666,"exit":null,"pnl":null,"r":0,"status":"closed","note":"본절 SL 청산. +3R까지 갔으나 분할익절 안함"}
+{"ts":1780635305054,"date":"2026-06-05","symbol":"JUPUSDT","side":"long","entry":0.195,"sl":0.175,"risk":250,"qty":12500,"exit":null,"pnl":null,"r":-1,"status":"closed","note":"HaxKai 노란지지 되돌림, SL 0.1750 청산"}
