@@ -34,6 +34,7 @@ export async function initDb(): Promise<void> {
         password_hash TEXT NOT NULL
       )
     `;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS disabled BOOLEAN NOT NULL DEFAULT FALSE`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -168,6 +169,7 @@ export interface User {
   name: string;
   username: string;
   password_hash: string;
+  disabled: boolean;
 }
 
 export interface Transaction {
@@ -231,9 +233,18 @@ export async function getSessionUser(token: string): Promise<User | null> {
   const rows = await sql<User[]>`
     SELECT users.* FROM sessions
     JOIN users ON sessions.user_id = users.id
-    WHERE sessions.token = ${token}
+    WHERE sessions.token = ${token} AND users.disabled = FALSE
   `;
   return rows[0] ?? null;
+}
+
+export async function setUserDisabled(role: 'husband' | 'wife', disabled: boolean): Promise<void> {
+  await initDb();
+  const sql = getSql();
+  await sql`UPDATE users SET disabled = ${disabled} WHERE role = ${role}`;
+  if (disabled) {
+    await sql`DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE role = ${role})`;
+  }
 }
 
 export async function deleteSession(token: string): Promise<void> {
