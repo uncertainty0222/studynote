@@ -352,12 +352,14 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
                 className="bg-white/10 active:bg-white/20 rounded-xl px-3 py-3 text-left transition-colors">
                 <p className="text-xs opacity-60 mb-1.5">🏦 금고</p>
                 <p className="text-base font-black leading-tight">{fmtUsd(vaultUsd)}</p>
+                <p className="text-[10px] opacity-50 leading-tight">{fmtVnd(vaultUsd * usdToVnd)}</p>
                 <p className="text-xs opacity-55 mt-1">{((vaultUsd / totalUsd) * 100).toFixed(0)}% {vaultOpen ? '▲' : '▼'}</p>
               </button>
               <button onClick={() => setBinanceOpen(v => !v)}
                 className="bg-white/10 active:bg-white/20 rounded-xl px-3 py-3 text-left transition-colors">
                 <p className="text-xs opacity-60 mb-1.5">📊 바이낸스</p>
                 <p className="text-base font-black leading-tight">{binanceLoading ? '...' : fmtUsd(binanceUsd)}</p>
+                <p className="text-[10px] opacity-50 leading-tight">{binance ? fmtVnd(binanceUsd * usdToVnd) : '—'}</p>
                 <p className="text-xs opacity-55 mt-1">{binance && totalUsd > 0 ? `${((binanceUsd / totalUsd) * 100).toFixed(0)}%` : '—'} {binanceOpen ? '▲' : '▼'}</p>
               </button>
               <div className="bg-white/10 rounded-xl px-3 py-3">
