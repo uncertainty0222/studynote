@@ -64,6 +64,19 @@ export const FOLKS_1D: WatchSetup = {
   tps: [1.718, 2.043, 2.248], // 1.461 진입 시 1.450은 이미 지났으므로 TP1=1.718
 };
 
+// CLO — "0.24 위 일봉 몸통 마감" 확인 후 진입 (HaxKai 교육 트윗 기준).
+// 현재가 0.196은 저항 0.24 아래 + 주봉 윗꼬리(유동성 사냥) → 마감 확인 전엔 진입 금지.
+export const CLO_1D: WatchSetup = {
+  symbol: 'CLOUSDT',
+  label: '$CLO',
+  interval: '1d',
+  trigger: 0.24036,         // 파란 Breakout 저항선
+  entry: 0.24036,
+  sl: 0.12394,              // 빨간 SL
+  risk: 250,
+  tps: [0.30873, 0.41952, 0.63754, 1.10002], // 초록 타겟들
+};
+
 const FAPI = 'https://fapi.binance.com';
 
 interface CheckResult {
@@ -160,7 +173,7 @@ export async function checkSetup(s: WatchSetup): Promise<CheckResult> {
 
 // 등록된 모든 셋업 확인 (현재 FOLKS 단일)
 export async function runWatch(): Promise<CheckResult[]> {
-  const setups = [FOLKS_1D];
+  const setups = [FOLKS_1D, CLO_1D];
   const results: CheckResult[] = [];
   for (const s of setups) {
     try {
