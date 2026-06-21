@@ -173,7 +173,7 @@ export async function checkSetup(s: WatchSetup): Promise<CheckResult> {
 
 // 등록된 모든 셋업 확인 (현재 FOLKS 단일)
 export async function runWatch(): Promise<CheckResult[]> {
-  const setups = [FOLKS_1D, CLO_1D];
+  const setups = [CLO_1D];
   const results: CheckResult[] = [];
   for (const s of setups) {
     try {
