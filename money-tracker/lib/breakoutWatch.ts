@@ -152,18 +152,17 @@ function fmt(n: number, d = 4) {
   return Number.isFinite(n) ? n.toFixed(d) : String(n);
 }
 
-// 단일 셋업 확인 — 트리거선을 위/아래로 "교차"할 때마다 알림 (상향 돌파 + 하향 이탈 둘 다).
-// 상태(above/below)를 저장하고, 직전 마감봉에서 상태가 바뀌었을 때만 1회 알림.
-export async function checkSetup(s: WatchSetup): Promise<CheckResult> {
-  // state 값: "above:<openTime>" 또는 "below:<openTime>" 형태로 저장
-  const stateKey = `breakout_state:${s.symbol}:${s.interval}:${s.trigger}`;
-  const candle = await fetchLastClosedCandle(s.symbol, s.interval);
+// 한 타임프레임에서 트리거선 교차를 확인하고, 상태가 바뀌면 알림.
+// tf: 'daily' | 'weekly' — 메시지 스타일과 강도를 결정.
+async function checkCross(s: WatchSetup, interval: string, tf: 'daily' | 'weekly'): Promise<CheckResult> {
+  const stateKey = `breakout_state:${s.symbol}:${interval}:${s.trigger}`;
+  const candle = await fetchLastClosedCandle(s.symbol, interval);
   const triggered = candle.close > s.trigger;
   const nowState = triggered ? 'above' : 'below';
 
   const base: CheckResult = {
     symbol: s.symbol,
-    interval: s.interval,
+    interval,
     lastClosedClose: candle.close,
     lastClosedOpenTime: candle.openTime,
     triggered,
@@ -171,69 +170,76 @@ export async function checkSetup(s: WatchSetup): Promise<CheckResult> {
     reason: '',
   };
 
-  const prevRaw = await getConfigValue(stateKey);          // 예: "above:1781913600000"
-  const prevState = prevRaw ? prevRaw.split(':')[0] : null; // "above" | "below" | null
+  const prevRaw = await getConfigValue(stateKey);
+  const prevState = prevRaw ? prevRaw.split(':')[0] : null;
   const prevOpenTime = prevRaw ? prevRaw.split(':')[1] : null;
 
-  // 상태 변화 없음 → 조용 (단, 같은 봉 재호출도 여기서 걸러짐)
   if (prevState === nowState) {
-    base.reason = `상태 유지 (${nowState}) — 종가 ${fmt(candle.close)} vs 트리거 ${fmt(s.trigger)}`;
+    base.reason = `[${tf}] 상태 유지 (${nowState}) — 종가 ${fmt(candle.close)} vs ${fmt(s.trigger)}`;
     return base;
   }
-
-  // 첫 관측(prev 없음)인데 아직 아래면, 알림 없이 상태만 기록 (돌파 대기 시작점)
+  // 첫 관측이 아래면 알림 없이 시작점만 기록
   if (prevState === null && nowState === 'below') {
     await setConfigValue(stateKey, `${nowState}:${candle.openTime}`);
-    base.reason = `감시 시작 — 현재 트리거 아래 (종가 ${fmt(candle.close)})`;
+    base.reason = `[${tf}] 감시 시작 — 트리거 아래 (종가 ${fmt(candle.close)})`;
     return base;
   }
-
-  // 안전장치: 같은 봉(openTime)에 대해선 중복 알림 금지
   if (prevOpenTime === String(candle.openTime)) {
-    base.reason = `이미 처리된 봉 (openTime ${candle.openTime})`;
+    base.reason = `[${tf}] 이미 처리된 봉 (openTime ${candle.openTime})`;
     return base;
   }
 
-  // 여기 도달 = 상태가 바뀜 → 교차 알림
+  // 상태 변화 → 알림 (일봉=가볍게, 주봉=강렬하게)
   const { qty, notional, tp1R } = sizing(s);
-  let title: string;
-  let body: string;
+  let title: string, body: string;
 
-  if (nowState === 'above') {
-    // 상향 돌파
-    title = `🔔 ${s.label} 상향 돌파 마감! (${s.interval})`;
-    const weeklyLine = s.weeklyConfirm
-      ? `\n⏳ Kai는 주봉 마감 확인 권장 — 주봉 마감까지 ${timeToWeeklyClose()} 남음 (그때 종가가 ${fmt(s.trigger)} 위인지 재확인)`
-      : '';
+  if (tf === 'weekly' && nowState === 'above') {
+    // 🚀 주봉 상향 마감 — Kai 셋업 확정, 가장 강렬
+    title = `🚀🚀 ${s.label} 주봉 돌파 확정!! (Kai 셋업 발동)`;
     body =
-      `종가 ${fmt(candle.close)} > 트리거 ${fmt(s.trigger)}\n` +
+      `★ 주봉 종가 ${fmt(candle.close)} > ${fmt(s.trigger)} — HTF 매크로 돌파 확정 ★\n` +
+      `이게 Kai가 기다리라던 바로 그 자리다.\n` +
       `진입 ${fmt(s.entry)} / 손절 ${fmt(s.sl)} (1R=$${s.risk})\n` +
-      `수량 ${qty.toFixed(0)} · 명목 $${notional.toFixed(0)} · TP1 ${fmt(s.tps[0])} (+${tp1R.toFixed(2)}R)` +
-      weeklyLine + `\n※ 직접 주문 넣고, 진입과 동시에 SL 등록할 것.`;
+      `수량 ${qty.toFixed(0)} · 명목 $${notional.toFixed(0)} · TP1 ${fmt(s.tps[0])} (+${tp1R.toFixed(2)}R)\n` +
+      `※ 진입과 동시에 SL 등록. 손절폭 넓으면 SL 재계산.`;
+  } else if (tf === 'weekly' && nowState === 'below') {
+    title = `🔻🔻 ${s.label} 주봉 이탈 (매크로 무효)`;
+    body = `주봉 종가 ${fmt(candle.close)} < ${fmt(s.trigger)} — 매크로 돌파 실패/무효. 관망.`;
+  } else if (nowState === 'above') {
+    // 🔔 일봉 상향 — 가벼운 조기 신호
+    const wk = `\n⏳ Kai 기준은 주봉 마감 — 주봉 마감까지 ${timeToWeeklyClose()} 남음. 확정 아님, 관찰만.`;
+    title = `🔔 ${s.label} 일봉 돌파 (조기 신호)`;
+    body = `일봉 종가 ${fmt(candle.close)} > ${fmt(s.trigger)}` + wk;
   } else {
-    // 하향 이탈
-    title = `🔻 ${s.label} 하향 이탈 마감 (${s.interval})`;
-    body =
-      `종가 ${fmt(candle.close)} < 트리거 ${fmt(s.trigger)}\n` +
-      `돌파가 무효화됨 — 트리거선 아래로 마감. 진입 보류/관망.`;
+    // 🔹 일봉 하향 — 가벼움
+    title = `🔹 ${s.label} 일봉 이탈`;
+    body = `일봉 종가 ${fmt(candle.close)} < ${fmt(s.trigger)} — 조기 신호 약화.`;
   }
 
   const sent = await notify(title, body);
   await setConfigValue(stateKey, `${nowState}:${candle.openTime}`);
 
   base.fired = true;
-  const ch = [sent.telegram ? '텔레그램' : null, sent.push ? '웹푸시' : null].filter(Boolean).join('+') || '없음(채널 미설정)';
-  base.reason = `${nowState === 'above' ? '상향 돌파' : '하향 이탈'} — 알림 발송 [${ch}] (종가 ${fmt(candle.close)} vs ${fmt(s.trigger)})`;
+  const ch = [sent.telegram ? '텔레그램' : null, sent.push ? '웹푸시' : null].filter(Boolean).join('+') || '없음';
+  base.reason = `[${tf}] ${nowState === 'above' ? '상향' : '하향'} 교차 — 알림 [${ch}] (종가 ${fmt(candle.close)} vs ${fmt(s.trigger)})`;
   return base;
 }
 
-// 등록된 모든 셋업 확인 (현재 FOLKS 단일)
+// 셋업 하나를 일봉(가벼움) + 주봉(강렬)으로 모두 확인.
+export async function checkSetup(s: WatchSetup): Promise<CheckResult[]> {
+  const results: CheckResult[] = [];
+  results.push(await checkCross(s, '1d', 'daily'));
+  results.push(await checkCross(s, '1w', 'weekly'));
+  return results;
+}
+
+// 등록된 모든 셋업을 일봉+주봉으로 확인.
 export async function runWatch(): Promise<CheckResult[]> {
   const setups = [CLO_1D, AERO_1D];
   const results: CheckResult[] = [];
   for (const s of setups) {
     try {
-      results.push(await checkSetup(s));
+      results.push(...(await checkSetup(s)));
     } catch (e) {
       results.push({
         symbol: s.symbol, interval: s.interval, lastClosedClose: null,
