@@ -51,6 +51,7 @@ export interface WatchSetup {
   sl: number;            // 손절가 (Breakout sl)
   risk: number;          // 1R 리스크 ($)
   tps: number[];         // 익절 타겟들
+  weeklyConfirm?: boolean; // true면: 일봉으로 빨리 포착하되, Kai가 원하는 주봉 마감까지 남은 시간을 알림에 함께 표시
 }
 
 export const FOLKS_1D: WatchSetup = {
@@ -77,7 +78,36 @@ export const CLO_1D: WatchSetup = {
   tps: [0.30873, 0.41952, 0.63754, 1.10002], // 초록 타겟들
 };
 
+// AERO — Kai는 "주봉 0.60 마감"을 요구하지만, 인화 요청대로 일봉 마감으로 빨리 포착하고
+// 알림에 주봉 마감까지 남은 시간을 함께 표시한다. (트리거는 Kai의 매크로 레벨 0.60)
+export const AERO_1D: WatchSetup = {
+  symbol: 'AEROUSDT',
+  label: '$AERO',
+  interval: '1d',
+  trigger: 0.6002,          // 파란 주봉 돌파선 (Kai 매크로 레벨)
+  entry: 0.6002,
+  sl: 0.3674,               // 빨간 SL (진입 시 재계산 권장)
+  risk: 250,
+  tps: [1.7576, 3.6230],    // 초록 타겟들
+  weeklyConfirm: true,      // 주봉 마감까지 남은 시간 함께 알림
+};
+
 const FAPI = 'https://fapi.binance.com';
+
+// 다음 주봉 마감까지 남은 시간 (바이낸스 주봉은 월요일 00:00 UTC 시작/마감).
+function timeToWeeklyClose(now = Date.now()): string {
+  const d = new Date(now);
+  const dow = d.getUTCDay();              // 0=일,1=월,...
+  // 다음 월요일 00:00 UTC 까지
+  const daysUntilMon = (8 - dow) % 7 || 7; // 월요일이면 7일 뒤(이번 주 마감), 그 외엔 다음 월요일
+  const nextClose = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + daysUntilMon, 0, 0, 0);
+  const ms = nextClose - now;
+  const totalMin = Math.max(0, Math.floor(ms / 60000));
+  const days = Math.floor(totalMin / 1440);
+  const hours = Math.floor((totalMin % 1440) / 60);
+  const mins = totalMin % 60;
+  return `${days}일 ${hours}시간 ${mins}분`;
+}
 
 interface CheckResult {
   symbol: string;
@@ -156,11 +186,14 @@ export async function checkSetup(s: WatchSetup): Promise<CheckResult> {
   // 새 돌파 → 알림 1회
   const { qty, notional, tp1R } = sizing(s);
   const title = `🔔 ${s.label} 돌파 마감! (${s.interval})`;
+  const weeklyLine = s.weeklyConfirm
+    ? `\n⏳ Kai는 주봉 마감 확인 권장 — 주봉 마감까지 ${timeToWeeklyClose()} 남음 (그때 종가가 ${fmt(s.trigger)} 위인지 재확인)`
+    : '';
   const body =
     `종가 ${fmt(candle.close)} > 트리거 ${fmt(s.trigger)}\n` +
     `진입 ${fmt(s.entry)} / 손절 ${fmt(s.sl)} (1R=$${s.risk})\n` +
-    `수량 ${qty.toFixed(0)} · 명목 $${notional.toFixed(0)} · TP1 ${fmt(s.tps[0])} (+${tp1R.toFixed(2)}R)\n` +
-    `※ 직접 주문 넣고, 진입과 동시에 SL 등록할 것.`;
+    `수량 ${qty.toFixed(0)} · 명목 $${notional.toFixed(0)} · TP1 ${fmt(s.tps[0])} (+${tp1R.toFixed(2)}R)` +
+    weeklyLine + `\n※ 직접 주문 넣고, 진입과 동시에 SL 등록할 것.`;
 
   const sent = await notify(title, body);
   await setConfigValue(stateKey, String(candle.openTime));
@@ -173,7 +206,7 @@ export async function checkSetup(s: WatchSetup): Promise<CheckResult> {
 
 // 등록된 모든 셋업 확인 (현재 FOLKS 단일)
 export async function runWatch(): Promise<CheckResult[]> {
-  const setups = [CLO_1D];
+  const setups = [CLO_1D, AERO_1D];
   const results: CheckResult[] = [];
   for (const s of setups) {
     try {
