@@ -51,7 +51,17 @@ export interface WatchSetup {
   sl: number;            // 손절가 (Breakout sl)
   risk: number;          // 1R 리스크 ($)
   tps: number[];         // 익절 타겟들
-  weeklyConfirm?: boolean; // true면: 일봉으로 빨리 포착하되, Kai가 원하는 주봉 마감까지 남은 시간을 알림에 함께 표시
+  weeklyConfirm?: boolean; // (구) 사용 안 함. timeframes로 대체.
+  // 감시할 타임프레임 목록. 미지정 시 일봉+주봉(['1d','1w']).
+  // 예: $O는 Kai가 "4H 마감" 기준이라 ['4h'].
+  timeframes?: string[];
+}
+
+// 타임프레임 라벨 (메시지 강도 결정용)
+function tfKind(interval: string): 'weekly' | 'daily' | 'intraday' {
+  if (interval === '1w') return 'weekly';
+  if (interval === '1d') return 'daily';
+  return 'intraday'; // 4h, 1h 등
 }
 
 export const FOLKS_1D: WatchSetup = {
@@ -90,6 +100,20 @@ export const AERO_1D: WatchSetup = {
   risk: 250,
   tps: [1.7576, 3.6230],    // 초록 타겟들
   weeklyConfirm: true,      // 주봉 마감까지 남은 시간 함께 알림
+};
+
+// $O — Kai는 "4H 마감 0.50 위"를 진입 트리거로 명시. 노란 지지(0.4071/0.3503)가 반전존.
+// 일/주봉이 아니라 4시간봉 단일로 감시.
+export const O_4H: WatchSetup = {
+  symbol: 'OUSDT',
+  label: '$O',
+  interval: '4h',
+  trigger: 0.50,            // Kai: "strong 4H candle close above 0.50"
+  entry: 0.50,
+  sl: 0.3503,               // 노란 하단 지지 아래 (진입 시 재계산 권장)
+  risk: 250,
+  tps: [0.61, 0.69, 0.80],  // 차트상 위쪽 레벨 (대략)
+  timeframes: ['4h'],
 };
 
 const FAPI = 'https://fapi.binance.com';
@@ -154,7 +178,7 @@ function fmt(n: number, d = 4) {
 
 // 한 타임프레임에서 트리거선 교차를 확인하고, 상태가 바뀌면 알림.
 // tf: 'daily' | 'weekly' — 메시지 스타일과 강도를 결정.
-async function checkCross(s: WatchSetup, interval: string, tf: 'daily' | 'weekly'): Promise<CheckResult> {
+async function checkCross(s: WatchSetup, interval: string, tf: 'daily' | 'weekly' | 'intraday'): Promise<CheckResult> {
   const stateKey = `breakout_state:${s.symbol}:${interval}:${s.trigger}`;
   const candle = await fetchLastClosedCandle(s.symbol, interval);
   const triggered = candle.close > s.trigger;
@@ -205,6 +229,17 @@ async function checkCross(s: WatchSetup, interval: string, tf: 'daily' | 'weekly
   } else if (tf === 'weekly' && nowState === 'below') {
     title = `🔻🔻 ${s.label} 주봉 이탈 (매크로 무효)`;
     body = `주봉 종가 ${fmt(candle.close)} < ${fmt(s.trigger)} — 매크로 돌파 실패/무효. 관망.`;
+  } else if (tf === 'intraday' && nowState === 'above') {
+    // ⚡ 인트라데이(4H 등) 상향 마감 — Kai가 이 TF를 직접 트리거로 지정한 경우라 본격 신호
+    title = `⚡ ${s.label} ${interval} 돌파 마감! (Kai 트리거)`;
+    body =
+      `${interval} 종가 ${fmt(candle.close)} > ${fmt(s.trigger)} — Kai가 지정한 진입 조건 충족\n` +
+      `진입 ${fmt(s.entry)} / 손절 ${fmt(s.sl)} (1R=$${s.risk})\n` +
+      `수량 ${qty.toFixed(0)} · 명목 $${notional.toFixed(0)} · TP1 ${fmt(s.tps[0])} (+${tp1R.toFixed(2)}R)\n` +
+      `※ 진입과 동시에 SL 등록. 손절폭 넓으면 SL 재계산.`;
+  } else if (tf === 'intraday' && nowState === 'below') {
+    title = `🔻 ${s.label} ${interval} 이탈`;
+    body = `${interval} 종가 ${fmt(candle.close)} < ${fmt(s.trigger)} — 트리거 아래로 마감. 관망.`;
   } else if (nowState === 'above') {
     // 🔔 일봉 상향 — 가벼운 조기 신호
     const wk = `\n⏳ Kai 기준은 주봉 마감 — 주봉 마감까지 ${timeToWeeklyClose()} 남음. 확정 아님, 관찰만.`;
@@ -225,17 +260,19 @@ async function checkCross(s: WatchSetup, interval: string, tf: 'daily' | 'weekly
   return base;
 }
 
-// 셋업 하나를 일봉(가벼움) + 주봉(강렬)으로 모두 확인.
+// 셋업 하나를 지정된 타임프레임들로 확인 (기본: 일봉+주봉).
 export async function checkSetup(s: WatchSetup): Promise<CheckResult[]> {
+  const tfs = s.timeframes && s.timeframes.length ? s.timeframes : ['1d', '1w'];
   const results: CheckResult[] = [];
-  results.push(await checkCross(s, '1d', 'daily'));
-  results.push(await checkCross(s, '1w', 'weekly'));
+  for (const interval of tfs) {
+    results.push(await checkCross(s, interval, tfKind(interval)));
+  }
   return results;
 }
 
-// 등록된 모든 셋업을 일봉+주봉으로 확인.
+// 등록된 모든 셋업을 각자의 타임프레임으로 확인.
 export async function runWatch(): Promise<CheckResult[]> {
-  const setups = [CLO_1D, AERO_1D];
+  const setups = [CLO_1D, AERO_1D, O_4H];
   const results: CheckResult[] = [];
   for (const s of setups) {
     try {
