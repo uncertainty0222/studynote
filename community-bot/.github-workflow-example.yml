@@ -1,0 +1,38 @@
+# GitHub Actions 로 매일 자동 수집하고 싶을 때 쓰는 예시.
+# 이 파일을 리포 루트의 .github/workflows/community-bot.yml 로 복사하면 동작한다.
+#
+# ⚠️ 주의: GitHub 러너 IP 에서는 커뮤니티 사이트가 접속 차단될 수 있다.
+#    차단되면 Railway 나 본인 PC(로컬) 실행을 쓰는 게 낫다.
+#
+# 텔레그램 알림을 받으려면 리포 Settings > Secrets 에
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID 를 등록한다.
+
+name: community-bot
+on:
+  schedule:
+    - cron: '0 22 * * *' # UTC 22:00 = KST 07:00 매일
+  workflow_dispatch: {}
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: community-bot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci || npm install
+      - run: npx playwright install --with-deps chromium
+      - name: Collect & notify
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node bot.mjs
+      - name: Upload dashboard artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard
+          path: community-bot/out/*.html

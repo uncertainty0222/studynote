@@ -1,0 +1,23 @@
+{
+  "name": "community-twitter-bot",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "한국 커뮤니티 일일 인기글 → 딸깍 트윗 대시보드 봇 (반자동)",
+  "bin": {
+    "community-bot": "bot.mjs"
+  },
+  "scripts": {
+    "start": "node bot.mjs",
+    "sample": "node bot.mjs --sample",
+    "serve": "node bot.mjs --serve",
+    "once-serve": "node bot.mjs --once --serve",
+    "debug": "node bot.mjs --debug"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "playwright": "^1.56.1"
+  }
+}

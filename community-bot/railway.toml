@@ -1,0 +1,10 @@
+[build]
+builder = "nixpacks"
+# Playwright 브라우저 바이너리까지 설치(스크래핑에 필요).
+buildCommand = "npm install && npx playwright install --with-deps chromium"
+
+[deploy]
+# 배포 시 1회 수집하고 대시보드를 웹으로 서빙.
+# 매일 자동 수집은 Railway 크론 서비스에서 `node bot.mjs` 를 하루 1회 실행하도록 설정.
+startCommand = "node bot.mjs --once --serve"
+restartPolicyType = "on_failure"
