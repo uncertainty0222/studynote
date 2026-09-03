@@ -613,18 +613,11 @@ export default function Home() {
 
         {/* ── Approved Transactions ── */}
         {(() => {
-          const thisMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
           const searchKey = `${txSearchYear}-${String(txSearchMonth).padStart(2, '0')}`;
-          const threeMonthsAgo = (() => {
-            const d = new Date();
-            d.setMonth(d.getMonth() - 2);
-            d.setDate(1);
-            return d;
-          })();
           const filtered = txSearchMode
             ? approved.filter(tx => tx.date.startsWith(searchKey))
             : txExpanded
-              ? approved.filter(tx => new Date(tx.date) >= threeMonthsAgo)
+              ? approved
               : approved.slice(0, 3);
           return (
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -686,7 +679,7 @@ export default function Home() {
                 <div className="border-t border-gray-50">
                   {!txExpanded ? (
                     <button onClick={() => setTxExpanded(true)} className="w-full py-2.5 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
-                      ▼ 최근 3달 전체 보기 · Xem 3 tháng gần đây
+                      ▼ 전체 보기 · Xem tất cả
                     </button>
                   ) : (
                     <button onClick={() => setTxExpanded(false)} className="w-full py-2.5 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
