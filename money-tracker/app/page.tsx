@@ -7,7 +7,7 @@ import ChongTab from './_components/ChongTab';
 
 interface User { id: number; role: 'husband' | 'wife'; name: string; username: string; }
 interface Transaction {
-  id: number; payer: 'husband' | 'wife'; amount: number; memo: string;
+  id: number; payer: 'husband' | 'wife'; amount: number; memo: string; note: string;
   date: string; status: 'pending' | 'approved' | 'rejected'; created_by: 'husband' | 'wife'; created_at: string;
 }
 interface DeletionRequest {
@@ -176,6 +176,7 @@ export default function Home() {
   const [payer, setPayer] = useState<'husband' | 'wife'>('husband');
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
+  const [note, setNote] = useState('');
   const [date, setDate] = useState(today());
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -390,12 +391,12 @@ export default function Home() {
     const res = await fetch('/api/transactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payer, amount: amount.replace(/,/g, ''), memo, date }),
+      body: JSON.stringify({ payer, amount: amount.replace(/,/g, ''), memo, note, date }),
     });
     const data = await res.json();
     setSubmitting(false);
     if (!res.ok) { setFormError(data.error ?? t.errGeneral); return; }
-    setAmount(''); setMemo(''); setDate(today()); setShowForm(false);
+    setAmount(''); setMemo(''); setNote(''); setDate(today()); setShowForm(false);
     await fetchData();
   }
 
@@ -558,6 +559,7 @@ export default function Home() {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-amber-700 font-medium">{t.newTxRequest(tx.payer === 'husband' ? t.husband : t.wife)}</p>
                       <p className="text-sm font-medium text-gray-900 truncate">{tx.memo}</p>
+                      {tx.note && <p className="text-xs text-indigo-400 truncate">📝 {tx.note}</p>}
                       <p className="text-xs text-gray-400">{tx.payer === 'husband' ? t.husband : t.wife} · {fmtDate(tx.date)} · <span className={`font-semibold ${tx.payer === 'husband' ? 'text-blue-700' : 'text-rose-600'}`}>{formatAmt(tx.amount, lang)}</span></p>
                     </div>
                   </div>
@@ -657,6 +659,7 @@ export default function Home() {
                         <PayerBadge role={tx.payer} />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">{tx.memo}</p>
+                          {tx.note && <p className="text-xs text-indigo-400 mt-0.5 truncate">📝 {tx.note}</p>}
                           <p className="text-xs text-gray-400 mt-0.5">
                             {tx.payer === 'husband' ? t.husband : t.wife} · {fmtDate(tx.date)}
                             {isPendingDel && <span className="ml-2 text-orange-400">{t.deletionPending}</span>}
@@ -735,7 +738,6 @@ export default function Home() {
                           >✓</button>
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                            {/* 첫 번째 댓글 인라인 표시 */}
                             {item.first_comment_content && !isExpanded && (
                               <p className="text-xs text-indigo-500 mt-0.5 truncate">
                                 💬 {item.first_comment_content}
@@ -758,7 +760,6 @@ export default function Home() {
                           <button onClick={() => handleDeleteShopItem(item.id)} className="text-gray-300 hover:text-red-400 transition-colors p-1 flex-shrink-0">✕</button>
                         </div>
 
-                        {/* 체크 확인 UI */}
                         {isChecking && (
                           <div className="mt-2.5 ml-10 space-y-2">
                             <input
@@ -776,7 +777,6 @@ export default function Home() {
                           </div>
                         )}
 
-                        {/* 댓글 펼침 */}
                         {isExpanded && !isChecking && (
                           <div className="mt-3 pl-10 space-y-2">
                             {loadingComments[item.id] ? (
@@ -815,7 +815,6 @@ export default function Home() {
                 </ul>
               )}
 
-              {/* 완료된 항목 펼치기 */}
               {boughtItems.length > 0 && (
                 <div className="border-t border-gray-100">
                   <button
@@ -844,7 +843,6 @@ export default function Home() {
                               >✓</button>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm text-gray-400 line-through">{item.name}</p>
-                                {/* 첫 번째 댓글 인라인 표시 */}
                                 {firstComment && !isExpanded && (
                                   <p className="text-xs text-indigo-400 mt-0.5 truncate">💬 {firstComment}</p>
                                 )}
@@ -864,7 +862,6 @@ export default function Home() {
                               </div>
                               <button onClick={() => handleDeleteShopItem(item.id)} className="text-gray-200 hover:text-red-400 transition-colors p-1 flex-shrink-0 text-xs mt-0.5">✕</button>
                             </div>
-                            {/* 댓글 펼침 */}
                             {isExpanded && (
                               <div className="mt-3 pl-10 space-y-2">
                                 {loadingComments[item.id] ? (
@@ -943,6 +940,12 @@ export default function Home() {
                 <label className="text-xs font-medium text-gray-500 block mb-1.5">{t.memoLabel}</label>
                 <input type="text" value={memo} onChange={e => setMemo(e.target.value)}
                   placeholder={t.memoPlaceholder} required
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1.5">메모 <span className="text-gray-300 font-normal">· Ghi chú (선택)</span></label>
+                <input type="text" value={note} onChange={e => setNote(e.target.value)}
+                  placeholder="간단한 메모... · Ghi chú thêm..."
                   className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300" />
               </div>
               <div>

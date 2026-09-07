@@ -82,6 +82,7 @@ export async function initDb(): Promise<void> {
     await sql`ALTER TABLE shopping_items ADD COLUMN IF NOT EXISTS check_memo TEXT NOT NULL DEFAULT ''`;
 
     await sql`UPDATE personal_expenses SET category = '육아' WHERE category = '교육'`;
+    await sql`ALTER TABLE transactions ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT ''`;
 
     await sql`
       CREATE TABLE IF NOT EXISTS shopping_comments (
@@ -177,6 +178,7 @@ export interface Transaction {
   payer: 'husband' | 'wife';
   amount: number;
   memo: string;
+  note: string;
   date: string;
   status: 'pending' | 'approved' | 'rejected';
   created_by: 'husband' | 'wife';
@@ -275,14 +277,15 @@ export async function createTransaction(data: {
   payer: 'husband' | 'wife';
   amount: number;
   memo: string;
+  note: string;
   date: string;
   created_by: 'husband' | 'wife';
 }): Promise<Transaction> {
   await initDb();
   const sql = getSql();
   const [row] = await sql<Transaction[]>`
-    INSERT INTO transactions (payer, amount, memo, date, status, created_by)
-    VALUES (${data.payer}, ${data.amount}, ${data.memo}, ${data.date}, 'pending', ${data.created_by})
+    INSERT INTO transactions (payer, amount, memo, note, date, status, created_by)
+    VALUES (${data.payer}, ${data.amount}, ${data.memo}, ${data.note}, ${data.date}, 'pending', ${data.created_by})
     RETURNING *
   `;
   return row;

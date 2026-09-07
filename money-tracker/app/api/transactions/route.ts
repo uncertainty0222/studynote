@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   const user = await getAuthUser();
   if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { payer, amount, memo, date } = await request.json();
+  const { payer, amount, memo, note, date } = await request.json();
 
   if (!payer || !['husband', 'wife'].includes(payer)) {
     return Response.json({ error: '지불자를 선택해주세요' }, { status: 400 });
@@ -39,6 +39,7 @@ export async function POST(request: Request) {
     payer,
     amount: Math.round(Number(amount)),
     memo: memo.trim(),
+    note: (note ?? '').trim(),
     date,
     created_by: user.role,
   });
