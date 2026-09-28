@@ -54,6 +54,7 @@ function readStdin() {
 
 const text = (s) => [s.title, s.place, s.region, s.hook, s.story, s.action, s.sales,
   ...(s.tags || []), ...(s.facts || []).map((f) => f.claim),
+  ...(s.embellishments || []).flatMap((e) => [e.line, e.fact]),
   ...(s.related || []).map((r) => r.title)].filter(Boolean).join(' ').toLowerCase();
 
 function row(s) {
@@ -74,6 +75,13 @@ function validate(s) {
       if (!f.claim) errs.push(`facts[${i}].claim 필수`);
       if (!CRED[f.status]) errs.push(`facts[${i}].status 는 fact | disputed | legend 중 하나`);
       if (f.status === 'fact' && !f.source) errs.push(`facts[${i}] status=fact 이면 source 필수`);
+    });
+  }
+  if (s.embellishments !== undefined) {
+    if (!Array.isArray(s.embellishments)) errs.push(`'embellishments' 는 배열`);
+    else s.embellishments.forEach((e, i) => {
+      if (!e.line) errs.push(`embellishments[${i}].line (대본 속 멘트) 필수`);
+      if (!e.fact) errs.push(`embellishments[${i}].fact (실제 팩트) 필수 — 각색은 팩트와 짝지어야 함`);
     });
   }
   if (s.related && !Array.isArray(s.related)) errs.push(`'related' 는 배열`);
@@ -141,6 +149,14 @@ function cmdShow(flags) {
   console.log(`\n[훅] ${s.hook}\n\n[이야기]\n${s.story}`);
   if (s.action) console.log(`\n[행동 유도] ${s.action}`);
   if (s.sales) console.log(`[매출 연결] ${s.sales}`);
+  if (s.embellishments?.length) {
+    console.log(`\n[각색 노트 — 가이드 전용]`);
+    s.embellishments.forEach((e, i) => {
+      console.log(`  각색${i + 1}${e.type ? ` (${e.type})` : ''}: "${e.line}"`);
+      console.log(`    → 실제 팩트: ${e.fact}${e.source ? `  — 출처: ${e.source}` : ''}`);
+      if (e.comeback) console.log(`    → "진짜예요?" 대응: ${e.comeback}`);
+    });
+  }
   console.log(`\n[사실 검증]`);
   s.facts.forEach((f) => console.log(`  (${CRED[f.status]}) ${f.claim}${f.source ? `  — 출처: ${f.source}` : ''}`));
   if (s.related?.length) {
@@ -181,6 +197,7 @@ function help() {
 
 JSON 필드: title, place, hook, story, facts[{claim,status,source}] 필수
            region, tags[], action, sales, related[{title,teaser}], sources[], status, id 선택
+           embellishments[{line,type,fact,source,comeback}] — 대본 속 각색과 실제 팩트 (line·fact 필수)
 facts.status: fact(출처 필수) | disputed | legend`);
 }
 

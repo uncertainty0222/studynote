@@ -1,7 +1,7 @@
 # 투어 가이드 스토리 DB (`story.mjs`)
 
 Claude Code 대화에서 장소·인물·유물 등에 대한 이야기를 요청하면, `.claude/skills/story/SKILL.md`
-규칙에 따라 **훅 → 현장 대본 → 강한 인상 → 신뢰 포인트 → 행동 유도·매출 연결 → 사실 검증 →
+규칙에 따라 **훅 → 현장 대본(과장·각색 허용) → 🎭 각색 노트(실제 팩트) → 강한 인상 → 신뢰 포인트 → 행동 유도·매출 연결 → 사실 검증 →
 "더 알아볼래?" 다음 꼭지** 구조로 구성하고, 원하면 `stories.jsonl` 에 저장한다.
 
 ## 사용 예 (대화)
@@ -22,7 +22,8 @@ node stories/story.mjs tags
 
 ## 데이터 형식
 `stories.jsonl` 한 줄 = 한 이야기. 필수: `title, place, hook, story, facts[]`.
-`facts[].status` 는 `fact`(출처 필수) · `disputed` · `legend` — 전설을 사실처럼 말하지 않기 위한 장치.
+`facts[].status` 는 `fact`(출처 필수) · `disputed` · `legend`.
+`embellishments[]` 는 대본 속 각색 멘트(`line`)와 실제 팩트(`fact`)의 짝 — 손님용 대본과 가이드용 진실을 분리하는 장치.
 
 ## 주의
 - 이 환경의 컨테이너는 휘발성. **저장 후 git 커밋·푸시해야 보존**된다.
