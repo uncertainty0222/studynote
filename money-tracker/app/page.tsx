@@ -495,15 +495,22 @@ export default function Home() {
 
       <main className="max-w-lg mx-auto px-4 py-4 space-y-4">
         {/* Tab Navigation */}
-        <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
-          <button onClick={() => setActiveTab('personal')} className={`flex-1 py-3 text-center rounded-lg transition-colors ${activeTab === 'personal' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400'}`}>
-            <span className="block text-[13px] font-bold leading-tight">우리, 얼마나 있어?</span>
-            <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Mình có bao nhiêu?</span>
-          </button>
-          <button onClick={() => setActiveTab('couple')} className={`flex-1 py-3 text-center rounded-lg transition-colors ${activeTab === 'couple' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400'}`}>
-            <span className="block text-[13px] font-bold leading-tight">나나 금고</span>
-            <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Két Nana</span>
-          </button>
+        <div className="flex rounded-2xl bg-gray-100 p-1.5 gap-1.5">
+          {([
+            { key: 'personal', ko: '우리, 얼마나 있어?', vi: 'Mình có bao nhiêu?' },
+            { key: 'couple', ko: '나나 금고', vi: 'Két Nana' },
+          ] as const).map(tab => {
+            const active = activeTab === tab.key;
+            return (
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                className={`flex-1 py-3.5 px-2 text-center rounded-xl transition-all ${active
+                  ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-md'
+                  : 'text-gray-500 active:bg-gray-200'}`}>
+                <span className="block text-[17px] font-extrabold leading-tight tracking-tight">{tab.ko}</span>
+                <span className={`block text-[13px] font-medium leading-tight mt-1 ${active ? 'text-white/80' : 'text-gray-400'}`}>{tab.vi}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* ── Assets Dashboard ── */}

@@ -37,25 +37,28 @@ function weekLabel(weekKey: string): string {
   return `${monday.getUTCMonth() + 1}/${monday.getUTCDate()}`;
 }
 
+// Weekly candles over the last 3 months.
 function buildCandles(snapshots: AssetSnapshot[]): Candle[] {
   if (!snapshots.length) return [];
-  const byDay: Record<string, number[]> = {};
+  const since = new Date();
+  since.setMonth(since.getMonth() - 3);
+  const byWeek: Record<string, { t: number; v: number }[]> = {};
   for (const s of snapshots) {
-    const day = new Date(s.snapshot_at).toISOString().slice(0, 10);
-    if (!byDay[day]) byDay[day] = [];
-    byDay[day].push(Number(s.total_usd));
+    const d = new Date(s.snapshot_at);
+    if (d < since) continue;
+    const key = getWeekKey(d);
+    (byWeek[key] ??= []).push({ t: d.getTime(), v: Number(s.total_usd) });
   }
-  return Object.keys(byDay).sort().map(day => {
-    const vals = byDay[day];
-    const d = new Date(day);
-    const label = `${d.getMonth() + 1}/${d.getDate()}`;
-    return { weekKey: day, label, open: vals[0], close: vals[vals.length - 1], high: Math.max(...vals), low: Math.min(...vals) };
+  return Object.keys(byWeek).sort().map(key => {
+    const pts = byWeek[key].sort((a, b) => a.t - b.t);
+    const vals = pts.map(p => p.v);
+    return { weekKey: key, label: weekLabel(key), open: vals[0], close: vals[vals.length - 1], high: Math.max(...vals), low: Math.min(...vals) };
   });
 }
 
 function CandlestickChart({ candles }: { candles: Candle[] }) {
   const [hovered, setHovered] = useState<number | null>(null);
-  const visible = candles.slice(-16);
+  const visible = candles;
   if (!visible.length) {
     return (
       <div className="py-8 text-center text-gray-400 text-xs">
@@ -605,7 +608,7 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
         <div className="flex items-start justify-between mb-2">
           <div>
             <p className="text-sm font-semibold text-gray-800">자산 히스토리 <span className="text-gray-400 font-normal text-xs">Lịch sử tài sản</span></p>
-            <p className="text-[10px] text-gray-400">일별 캔들차트 (시간당 스냅샷) · Biểu đồ nến theo ngày</p>
+            <p className="text-[10px] text-gray-400">최근 3개월 · 주별 캔들 · Biểu đồ nến theo tuần (3 tháng)</p>
           </div>
           {weekChange !== null && (
             <div className="text-right">
@@ -613,7 +616,7 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
                 {weekChange >= 0 ? '+' : ''}{fmtUsd(weekChange)}
               </p>
               <p className={`text-[10px] ${weekChange >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                전일比 {weekChange >= 0 ? '▲' : '▼'} {Math.abs((weekChange / (candles[candles.length - 2]?.close || 1)) * 100).toFixed(1)}%
+                전주比 {weekChange >= 0 ? '▲' : '▼'} {Math.abs((weekChange / (candles[candles.length - 2]?.close || 1)) * 100).toFixed(1)}%
               </p>
             </div>
           )}
