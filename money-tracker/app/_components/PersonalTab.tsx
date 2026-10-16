@@ -211,6 +211,10 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
   const [snapshots, setSnapshots] = useState<AssetSnapshot[]>([]);
   const [recentIncomes, setRecentIncomes] = useState<IncomeEntry[]>([]);
   const [incomeExpanded, setIncomeExpanded] = useState(false);
+  const [manualBinanceUsd, setManualBinanceUsd] = useState<number>(() => {
+    try { return Number(localStorage.getItem('binanceManualUsd') ?? '0') || 0; } catch { return 0; }
+  });
+  const [manualBinanceInput, setManualBinanceInput] = useState('');
 
   const fetchBinance = useCallback(async () => {
     setBinanceLoading(true); setBinanceErr('');
@@ -299,7 +303,8 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
   const savedTotals = vaultResp;
 
   const vaultUsd = savedTotals?.totalUsd ?? 0;
-  const binanceUsd = binance?.totalUsdt ?? 0;
+  const apiBlocked = !!binance?.sectionErrors && Object.keys(binance.sectionErrors).length > 0 && (binance?.totalUsdt ?? 0) === 0;
+  const binanceUsd = (binance?.totalUsdt ?? 0) > 0 ? (binance?.totalUsdt ?? 0) : manualBinanceUsd;
   const balanceUsd = husbandOwes !== null ? -(husbandOwes / usdToVnd) : 0;
   const totalUsd = vaultUsd + binanceUsd + balanceUsd;
 
@@ -367,8 +372,8 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
                 <p className="text-base font-black leading-tight">
                   {binanceLoading ? '...' : binanceErr ? <span className="text-rose-300 text-xs">오류</span> : fmtUsd(binanceUsd)}
                 </p>
-                <p className="text-[10px] opacity-50 leading-tight">{binance && binanceUsd > 0 ? fmtVnd(binanceUsd * usdToVnd) : '—'}</p>
-                <p className="text-xs opacity-55 mt-1">{binance && binanceUsd > 0 && totalUsd > 0 ? `${((binanceUsd / totalUsd) * 100).toFixed(0)}%` : '—'} {binanceOpen ? '▲' : '▼'}</p>
+                <p className="text-[10px] opacity-50 leading-tight">{binanceUsd > 0 ? fmtVnd(binanceUsd * usdToVnd) : '—'}</p>
+                <p className="text-xs opacity-55 mt-1">{binanceUsd > 0 && totalUsd > 0 ? `${((binanceUsd / totalUsd) * 100).toFixed(0)}%` : '—'} {binanceOpen ? '▲' : '▼'}</p>
               </button>
               <div className="bg-white/10 rounded-xl px-3 py-3">
                 <p className="text-xs opacity-60 mb-1.5">💑 부부잔액</p>
@@ -521,6 +526,37 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
           {binance?.sectionErrors && Object.entries(binance.sectionErrors).map(([k, v]) => (
             <div key={k} className="mx-4 mb-1 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5">⚠️ {k.toUpperCase()} 오류: {v}</div>
           ))}
+          {apiBlocked && (
+            <div className="mx-4 my-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <p className="text-xs font-semibold text-amber-800 mb-0.5">🌐 지역 차단 (HTTP 451)</p>
+              <p className="text-[11px] text-amber-700 mb-2.5">Railway 서버 IP가 Binance에 의해 차단뒐어요. 잔액을 직접 입력하면 총 자산에 반영돼요.</p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-amber-700">$</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={manualBinanceInput}
+                  onChange={e => setManualBinanceInput(e.target.value)}
+                  placeholder={String(manualBinanceUsd || '')}
+                  className="flex-1 border border-amber-300 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"
+                />
+                <button
+                  onClick={() => {
+                    const v = Math.round(Number(manualBinanceInput) || 0);
+                    setManualBinanceUsd(v);
+                    setManualBinanceInput('');
+                    try { localStorage.setItem('binanceManualUsd', String(v)); } catch {}
+                  }}
+                  className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors"
+                >
+                  저장
+                </button>
+              </div>
+              {manualBinanceUsd > 0 && (
+                <p className="text-[11px] text-amber-600 mt-1.5">현재 수동 입력값: {fmtUsd(manualBinanceUsd)}</p>
+              )}
+            </div>
+          )}
           {binanceLoading && !binance && <p className="text-xs text-gray-400 text-center py-4">조회 중...</p>}
           {binance && (
             <div className="divide-y divide-gray-50">
