@@ -533,13 +533,25 @@ export default function Home() {
         </div>
 
         {/* Balance Card */}
-        {bal && (
-          <div className={`rounded-2xl border p-4 ${bal.bg}`}>
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">{t.balanceLabel}</p>
-            <p className={`text-base font-bold ${bal.color}`}>{bal.msg}</p>
-            <p className="text-xs text-gray-500 mt-1">{bal.sub}</p>
-          </div>
-        )}
+        {balance && (() => {
+          const net = balance.husbandTotal - balance.wifeTotal;
+          const isPos = net > 0;
+          const isZero = net === 0;
+          return (
+            <div className={`rounded-2xl border p-4 ${isZero ? 'bg-green-50 border-green-200' : isPos ? 'bg-blue-50 border-blue-200' : 'bg-rose-50 border-rose-200'}`}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">{t.balanceLabel}</p>
+              <p className={`text-2xl font-black tracking-tight ${isZero ? 'text-green-700' : isPos ? 'text-blue-700' : 'text-rose-600'}`}>
+                {net > 0 ? '+' : ''}{net.toLocaleString('ko-KR')} ₫
+              </p>
+              <p className={`text-xs font-medium mt-1.5 ${isZero ? 'text-green-600' : isPos ? 'text-blue-600' : 'text-rose-500'}`}>
+                {isZero ? '보관금 균형 맞음 · Đang cân bằng' : isPos ? '아내가 우리 공동 자금 보관 중 · Vợ đang giữ tiền nhà' : '⚠️ 아내 보관금 고갈 · 남편이 채워줘야 해요'}
+              </p>
+              <p className="text-xs text-gray-400 mt-1.5">
+                아내 총 지출 {balance.wifeTotal.toLocaleString('ko-KR')} ₫ · 남편 총 지출 {balance.husbandTotal.toLocaleString('ko-KR')} ₫
+              </p>
+            </div>
+          );
+        })()}
 
         {/* ── Pending Approval Section ── */}
         {(pendingForMe.length > 0 || pendingDelForMe.length > 0) && (
