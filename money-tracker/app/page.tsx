@@ -539,11 +539,11 @@ export default function Home() {
           const isZero = net === 0;
           return (
             <div className={`rounded-2xl border p-4 ${isZero ? 'bg-green-50 border-green-200' : isPos ? 'bg-blue-50 border-blue-200' : 'bg-rose-50 border-rose-200'}`}>
+              <p className={`text-sm font-semibold mb-1 ${isZero ? 'text-green-600' : isPos ? 'text-blue-600' : 'text-rose-500'}`}>
+                나나 보관금 <span className="font-normal opacity-70">· Két Nana giữ</span>
+              </p>
               <p className={`text-2xl font-black tracking-tight ${isZero ? 'text-green-700' : isPos ? 'text-blue-700' : 'text-rose-600'}`}>
                 {net > 0 ? '+' : ''}{net.toLocaleString('ko-KR')} ₫
-              </p>
-              <p className={`text-sm font-semibold mt-2 ${isZero ? 'text-green-600' : isPos ? 'text-blue-600' : 'text-rose-500'}`}>
-                나나 보관금
               </p>
             </div>
           );
