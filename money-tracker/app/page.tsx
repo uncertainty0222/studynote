@@ -31,7 +31,7 @@ const T = {
   ko: {
     appTitle: 'VOCHONG', appSub: '부부 공유 돈 관리',
     addBtn: '+ 거래 추가', logout: '로그아웃',
-    balanceLabel: '아내 보관금 현황', settled: '균형 맞음 · 보관금 동일',
+    balanceLabel: '나나금고', settled: '균형 맞음 · 보관금 동일',
     settledSub: '아내 계좌와 남편 지출이 같아요',
     husbandOwes: (a: string) => `남편 → 아내: ${a}`,
     wifeOwes: (a: string) => `아내 → 남편: ${a}`,
@@ -67,7 +67,7 @@ const T = {
   vi: {
     appTitle: 'VOCHONG', appSub: 'Quản lý tiền vợ chồng',
     addBtn: '+ Thêm giao dịch', logout: 'Đăng xuất',
-    balanceLabel: 'Tiền vợ đang giữ', settled: 'Cân bằng · Vợ giữ đúng phần',
+    balanceLabel: '나나금고', settled: 'Cân bằng · Vợ giữ đúng phần',
     settledSub: 'Tài khoản vợ và chi tiêu chồng đang bằng nhau',
     husbandOwes: (a: string) => `Chồng → Vợ: ${a}`,
     wifeOwes: (a: string) => `Vợ → Chồng: ${a}`,
@@ -458,7 +458,7 @@ export default function Home() {
     <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
       role === 'husband' ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-600'
     }`}>
-      {role === 'husband' ? '입' : '출'}
+      {role === 'husband' ? 'IN' : 'OUT'}
     </div>
   );
 
@@ -543,8 +543,8 @@ export default function Home() {
               <p className={`text-2xl font-black tracking-tight ${isZero ? 'text-green-700' : isPos ? 'text-blue-700' : 'text-rose-600'}`}>
                 {net > 0 ? '+' : ''}{net.toLocaleString('ko-KR')} ₫
               </p>
-              <p className={`text-xs font-medium mt-1.5 ${isZero ? 'text-green-600' : isPos ? 'text-blue-600' : 'text-rose-500'}`}>
-                {isZero ? '보관금 균형 맞음 · Đang cân bằng' : isPos ? '아내가 우리 공동 자금 보관 중 · Vợ đang giữ tiền nhà' : '⚠️ 아내 보관금 고갈 · 남편이 채워줘야 해요'}
+              <p className={`text-sm font-semibold mt-1.5 ${isZero ? 'text-green-600' : isPos ? 'text-blue-600' : 'text-rose-500'}`}>
+                나나보관금
               </p>
             </div>
           );
@@ -914,7 +914,8 @@ export default function Home() {
           );
         })()}
 
-        </>}
+        </>
+      }
       </main>
 
       {/* ── Add Transaction Modal ── */}
