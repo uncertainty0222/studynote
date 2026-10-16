@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import WorkIncomeCard from './WorkIncomeCard';
 
 interface BinanceHolding { asset: string; total: number; usdtValue: number; }
 interface BinanceSection { key: string; label: string; usdt: number; holdings: BinanceHolding[]; }
@@ -625,6 +626,8 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
           </div>
         )}
       </div>
+
+      <WorkIncomeCard />
 
       <a href="/api/personal/export" download
         className="block text-center text-xs text-gray-400 hover:text-indigo-500 py-2">
