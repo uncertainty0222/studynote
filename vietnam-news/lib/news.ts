@@ -16,6 +16,15 @@ export type Article = {
   korea: boolean;
 };
 
+export type Trend = {
+  term: string;
+  traffic: string; // 예: "2000+" (Google이 제공하는 대략값)
+  publishedAt: number;
+  newsTitle?: string;
+  newsUrl?: string;
+  newsSource?: string;
+};
+
 export type SourceStatus = {
   id: string;
   name: string;
@@ -28,6 +37,7 @@ export type SourceStatus = {
 export type NewsBundle = {
   fetchedAt: number;
   articles: Article[];
+  trends: Trend[];
   sources: SourceStatus[];
 };
 
@@ -63,15 +73,20 @@ async function fetchAll(): Promise<NewsBundle> {
   const results = await Promise.all(SOURCES.map(fetchSource));
   const sources: SourceStatus[] = [];
   const all: Article[] = [];
+  const trends: Trend[] = [];
   results.forEach((r, i) => {
     const s = SOURCES[i];
-    sources.push({ id: s.id, name: s.name, region: s.region, ok: r.ok, count: r.articles.length, error: r.error });
+    const count = r.articles.length + r.trends.length;
+    sources.push({ id: s.id, name: s.name, region: s.region, ok: r.ok, count, error: r.error });
     all.push(...r.articles);
+    trends.push(...r.trends);
   });
-  return { fetchedAt: Date.now(), articles: dedupe(all), sources };
+  return { fetchedAt: Date.now(), articles: dedupe(all), trends, sources };
 }
 
-async function fetchSource(source: Source): Promise<{ ok: boolean; articles: Article[]; error?: string }> {
+type SourceResult = { ok: boolean; articles: Article[]; trends: Trend[]; error?: string };
+
+async function fetchSource(source: Source): Promise<SourceResult> {
   try {
     const res = await fetch(source.url, {
       headers: {
@@ -81,12 +96,12 @@ async function fetchSource(source: Source): Promise<{ ok: boolean; articles: Art
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       cache: "no-store",
     });
-    if (!res.ok) return { ok: false, articles: [], error: `HTTP ${res.status}` };
+    if (!res.ok) return { ok: false, articles: [], trends: [], error: `HTTP ${res.status}` };
     const xml = await res.text();
-    const articles = parseFeed(xml, source);
-    return { ok: true, articles };
+    if (source.kind === "trends") return { ok: true, articles: [], trends: parseTrends(xml) };
+    return { ok: true, articles: parseFeed(xml, source), trends: [] };
   } catch (e) {
-    return { ok: false, articles: [], error: e instanceof Error ? e.message : String(e) };
+    return { ok: false, articles: [], trends: [], error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -114,7 +129,7 @@ export function parseFeed(xml: string, source: Source): Article[] {
     if (!publisher) publisher = source.name;
 
     const isGoogle = link.includes("news.google.com");
-    const summary = isGoogle ? "" : stripHtml(text(it.description) || text(it.summary)).slice(0, 280);
+    const summary = isGoogle ? "" : stripHtml(text(it.description) || text(it.summary) || text(it.content)).slice(0, 280);
 
     const haystack = `${title} ${summary}`;
     if (source.mustMatch && !source.mustMatch.test(haystack)) continue;
@@ -132,6 +147,28 @@ export function parseFeed(xml: string, source: Source): Article[] {
       summary: decodeEntities(summary),
       topics,
       korea,
+    });
+  }
+  return out;
+}
+
+// Google Trends "Trending now" RSS: <item><title>검색어</title><ht:approx_traffic>…</ht:approx_traffic><ht:news_item>…</ht:news_item></item>
+export function parseTrends(xml: string): Trend[] {
+  const doc = parser.parse(xml);
+  const out: Trend[] = [];
+  for (const raw of toArray(doc?.rss?.channel?.item)) {
+    const it = raw as Record<string, unknown>;
+    const term = decodeEntities(text(it.title));
+    if (!term) continue;
+    const news = toArray(it["ht:news_item"])[0] as Record<string, unknown> | undefined;
+    const date = Date.parse(text(it.pubDate));
+    out.push({
+      term,
+      traffic: text(it["ht:approx_traffic"]),
+      publishedAt: Number.isFinite(date) ? date : Date.now(),
+      newsTitle: news ? decodeEntities(text(news["ht:news_item_title"])) || undefined : undefined,
+      newsUrl: news ? text(news["ht:news_item_url"]) || undefined : undefined,
+      newsSource: news ? text(news["ht:news_item_source"]) || undefined : undefined,
     });
   }
   return out;

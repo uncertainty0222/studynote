@@ -1,8 +1,8 @@
 // 뉴스 소스 정의.
-// region: vn = 베트남 언론, intl = 해외 언론, kr = 한국 언론
+// region: vn = 베트남 언론, intl = 해외 언론, kr = 한국 언론, buzz = 베트남 온라인 화제(SNS·연예)
 // 직접 RSS를 제공하는 곳은 직접 피드를, 그 외는 Google News RSS 검색(site: 연산자)으로 묶어서 가져온다.
 
-export type Region = "vn" | "intl" | "kr";
+export type Region = "vn" | "intl" | "kr" | "buzz";
 
 export type Source = {
   id: string;
@@ -10,6 +10,8 @@ export type Source = {
   region: Region;
   lang: "ko" | "en" | "vi";
   url: string;
+  // trends: Google Trends 실시간 검색어 피드 (기사 목록이 아니라 검색어로 표시)
+  kind?: "articles" | "trends";
   // 지정 시 제목/요약이 이 정규식에 맞는 기사만 남긴다 (베트남과 무관한 기사가 섞이는 피드용)
   mustMatch?: RegExp;
 };
@@ -115,11 +117,58 @@ export const SOURCES: Source[] = [
     url: googleNews("베트남 (관광객 OR 한국인 OR 교민 OR 다낭 OR 나트랑 OR 푸꾸옥 OR 하노이 OR 호찌민) when:7d", "ko"),
   },
   {
+    id: "chaovietnam",
+    name: "씬짜오베트남",
+    region: "kr",
+    lang: "ko",
+    url: googleNews("site:chaovietnam.co.kr when:7d", "ko"),
+  },
+  {
     id: "insidevina",
     name: "인사이드비나",
     region: "kr",
     lang: "ko",
     url: googleNews("site:insidevina.com when:7d", "ko"),
+  },
+
+  // ── 화제·SNS ─────────────────────────────
+  // 페이스북은 2018년 '트렌딩' 기능을 없앴고 공개 트렌드 API도 없다.
+  // 대신 SNS 화제를 기사화하는 베트남 매체와 Google Trends, Reddit을 쓴다.
+  {
+    id: "google-trends-vn",
+    name: "Google Trends 베트남 실시간 검색어",
+    region: "buzz",
+    lang: "vi",
+    url: "https://trends.google.com/trending/rss?geo=VN",
+    kind: "trends",
+  },
+  {
+    id: "kenh14",
+    name: "Kenh14 (연예·SNS 화제)",
+    region: "buzz",
+    lang: "vi",
+    url: googleNews("site:kenh14.vn when:2d", "vi"),
+  },
+  {
+    id: "vn-viral",
+    name: "베트남 언론의 SNS 화제 보도",
+    region: "buzz",
+    lang: "vi",
+    url: googleNews("(\"cư dân mạng\" OR \"mạng xã hội\" OR \"gây sốt\" OR viral OR clip) when:2d", "vi"),
+  },
+  {
+    id: "tuoitre-viral",
+    name: "Tuoi Tre News (viral)",
+    region: "buzz",
+    lang: "en",
+    url: googleNews("site:news.tuoitre.vn (viral OR clip OR \"social media\") when:7d", "en"),
+  },
+  {
+    id: "reddit-vietnam",
+    name: "Reddit r/VietNam (오늘 인기 글)",
+    region: "buzz",
+    lang: "en",
+    url: "https://www.reddit.com/r/VietNam/top/.rss?t=day",
   },
 ];
 
@@ -127,4 +176,5 @@ export const REGION_LABEL: Record<Region, string> = {
   vn: "베트남 언론",
   intl: "해외 언론",
   kr: "한국 언론",
+  buzz: "화제·SNS",
 };

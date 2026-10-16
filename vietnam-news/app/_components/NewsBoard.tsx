@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Article, NewsBundle } from "@/lib/news";
 import { REGION_LABEL, type Region } from "@/lib/sources";
-import { TOPICS, type TopicId } from "@/lib/topics";
+import { TALK_TOPICS, TOPICS, type TopicId } from "@/lib/topics";
 
 type RegionFilter = "all" | Region;
 type RangeFilter = 24 | 72 | 168;
@@ -13,13 +13,20 @@ const REGION_COLOR: Record<Region, string> = {
   vn: "bg-red-100 text-red-800",
   intl: "bg-blue-100 text-blue-800",
   kr: "bg-emerald-100 text-emerald-800",
+  buzz: "bg-pink-100 text-pink-800",
 };
+
+// 가이드가 손님에게 꺼낼 만한 이야깃거리: 문화·관광·사회 주제, 한국 관련, 또는 SNS 화제
+function isTalk(a: Article) {
+  return a.korea || a.region === "buzz" || a.topics.some((t) => TALK_TOPICS.includes(t));
+}
 const TOPIC_LABEL = Object.fromEntries(TOPICS.map((t) => [t.id, t.label])) as Record<TopicId, string>;
 
 export default function NewsBoard({ initial }: { initial: NewsBundle }) {
   const [bundle, setBundle] = useState(initial);
   const [region, setRegion] = useState<RegionFilter>("all");
   const [koreaOnly, setKoreaOnly] = useState(false);
+  const [talkOnly, setTalkOnly] = useState(false);
   const [topic, setTopic] = useState<TopicId | null>(null);
   const [range, setRange] = useState<RangeFilter>(72);
   const [query, setQuery] = useState("");
@@ -39,10 +46,11 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
       (a) =>
         (region === "all" || a.region === region) &&
         (!koreaOnly || a.korea) &&
+        (!talkOnly || isTalk(a)) &&
         (!topic || a.topics.includes(topic)) &&
         (!q || a.title.toLowerCase().includes(q) || a.summary.toLowerCase().includes(q)),
     );
-  }, [inRange, region, koreaOnly, topic, query]);
+  }, [inRange, region, koreaOnly, talkOnly, topic, query]);
 
   const last24 = useMemo(() => bundle.articles.filter((a) => now - a.publishedAt <= 24 * 3600_000), [bundle, now]);
   const topicCounts = useMemo(
@@ -53,8 +61,9 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
     [last24],
   );
   const koreaHighlights = useMemo(() => inRange.filter((a) => a.korea).slice(0, 6), [inRange]);
+  const trends = useMemo(() => bundle.trends.slice(0, 15), [bundle]);
   const regionCounts = useMemo(() => {
-    const c: Record<Region, number> = { vn: 0, intl: 0, kr: 0 };
+    const c: Record<Region, number> = { vn: 0, intl: 0, kr: 0, buzz: 0 };
     for (const a of inRange) c[a.region]++;
     return c;
   }, [inRange]);
@@ -94,6 +103,31 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
         </div>
       )}
 
+      {/* 실시간 검색어 */}
+      <section className="mb-4 rounded-xl bg-white p-4 shadow-sm">
+        <h2 className="mb-2 text-sm font-semibold text-gray-500">🔥 지금 베트남에서 많이 찾는 검색어 (Google Trends)</h2>
+        {trends.length === 0 ? (
+          <p className="text-sm text-gray-400">검색어를 불러오지 못했습니다.</p>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {trends.map((t) => (
+              <li key={t.term}>
+                <a
+                  href={t.newsUrl ?? `https://www.google.com/search?q=${encodeURIComponent(t.term)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={t.newsTitle}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-pink-200 bg-pink-50 px-3 py-1 text-sm text-pink-900 hover:bg-pink-100"
+                >
+                  {t.term}
+                  {t.traffic && <span className="font-mono text-xs text-pink-600">{t.traffic}</span>}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {/* 한눈에 보기 */}
       <section className="mb-6 grid gap-4 md:grid-cols-3">
         <div className="rounded-xl bg-white p-4 shadow-sm">
@@ -114,7 +148,8 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
             ))}
           </ul>
           <p className="mt-3 text-xs text-gray-400">
-            언론별: 베트남 {regionCounts.vn} · 해외 {regionCounts.intl} · 한국 {regionCounts.kr} (선택 기간)
+            언론별: 베트남 {regionCounts.vn} · 해외 {regionCounts.intl} · 한국 {regionCounts.kr} · 화제{" "}
+            {regionCounts.buzz} (선택 기간)
           </p>
         </div>
 
@@ -142,7 +177,7 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
       {/* 필터 */}
       <section className="sticky top-0 z-10 mb-4 space-y-3 bg-gray-50/95 py-2 backdrop-blur">
         <div className="flex flex-wrap gap-2">
-          {(["all", "vn", "intl", "kr"] as RegionFilter[]).map((r) => (
+          {(["all", "vn", "intl", "kr", "buzz"] as RegionFilter[]).map((r) => (
             <Chip key={r} active={region === r} onClick={() => setRegion(r)}>
               {r === "all" ? "전체" : REGION_LABEL[r]}
             </Chip>
@@ -150,6 +185,9 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
           <span className="mx-1 w-px bg-gray-300" />
           <Chip active={koreaOnly} onClick={() => setKoreaOnly(!koreaOnly)}>
             🇰🇷 한국 관련만
+          </Chip>
+          <Chip active={talkOnly} onClick={() => setTalkOnly(!talkOnly)}>
+            💬 이야깃거리
           </Chip>
           <span className="mx-1 w-px bg-gray-300" />
           {([24, 72, 168] as RangeFilter[]).map((h) => (

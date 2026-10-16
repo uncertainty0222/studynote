@@ -1,7 +1,7 @@
 // 제목·요약 키워드 기반 분류. 한국어/영어/베트남어 키워드를 함께 본다.
 // 키워드 매칭이므로 오분류가 있을 수 있다.
 
-export type TopicId = "politics" | "economy" | "travel" | "society" | "disaster" | "transport";
+export type TopicId = "politics" | "economy" | "travel" | "society" | "culture" | "disaster" | "transport";
 
 export const TOPICS: { id: TopicId; label: string; re: RegExp }[] = [
   {
@@ -22,7 +22,12 @@ export const TOPICS: { id: TopicId; label: string; re: RegExp }[] = [
   {
     id: "society",
     label: "사회·사건",
-    re: /사건|사고|체포|경찰|범죄|사기|마약|재판|사망|부상|화재|arrest|police|crime|scam|fraud|drug|court|trial|sentenced|killed|\bdead\b|injured|\bfire\b|bị bắt|bắt giữ|công an|lừa đảo|ma túy|xét xử|tử vong|hỏa hoạn|vụ cháy/i,
+    re: /사건|사고|체포|경찰|범죄|사기|마약|재판|사망|부상|화재|arrest|police|crime|scam|fraud|drug|court|\btrial\b(?! operation)|sentenced|killed|\bdead\b|injured|\bfire\b|bị bắt|bắt giữ|công an|lừa đảo|ma túy|xét xử|tử vong|hỏa hoạn|vụ cháy/i,
+  },
+  {
+    id: "culture",
+    label: "문화·연예·음식",
+    re: /문화|축제|공연|콘서트|영화|드라마|가수|배우|연예|한류|K팝|케이팝|음식|맛집|쌀국수|반미|커피|아시안게임|축구|festival|culture|concert|movie|film|singer|actor|actress|showbiz|k-pop|food|cuisine|culinary|\bpho\b|banh mi|coffee|football|lễ hội|văn hóa|ca sĩ|diễn viên|phim|showbiz|ẩm thực|món ăn|bóng đá|hoa hậu/i,
   },
   {
     id: "disaster",
@@ -39,6 +44,9 @@ export const TOPICS: { id: TopicId; label: string; re: RegExp }[] = [
 // 한국 관련 여부
 export const KOREA_RE =
   /korea|korean|seoul|samsung|hyundai|\bLG\b|\bkia\b|lotte|\bCJ\b|posco|k-pop|hàn quốc|người hàn|한국|한-베|한베|韓|삼성|현대차|현대자동차|현대건설|HD현대|엘지|롯데|서울|교민|한국인|코트라|KOTRA/i;
+
+// 가이드가 손님에게 꺼낼 만한 이야깃거리 (문화·관광·사회 또는 한국 관련)
+export const TALK_TOPICS: TopicId[] = ["culture", "travel", "society"];
 
 export function classify(text: string): { topics: TopicId[]; korea: boolean } {
   const topics = TOPICS.filter((t) => t.re.test(text)).map((t) => t.id);
