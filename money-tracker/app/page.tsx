@@ -501,8 +501,8 @@ export default function Home() {
             <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Tiền vào rồi lại ra</span>
           </button>
           <button onClick={() => setActiveTab('couple')} className={`flex-1 py-3 text-center rounded-lg transition-colors ${activeTab === 'couple' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400'}`}>
-            <span className="block text-[13px] font-bold leading-tight">아내가 맡은 우리 돈</span>
-            <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Tiền vợ đang giữ</span>
+            <span className="block text-[13px] font-bold leading-tight">나나 금고</span>
+            <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Két Nana</span>
           </button>
         </div>
 
@@ -539,12 +539,11 @@ export default function Home() {
           const isZero = net === 0;
           return (
             <div className={`rounded-2xl border p-4 ${isZero ? 'bg-green-50 border-green-200' : isPos ? 'bg-blue-50 border-blue-200' : 'bg-rose-50 border-rose-200'}`}>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">{t.balanceLabel}</p>
               <p className={`text-2xl font-black tracking-tight ${isZero ? 'text-green-700' : isPos ? 'text-blue-700' : 'text-rose-600'}`}>
                 {net > 0 ? '+' : ''}{net.toLocaleString('ko-KR')} ₫
               </p>
-              <p className={`text-sm font-semibold mt-1.5 ${isZero ? 'text-green-600' : isPos ? 'text-blue-600' : 'text-rose-500'}`}>
-                나나보관금
+              <p className={`text-sm font-semibold mt-2 ${isZero ? 'text-green-600' : isPos ? 'text-blue-600' : 'text-rose-500'}`}>
+                나나 보관금
               </p>
             </div>
           );
