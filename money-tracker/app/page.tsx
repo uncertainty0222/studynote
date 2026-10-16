@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import PersonalTab from './_components/PersonalTab';
-import ChongTab from './_components/ChongTab';
 
 interface User { id: number; role: 'husband' | 'wife'; name: string; username: string; }
 interface Transaction {
@@ -164,7 +163,7 @@ export default function Home() {
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
-  const [activeTab, setActiveTab] = useState<'couple' | 'personal' | 'chong'>('personal');
+  const [activeTab, setActiveTab] = useState<'couple' | 'personal'>('personal');
   const [shopItems, setShopItems] = useState<ShoppingItem[]>([]);
   const [shopInput, setShopInput] = useState('');
   const [shopSubmitting, setShopSubmitting] = useState(false);
@@ -501,10 +500,6 @@ export default function Home() {
             <span className="block text-[13px] font-bold leading-tight">우리, 얼마나 있어?</span>
             <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Mình có bao nhiêu?</span>
           </button>
-          <button onClick={() => setActiveTab('chong')} className={`flex-1 py-3 text-center rounded-lg transition-colors ${activeTab === 'chong' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400'}`}>
-            <span className="block text-[13px] font-bold leading-tight">돈은 들어오고 또 나가고</span>
-            <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Tiền vào rồi lại ra</span>
-          </button>
           <button onClick={() => setActiveTab('couple')} className={`flex-1 py-3 text-center rounded-lg transition-colors ${activeTab === 'couple' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400'}`}>
             <span className="block text-[13px] font-bold leading-tight">나나 금고</span>
             <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Két Nana</span>
@@ -514,11 +509,6 @@ export default function Home() {
         {/* ── Assets Dashboard ── */}
         {activeTab === 'personal' && user && (
           <PersonalTab user={user} lang={lang} />
-        )}
-
-        {/* ── Chong Tab (수입 + 지출) ── */}
-        {activeTab === 'chong' && user && (
-          <ChongTab user={user} />
         )}
 
         {/* ── Couple Tab (가계부 + 장보기 통합) ── */}

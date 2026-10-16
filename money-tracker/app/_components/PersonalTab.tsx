@@ -626,6 +626,10 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
         )}
       </div>
 
+      <a href="/api/personal/export" download
+        className="block text-center text-xs text-gray-400 hover:text-indigo-500 py-2">
+        지난 수입·지출 기록 내려받기 (CSV) · Tải dữ liệu thu chi cũ
+      </a>
     </div>
   );
 }
