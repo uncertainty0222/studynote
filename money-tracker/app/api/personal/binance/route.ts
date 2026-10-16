@@ -1,4 +1,7 @@
 import crypto from 'crypto';
+import { getConfigValue, setConfigValue } from '@/lib/db';
+
+const CACHE_KEY = 'binance_last_good';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,7 +117,7 @@ export async function GET() {
 
     const totalUsdt = spotUsdt + futuresUsdt + fundingUsdt;
 
-    return Response.json({
+    const payload = {
       sections: [
         { key: 'spot', label: 'SPOT', usdt: spotUsdt, holdings: spotHoldings },
         { key: 'futures', label: 'FUTURES', usdt: futuresUsdt, holdings: [] },
@@ -124,8 +127,20 @@ export async function GET() {
       usdToVnd,
       usdToKrw,
       updatedAt: new Date().toISOString(),
-      ...(Object.keys(sectionErrors).length > 0 && { sectionErrors }),
-    });
+    };
+
+    if (Object.keys(sectionErrors).length === 0) {
+      await setConfigValue(CACHE_KEY, JSON.stringify(payload)).catch(() => {});
+      return Response.json(payload);
+    }
+
+    // Binance geo-blocks some Railway egress IPs (HTTP 451), and the IP can change per deploy.
+    // Serve the last complete result instead of a partial/zero one.
+    const cached = await getConfigValue(CACHE_KEY).catch(() => null);
+    if (cached) {
+      return Response.json({ ...JSON.parse(cached), usdToVnd, usdToKrw, stale: true, sectionErrors });
+    }
+    return Response.json({ ...payload, sectionErrors });
   } catch (e) {
     return Response.json({ error: `연결 실패: ${String(e)}` }, { status: 500 });
   }

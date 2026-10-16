@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 interface BinanceHolding { asset: string; total: number; usdtValue: number; }
 interface BinanceSection { key: string; label: string; usdt: number; holdings: BinanceHolding[]; }
-interface BinanceData { sections: BinanceSection[]; totalUsdt: number; usdToVnd: number; usdToKrw: number; updatedAt: string; sectionErrors?: Record<string, string>; }
+interface BinanceData { sections: BinanceSection[]; totalUsdt: number; usdToVnd: number; usdToKrw: number; updatedAt: string; sectionErrors?: Record<string, string>; stale?: boolean; }
 
 interface VaultData { usd: Record<string, number>; krw: Record<string, number>; vnd: Record<string, number>; }
 interface VaultResponse {
@@ -253,6 +253,8 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
   // 자동 스냅샷: 바이낸스+금고 모두 로드된 후, 마지막 스냅샷이 1시간 이상 지났으면 저장
   useEffect(() => {
     if (!binance || !vaultResp || husbandOwes === null) return;
+    // Don't record history from blocked/cached Binance data, or the chart shows fake drops.
+    if (binance.stale || binance.sectionErrors) return;
     const last = snapshots.length > 0 ? new Date(snapshots[snapshots.length - 1].snapshot_at) : null;
     if (last && Date.now() - last.getTime() < 60 * 60 * 1000) return;
     const vU = vaultResp.totalUsd ?? 0;
@@ -364,7 +366,9 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
                 className="bg-white/10 active:bg-white/20 rounded-xl px-3 py-3 text-left transition-colors">
                 <p className="text-xs opacity-60 mb-1.5">
                   📊 바이낸스
-                  {binance?.sectionErrors && Object.keys(binance.sectionErrors).length > 0 && (
+                  {binance?.stale ? (
+                    <span className="ml-1 opacity-70">⏸</span>
+                  ) : binance?.sectionErrors && Object.keys(binance.sectionErrors).length > 0 && (
                     <span className="ml-1 text-rose-300">⚠️</span>
                   )}
                   {binanceErr && <span className="ml-1 text-rose-300">⚠️</span>}
@@ -523,13 +527,19 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
             </div>
           </div>
           {binanceErr && <div className="mx-4 my-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">⚠️ {binanceErr}</div>}
-          {binance?.sectionErrors && Object.entries(binance.sectionErrors).map(([k, v]) => (
-            <div key={k} className="mx-4 mb-1 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5">⚠️ {k.toUpperCase()} 오류: {v}</div>
+          {binance?.stale && (
+            <div className="mx-4 my-2 text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+              ⏸ 서버가 잠시 Binance에 막혀서 마지막 정상값을 보여주고 있어요
+              <span className="block opacity-70">Đang hiển thị số dư cuối cùng · {new Date(binance.updatedAt).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} 기준</span>
+            </div>
+          )}
+          {!binance?.stale && binance?.sectionErrors && Object.entries(binance.sectionErrors).map(([k, v]) => (
+            <div key={k} className="mx-4 mb-1 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-1.5 line-clamp-2">⚠️ {k.toUpperCase()} 오류: {v}</div>
           ))}
           {apiBlocked && (
             <div className="mx-4 my-2 bg-amber-50 border border-amber-200 rounded-xl p-3">
               <p className="text-xs font-semibold text-amber-800 mb-0.5">🌐 지역 차단 (HTTP 451)</p>
-              <p className="text-[11px] text-amber-700 mb-2.5">Railway 서버 IP가 Binance에 의해 차단뒐어요. 잔액을 직접 입력하면 총 자산에 반영돼요.</p>
+              <p className="text-[11px] text-amber-700 mb-2.5">Railway 서버 IP가 Binance에 의해 차단됐어요. 잔액을 직접 입력하면 총 자산에 반영돼요.</p>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-amber-700">$</span>
                 <input
