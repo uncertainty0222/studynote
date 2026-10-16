@@ -15,22 +15,6 @@ interface VaultResponse {
 
 interface AssetSnapshot { id: number; total_usd: number; vault_usd: number; binance_usd: number; usd_to_vnd: number; snapshot_at: string; }
 interface Candle { weekKey: string; label: string; open: number; close: number; high: number; low: number; }
-interface IncomeEntry { id: number; amount: number; currency: string; category: string; description: string; date: string; created_at: string; }
-
-const INCOME_CATEGORY_LABEL: Record<string, string> = { 'TOUR': '🗺️ TOUR', 'COIN': '🪙 COIN', '기타': '📦 기타', '투어': '🗺️ TOUR', '투자수익': '🪙 COIN' };
-function fmtIncomeAmt(amount: number, currency: string, usdToVnd: number, usdToKrw: number): string {
-  if (currency === 'VND') return `₫${Math.round(amount / 1000).toLocaleString()}k`;
-  if (currency === 'KRW') return `₩${Math.round(amount).toLocaleString()}`;
-  const usdAmt = currency === 'USD' ? amount : currency === 'KRW' ? amount / usdToKrw : amount / usdToVnd;
-  return `$${usdAmt.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
-}
-function toVndAmt(amount: number, currency: string, usdToVnd: number, usdToKrw: number): string {
-  let vnd: number;
-  if (currency === 'VND') vnd = amount;
-  else if (currency === 'KRW') vnd = (amount / usdToKrw) * usdToVnd;
-  else vnd = amount * usdToVnd; // USD
-  return `₫${Math.round(vnd / 1000).toLocaleString()}k`;
-}
 
 function getWeekKey(date: Date): string {
   const d = new Date(date.getTime());
@@ -209,8 +193,6 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
 
   const [husbandOwes, setHusbandOwes] = useState<number | null>(null);
   const [snapshots, setSnapshots] = useState<AssetSnapshot[]>([]);
-  const [recentIncomes, setRecentIncomes] = useState<IncomeEntry[]>([]);
-  const [incomeExpanded, setIncomeExpanded] = useState(false);
   const [manualBinanceUsd, setManualBinanceUsd] = useState<number>(() => {
     try { return Number(localStorage.getItem('binanceManualUsd') ?? '0') || 0; } catch { return 0; }
   });
@@ -239,16 +221,11 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
     if (res.ok) setSnapshots(await res.json());
   }, []);
 
-  const fetchRecentIncomes = useCallback(async () => {
-    const res = await fetch('/api/personal/income');
-    if (res.ok) { const d = await res.json(); setRecentIncomes((d.items ?? []).slice(0, 20)); }
-  }, []);
 
   useEffect(() => { if (!binance && !binanceLoading && !binanceErr) fetchBinance(); }, [binance, binanceLoading, binanceErr, fetchBinance]);
   useEffect(() => { fetchVault(); }, [fetchVault]);
   useEffect(() => { fetchBalance(); }, [fetchBalance]);
   useEffect(() => { fetchSnapshots(); }, [fetchSnapshots]);
-  useEffect(() => { fetchRecentIncomes(); }, [fetchRecentIncomes]);
 
   // 자동 스냅샷: 바이낸스+금고 모두 로드된 후, 마지막 스냅샷이 1시간 이상 지났으면 저장
   useEffect(() => {
@@ -349,46 +326,54 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
               <div className="h-full bg-indigo-300 rounded-l-full" style={{ width: `${(vaultUsd / totalUsd) * 100}%` }} />
               <div className="h-full bg-amber-300 rounded-r-full" style={{ width: `${(binanceUsd / totalUsd) * 100}%` }} />
             </div>
-            <div className="flex gap-3 text-[10px] opacity-55">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-300 inline-block" />금고 · Kho</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-300 inline-block" />바이낸스</span>
+            <div className="flex gap-4 text-xs opacity-70">
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-300 inline-block" />금고 · Kho tiền</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-300 inline-block" />바이낸스 · Binance</span>
             </div>
             {/* 3분할 타일 */}
-            <div className="grid grid-cols-3 gap-2">
-              <button onClick={() => setVaultOpen(v => !v)}
-                className="bg-white/10 active:bg-white/20 rounded-xl px-3 py-3 text-left transition-colors">
-                <p className="text-xs opacity-60 mb-1.5">🏦 금고</p>
-                <p className="text-base font-black leading-tight">{fmtUsd(vaultUsd)}</p>
-                <p className="text-[10px] opacity-50 leading-tight">{fmtVnd(vaultUsd * usdToVnd)}</p>
-                <p className="text-xs opacity-55 mt-1">{((vaultUsd / totalUsd) * 100).toFixed(0)}% {vaultOpen ? '▲' : '▼'}</p>
-              </button>
-              <button onClick={() => setBinanceOpen(v => !v)}
-                className="bg-white/10 active:bg-white/20 rounded-xl px-3 py-3 text-left transition-colors">
-                <p className="text-xs opacity-60 mb-1.5">
-                  📊 바이낸스
-                  {binance?.stale ? (
-                    <span className="ml-1 opacity-70">⏸</span>
-                  ) : binance?.sectionErrors && Object.keys(binance.sectionErrors).length > 0 && (
-                    <span className="ml-1 text-rose-300">⚠️</span>
-                  )}
-                  {binanceErr && <span className="ml-1 text-rose-300">⚠️</span>}
-                </p>
-                <p className="text-base font-black leading-tight">
-                  {binanceLoading ? '...' : binanceErr ? <span className="text-rose-300 text-xs">오류</span> : fmtUsd(binanceUsd)}
-                </p>
-                <p className="text-[10px] opacity-50 leading-tight">{binanceUsd > 0 ? fmtVnd(binanceUsd * usdToVnd) : '—'}</p>
-                <p className="text-xs opacity-55 mt-1">{binanceUsd > 0 && totalUsd > 0 ? `${((binanceUsd / totalUsd) * 100).toFixed(0)}%` : '—'} {binanceOpen ? '▲' : '▼'}</p>
-              </button>
-              <div className="bg-white/10 rounded-xl px-3 py-3">
-                <p className="text-xs opacity-60 mb-1.5">💑 부부잔액</p>
-                <p className={`text-base font-black leading-tight ${husbandOwes !== null && husbandOwes > 0 ? 'text-rose-300' : 'text-emerald-300'}`}>
-                  {husbandOwes !== null ? (balanceUsd >= 0 ? '+' : '') + fmtUsd(balanceUsd) : '—'}
-                </p>
-                <p className="text-xs opacity-55 mt-1">
-                  {husbandOwes === null || husbandOwes === 0 ? '정산됨 ✓' : husbandOwes > 0 ? '내가 줄 돈' : '받을 돈'}
-                </p>
-              </div>
-            </div>
+            {(() => {
+              const pct = (v: number) => (v > 0 && totalUsd > 0 ? `${((v / totalUsd) * 100).toFixed(0)}%` : '—');
+              const binanceFlag = binanceErr || (!binance?.stale && binance?.sectionErrors && Object.keys(binance.sectionErrors).length > 0)
+                ? 'bg-rose-300' : binance?.stale ? 'bg-amber-300' : null;
+              const tile = 'bg-white/10 rounded-xl px-3 py-3 text-left transition-colors';
+              const label = 'text-sm font-bold leading-tight';
+              const labelVi = 'text-[11px] opacity-60 leading-tight mb-2';
+              const value = 'text-lg font-black leading-tight text-white';
+              const sub = 'text-xs opacity-60 leading-tight mt-0.5';
+              const foot = 'text-xs opacity-60 mt-1.5';
+              return (
+                <div className="grid grid-cols-3 gap-2">
+                  <button onClick={() => setVaultOpen(v => !v)} className={`${tile} active:bg-white/20`}>
+                    <p className={label}>금고</p>
+                    <p className={labelVi}>Kho tiền</p>
+                    <p className={value}>{fmtUsd(vaultUsd)}</p>
+                    <p className={sub}>{fmtVnd(vaultUsd * usdToVnd)}</p>
+                    <p className={foot}>{pct(vaultUsd)} {vaultOpen ? '▲' : '▼'}</p>
+                  </button>
+                  <button onClick={() => setBinanceOpen(v => !v)} className={`${tile} active:bg-white/20`}>
+                    <p className={`${label} flex items-center gap-1.5`}>
+                      바이낸스
+                      {binanceFlag && <span className={`w-1.5 h-1.5 rounded-full ${binanceFlag}`} />}
+                    </p>
+                    <p className={labelVi}>Binance</p>
+                    <p className={value}>
+                      {binanceLoading ? '...' : binanceErr ? '오류' : fmtUsd(binanceUsd)}
+                    </p>
+                    <p className={sub}>{binanceUsd > 0 ? fmtVnd(binanceUsd * usdToVnd) : '—'}</p>
+                    <p className={foot}>{pct(binanceUsd)} {binanceOpen ? '▲' : '▼'}</p>
+                  </button>
+                  <div className={tile}>
+                    <p className={label}>나나 금고</p>
+                    <p className={labelVi}>Két Nana</p>
+                    <p className={value}>
+                      {husbandOwes !== null ? (balanceUsd > 0 ? '+' : '') + fmtUsd(balanceUsd) : '—'}
+                    </p>
+                    <p className={sub}>{husbandOwes !== null ? fmtVnd(balanceUsd * usdToVnd) : '—'}</p>
+                    <p className={foot}>{pct(balanceUsd)}</p>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
@@ -613,59 +598,6 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
           )}
         </div>
       )}
-
-      {/* ── 최근 수익 카드 ── */}
-      {recentIncomes.length > 0 && (() => {
-        const latest = recentIncomes[0];
-        const shown = incomeExpanded ? recentIncomes : [latest];
-        const catLabel = INCOME_CATEGORY_LABEL[latest.category] ?? latest.category;
-        return (
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-4 pt-4 pb-3 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">최근 수익 · Thu nhập gần đây</p>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-base font-bold text-emerald-600">
-                    {fmtIncomeAmt(Number(latest.amount), latest.currency, usdToVnd, usdToKrw)}
-                  </span>
-                  {latest.currency !== 'VND' && (
-                    <span className="text-xs text-emerald-400">{toVndAmt(Number(latest.amount), latest.currency, usdToVnd, usdToKrw)}</span>
-                  )}
-                  <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-medium">{catLabel}</span>
-                  {latest.description && <span className="text-xs text-gray-400 truncate max-w-[120px]">{latest.description}</span>}
-                </div>
-                <p className="text-xs text-gray-400 mt-0.5">{latest.date}</p>
-              </div>
-              <div className="text-2xl animate-bounce">🎉</div>
-            </div>
-            {incomeExpanded && (
-              <ul className="border-t border-gray-50 divide-y divide-gray-50">
-                {shown.slice(1).map(item => (
-                  <li key={item.id} className="px-4 py-2.5 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full">{INCOME_CATEGORY_LABEL[item.category] ?? item.category}</span>
-                      <div>
-                        <p className="text-xs font-medium text-gray-800">
-                          {fmtIncomeAmt(Number(item.amount), item.currency, usdToVnd, usdToKrw)}
-                          {item.currency !== 'VND' && <span className="text-gray-400 ml-1">{toVndAmt(Number(item.amount), item.currency, usdToVnd, usdToKrw)}</span>}
-                        </p>
-                        {item.description && <p className="text-xs text-gray-400">{item.description}</p>}
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-400">{item.date}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <button
-              onClick={() => setIncomeExpanded(v => !v)}
-              className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors border-t border-gray-50"
-            >
-              {incomeExpanded ? '▲ 접기' : `▼ 더보기 (${recentIncomes.length}건)`}
-            </button>
-          </div>
-        );
-      })()}
 
       {/* ── 자산 차트 ── */}
       <div className="bg-white rounded-2xl shadow-sm p-4">
