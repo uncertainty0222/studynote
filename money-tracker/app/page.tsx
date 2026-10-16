@@ -141,6 +141,14 @@ function today() {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
 }
+function shiftMonth(ym: string, delta: number) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function fmtBal(n: number) {
+  return `${n > 0 ? '+' : ''}${n.toLocaleString('ko-KR')}`;
+}
 
 // ─── Main Component ────────────────────────────────────────────────────────
 export default function Home() {
@@ -167,10 +175,7 @@ export default function Home() {
   const [checkingItemId, setCheckingItemId] = useState<number | null>(null);
   const [checkMemos, setCheckMemos] = useState<Record<number, string>>({});
   const [boughtExpanded, setBoughtExpanded] = useState(false);
-  const [txExpanded, setTxExpanded] = useState(false);
-  const [txSearchMode, setTxSearchMode] = useState(false);
-  const [txSearchYear, setTxSearchYear] = useState(() => new Date().getFullYear());
-  const [txSearchMonth, setTxSearchMonth] = useState(() => new Date().getMonth() + 1);
+  const [txMonth, setTxMonth] = useState(() => today().slice(0, 7));
 
   // Form state
   const [payer, setPayer] = useState<'husband' | 'wife'>('husband');
@@ -621,83 +626,113 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── Approved Transactions ── */}
+        {/* ── 입출내역 (월 단위 + 거래 전후 보관금) ── */}
         {(() => {
-          const searchKey = `${txSearchYear}-${String(txSearchMonth).padStart(2, '0')}`;
-          const filtered = txSearchMode
-            ? approved.filter(tx => tx.date.startsWith(searchKey))
-            : txExpanded
-              ? approved
-              : approved.slice(0, 3);
+          // Same rule as the balance card: approved only, IN(husband) adds, OUT(wife) subtracts.
+          const chrono = [...approved].sort((a, b) =>
+            a.date.localeCompare(b.date) || String(a.created_at).localeCompare(String(b.created_at)) || a.id - b.id);
+          const running = new Map<number, { before: number; after: number }>();
+          let run = 0;
+          let startBal = 0;
+          let inSum = 0;
+          let outSum = 0;
+          const monthStart = `${txMonth}-01`;
+          for (const tx of chrono) {
+            const amt = Number(tx.amount);
+            const before = run;
+            run += tx.payer === 'husband' ? amt : -amt;
+            running.set(tx.id, { before, after: run });
+            if (tx.date < monthStart) startBal = run;
+            else if (tx.date.startsWith(txMonth)) {
+              if (tx.payer === 'husband') inSum += amt; else outSum += amt;
+            }
+          }
+          const endBal = startBal + inSum - outSum;
+          const monthTxs = approved.filter(tx => tx.date.startsWith(txMonth));
+          const [ty, tm] = txMonth.split('-');
+          const isCurrentMonth = txMonth >= today().slice(0, 7);
           return (
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-gray-700">거래 내역 <span className="font-normal text-gray-400 text-xs">· Lịch sử giao dịch</span></h2>
-                {!txSearchMode && (
-                  <button onClick={() => setTxSearchMode(true)} className="text-xs text-indigo-400 hover:text-indigo-600">🔍 더 찾기</button>
-                )}
-                {txSearchMode && (
-                  <button onClick={() => { setTxSearchMode(false); setTxSearchYear(new Date().getFullYear()); setTxSearchMonth(new Date().getMonth() + 1); }} className="text-xs text-gray-400 hover:text-gray-600">✕ 닫기</button>
-                )}
+              <div className="px-4 py-3 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-700">입출내역 <span className="font-normal text-gray-400 text-xs">· Lịch sử thu chi</span></h2>
               </div>
-              {txSearchMode && (
-                <div className="px-4 py-2.5 border-b border-gray-50 flex items-center gap-2">
-                  <select value={txSearchYear} onChange={e => setTxSearchYear(Number(e.target.value))} className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 bg-white">
-                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}년</option>)}
-                  </select>
-                  <select value={txSearchMonth} onChange={e => setTxSearchMonth(Number(e.target.value))} className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-700 bg-white">
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}월</option>)}
-                  </select>
-                  <span className="text-xs text-gray-400">{filtered.length}건</span>
+
+              {/* Month navigator */}
+              <div className="px-4 py-2.5 flex items-center justify-between border-b border-gray-50">
+                <button onClick={() => setTxMonth(shiftMonth(txMonth, -1))} className="w-8 h-8 rounded-full text-gray-500 hover:bg-gray-100 active:bg-gray-200 text-sm">◀</button>
+                <p className="text-sm font-bold text-gray-800">
+                  {ty}년 {Number(tm)}월 <span className="font-normal text-gray-400 text-xs">· Tháng {Number(tm)}/{ty}</span>
+                </p>
+                <button onClick={() => setTxMonth(shiftMonth(txMonth, 1))} disabled={isCurrentMonth} className="w-8 h-8 rounded-full text-gray-500 hover:bg-gray-100 active:bg-gray-200 text-sm disabled:opacity-25 disabled:hover:bg-transparent">▶</button>
+              </div>
+
+              {/* Monthly summary */}
+              <div className="px-4 py-3 bg-gray-50/70 border-b border-gray-100 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                <div>
+                  <p className="text-gray-400">월초 보관금 · Đầu tháng</p>
+                  <p className="font-semibold text-gray-700">{fmtBal(startBal)} ₫</p>
                 </div>
-              )}
+                <div className="text-right">
+                  <p className="text-gray-400">월말 보관금 · Cuối tháng</p>
+                  <p className="font-bold text-indigo-600">{fmtBal(endBal)} ₫</p>
+                </div>
+                <div>
+                  <p className="text-gray-400">IN 합계 · Tổng vào</p>
+                  <p className="font-semibold text-blue-700">+{inSum.toLocaleString('ko-KR')} ₫</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-gray-400">OUT 합계 · Tổng ra</p>
+                  <p className="font-semibold text-rose-600">−{outSum.toLocaleString('ko-KR')} ₫</p>
+                </div>
+              </div>
+
               {loading ? (
                 <div className="py-8 text-center text-gray-400 text-sm">{t.loading}</div>
-              ) : filtered.length === 0 ? (
+              ) : monthTxs.length === 0 ? (
                 <div className="py-8 text-center text-gray-400 text-sm">
                   <p className="text-2xl mb-2">💸</p>
-                  <p>{t.emptyTitle}</p>
+                  <p>이 달은 입출내역이 없어요 · Tháng này chưa có giao dịch</p>
                 </div>
               ) : (
                 <ul className="divide-y divide-gray-50">
-                  {filtered.map(tx => {
+                  {monthTxs.map(tx => {
                     const isPendingDel = hasPendingDeletion(tx.id);
+                    const r = running.get(tx.id);
                     return (
-                      <li key={tx.id} className={`px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors ${isPendingDel ? 'opacity-50' : ''}`}>
-                        <PayerBadge role={tx.payer} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{tx.memo}</p>
-                          {tx.note && <p className="text-xs text-indigo-400 mt-0.5 truncate">📝 {tx.note}</p>}
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {tx.payer === 'husband' ? t.husband : t.wife} · {fmtDate(tx.date)}
-                            {isPendingDel && <span className="ml-2 text-orange-400">{t.deletionPending}</span>}
-                          </p>
+                      <li key={tx.id} className={`px-4 py-3 hover:bg-gray-50 transition-colors ${isPendingDel ? 'opacity-50' : ''}`}>
+                        <div className="flex items-center gap-3">
+                          <PayerBadge role={tx.payer} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{tx.memo}</p>
+                            {tx.note && <p className="text-xs text-indigo-400 mt-0.5 truncate">📝 {tx.note}</p>}
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {tx.payer === 'husband' ? t.husband : t.wife} · {fmtDate(tx.date)}
+                              {isPendingDel && <span className="ml-2 text-orange-400">{t.deletionPending}</span>}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className={`text-sm font-semibold ${tx.payer === 'husband' ? 'text-blue-700' : 'text-rose-600'}`}>
+                              {tx.payer === 'husband' ? '+' : '−'}{formatAmt(tx.amount, lang)}
+                            </span>
+                            {!isPendingDel && (
+                              <button onClick={() => setDeleteTarget(tx)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className={`text-sm font-semibold ${tx.payer === 'husband' ? 'text-blue-700' : 'text-rose-600'}`}>
-                            {formatAmt(tx.amount, lang)}
-                          </span>
-                          {!isPendingDel && (
-                            <button onClick={() => setDeleteTarget(tx)} className="text-gray-300 hover:text-red-400 transition-colors p-1">✕</button>
-                          )}
-                        </div>
+                        {r && (
+                          <div className="mt-2 ml-12 px-2.5 py-1.5 rounded-lg bg-gray-50 text-[11px] text-gray-500 flex items-center justify-between gap-2">
+                            <span className="text-gray-400 flex-shrink-0">보관금 · Số dư</span>
+                            <span className="tabular-nums text-right">
+                              {fmtBal(r.before)}
+                              <span className="mx-1 text-gray-300">→</span>
+                              <span className="font-semibold text-gray-700">{fmtBal(r.after)} ₫</span>
+                            </span>
+                          </div>
+                        )}
                       </li>
                     );
                   })}
                 </ul>
-              )}
-              {!txSearchMode && (
-                <div className="border-t border-gray-50">
-                  {!txExpanded ? (
-                    <button onClick={() => setTxExpanded(true)} className="w-full py-2.5 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
-                      ▼ 전체 보기 · Xem tất cả
-                    </button>
-                  ) : (
-                    <button onClick={() => setTxExpanded(false)} className="w-full py-2.5 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
-                      ▲ 접기 · Thu gọn
-                    </button>
-                  )}
-                </div>
               )}
             </div>
           );
