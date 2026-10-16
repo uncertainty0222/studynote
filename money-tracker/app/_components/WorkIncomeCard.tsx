@@ -6,8 +6,9 @@ import type { WorkYear } from '@/lib/workIncome';
 interface Resp { configured: boolean; years?: WorkYear[]; fetchedAt?: string; stale?: boolean; error?: string; }
 
 const usd = (n: number) => `${n < 0 ? '-' : ''}$${Math.abs(Math.round(n)).toLocaleString('en-US')}`;
+const vnd = (n: number) => `${n < 0 ? '-' : ''}₫${new Intl.NumberFormat('vi-VN').format(Math.abs(Math.round(n)))}`;
 
-export default function WorkIncomeCard() {
+export default function WorkIncomeCard({ usdToVnd }: { usdToVnd: number }) {
   const [data, setData] = useState<Resp | null>(null);
   const [loading, setLoading] = useState(false);
   const [year, setYear] = useState<number | null>(null);
@@ -53,7 +54,7 @@ export default function WorkIncomeCard() {
   const header = (
     <div className="flex items-start justify-between mb-3">
       <div>
-        <h2 className="text-sm font-semibold text-gray-700">근로수익 <span className="font-normal text-gray-400 text-xs">· Thu nhập công việc</span></h2>
+        <h2 className="text-sm font-semibold text-gray-700">투어 수익 <span className="font-normal text-gray-400 text-xs">· Thu nhập công việc</span></h2>
         <p className="text-[11px] text-gray-400 mt-0.5">워크 앤 라이프 시트 연동 · Đồng bộ từ Google Sheets</p>
       </div>
       {data?.configured && !editing && (
@@ -126,9 +127,15 @@ export default function WorkIncomeCard() {
       <div className="flex items-end justify-between mb-2">
         <div>
           <p className="text-xs text-gray-500">{y.year}년 {sel.month}월 · Tháng {sel.month}</p>
-          <p className="text-2xl font-black text-gray-900 tracking-tight">{usd(sel.total)}</p>
+          <p className="text-2xl font-black text-gray-900 tracking-tight">
+            {usd(sel.total)} <span className="text-sm font-semibold text-gray-400 tracking-normal">{vnd(sel.total * usdToVnd)}</span>
+          </p>
         </div>
-        <p className="text-[11px] text-gray-400 text-right">월평균 · TB tháng<br /><span className="text-gray-600 font-semibold">{usd(avg)}</span></p>
+        <p className="text-[11px] text-gray-400 text-right">
+          월평균 · TB tháng<br />
+          <span className="text-gray-600 font-semibold">{usd(avg)}</span><br />
+          <span>{vnd(avg * usdToVnd)}</span>
+        </p>
       </div>
 
       {/* Monthly bars */}
@@ -163,7 +170,7 @@ export default function WorkIncomeCard() {
               <li key={i} className="py-2">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-sm text-gray-800 truncate">{t.name}</p>
-                  <p className={`text-sm font-semibold flex-shrink-0 ${t.settle !== null && t.settle < 0 ? 'text-rose-600' : 'text-gray-900'}`}>{t.settle === null ? '—' : usd(t.settle)}</p>
+                  <p className={`text-sm font-semibold flex-shrink-0 ${t.settle !== null && t.settle < 0 ? 'text-rose-600' : 'text-gray-900'}`}>{t.settle === null ? '—' : <>{usd(t.settle)} <span className="text-xs font-normal text-gray-400">{vnd(t.settle * usdToVnd)}</span></>}</p>
                 </div>
                 <p className="text-[11px] text-gray-400">
                   {[t.people && `${t.people}명`, t.payout !== null && `정산 ${usd(t.payout)}`, t.tip && `팁 ${usd(t.tip)}`,

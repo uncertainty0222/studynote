@@ -627,7 +627,7 @@ export default function PersonalTab({ user, lang }: { user: { role: string }; la
         )}
       </div>
 
-      <WorkIncomeCard />
+      <WorkIncomeCard usdToVnd={usdToVnd} />
 
       <a href="/api/personal/export" download
         className="block text-center text-xs text-gray-400 hover:text-indigo-500 py-2">
