@@ -22,9 +22,10 @@ export default function WorkIncomeCard({ usdToVnd }: { usdToVnd: number }) {
     setData(d);
     const ys = d.years ?? [];
     if (ys.length) {
-      const last = ys[ys.length - 1];
-      setYear(prev => (prev && ys.some(y => y.year === prev) ? prev : last.year));
-      setMonth(prev => prev ?? last.months[last.months.length - 1]?.month ?? null);
+      const thisYear = new Date().getFullYear();
+      const def = ys.find(y => y.year === thisYear) ?? ys[ys.length - 1];
+      setYear(prev => (prev && ys.some(y => y.year === prev) ? prev : def.year));
+      setMonth(prev => prev ?? def.months[def.months.length - 1]?.month ?? null);
     }
   };
 
@@ -51,20 +52,13 @@ export default function WorkIncomeCard({ usdToVnd }: { usdToVnd: number }) {
     apply(d);
   }
 
-  const header = (
-    <div className="flex items-start justify-between mb-3">
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700">투어 수익 <span className="font-normal text-gray-400 text-xs">· Thu nhập công việc</span></h2>
-        <p className="text-[11px] text-gray-400 mt-0.5">워크 앤 라이프 시트 연동 · Đồng bộ từ Google Sheets</p>
-      </div>
-      {data?.configured && !editing && (
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => load(true)} disabled={loading} className="text-xs text-indigo-500 disabled:opacity-40">{loading ? '...' : '새로고침'}</button>
-          <button onClick={() => setEditing(true)} className="text-xs text-gray-400">링크 변경</button>
-        </div>
-      )}
+  const title = (
+    <div>
+      <h2 className="text-base font-bold text-gray-800 leading-tight">투어 수익</h2>
+      <p className="text-xs text-gray-400">Thu nhập tour</p>
     </div>
   );
+  const header = <div className="mb-3">{title}</div>;
 
   if (!data) {
     return <div className="bg-white rounded-2xl shadow-sm p-4">{header}<p className="text-xs text-gray-400 text-center py-6">불러오는 중...</p></div>;
@@ -105,7 +99,33 @@ export default function WorkIncomeCard({ usdToVnd }: { usdToVnd: number }) {
 
   return (
     <div className="bg-white rounded-2xl shadow-sm p-4">
-      {header}
+      <div className="flex items-start justify-between mb-3">
+        {title}
+        {/* Year picker: pill look, native select underneath for the OS picker */}
+        <label className="relative flex items-center gap-1 pl-3 pr-2.5 py-1.5 rounded-full bg-indigo-50 text-indigo-700 text-sm font-bold active:bg-indigo-100">
+          {y.year}
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <select value={y.year} aria-label="연도 선택"
+            onChange={e => { const v = years.find(x => x.year === Number(e.target.value)); if (v) { setYear(v.year); setMonth(v.months[v.months.length - 1]?.month ?? null); } }}
+            className="absolute inset-0 opacity-0 cursor-pointer">
+            {[...years].reverse().map(v => <option key={v.year} value={v.year}>{v.year}년 · {usd(v.total)}</option>)}
+          </select>
+        </label>
+      </div>
+
+      {/* Year summary */}
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <div className="bg-gray-50 rounded-xl px-3 py-2">
+          <p className="text-[11px] text-gray-400">{y.year}년 합계 · Tổng năm</p>
+          <p className="text-base font-bold text-gray-800 leading-tight">{usd(y.total)}</p>
+          <p className="text-[11px] text-gray-400">{vnd(y.total * usdToVnd)}</p>
+        </div>
+        <div className="bg-gray-50 rounded-xl px-3 py-2">
+          <p className="text-[11px] text-gray-400">월평균 · TB tháng</p>
+          <p className="text-base font-bold text-gray-800 leading-tight">{usd(avg)}</p>
+          <p className="text-[11px] text-gray-400">{vnd(avg * usdToVnd)}</p>
+        </div>
+      </div>
 
       {data.stale && (
         <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg px-3 py-1.5 mb-3">
@@ -113,28 +133,11 @@ export default function WorkIncomeCard({ usdToVnd }: { usdToVnd: number }) {
         </p>
       )}
 
-      {/* Year chips */}
-      <div className="flex gap-1.5 mb-3 overflow-x-auto">
-        {years.map(v => (
-          <button key={v.year} onClick={() => { setYear(v.year); setMonth(v.months[v.months.length - 1]?.month ?? null); }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs transition-colors ${v.year === y.year ? 'bg-indigo-600 text-white font-semibold' : 'bg-gray-100 text-gray-600'}`}>
-            {v.year} · {usd(v.total)}
-          </button>
-        ))}
-      </div>
-
       {/* Selected month headline */}
-      <div className="flex items-end justify-between mb-2">
-        <div>
-          <p className="text-xs text-gray-500">{y.year}년 {sel.month}월 · Tháng {sel.month}</p>
-          <p className="text-2xl font-black text-gray-900 tracking-tight">
-            {usd(sel.total)} <span className="text-sm font-semibold text-gray-400 tracking-normal">{vnd(sel.total * usdToVnd)}</span>
-          </p>
-        </div>
-        <p className="text-[11px] text-gray-400 text-right">
-          월평균 · TB tháng<br />
-          <span className="text-gray-600 font-semibold">{usd(avg)}</span><br />
-          <span>{vnd(avg * usdToVnd)}</span>
+      <div className="mb-2">
+        <p className="text-xs text-gray-500">{y.year}년 {sel.month}월 · Tháng {sel.month}</p>
+        <p className="text-2xl font-black text-gray-900 tracking-tight">
+          {usd(sel.total)} <span className="text-sm font-semibold text-gray-400 tracking-normal">{vnd(sel.total * usdToVnd)}</span>
         </p>
       </div>
 
@@ -181,6 +184,14 @@ export default function WorkIncomeCard({ usdToVnd }: { usdToVnd: number }) {
             ))}
           </ul>
         )}
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-gray-50 flex items-center justify-between text-[11px] text-gray-400">
+        <span>Google Sheets 연동 · Đồng bộ</span>
+        <span className="flex items-center gap-3">
+          <button onClick={() => load(true)} disabled={loading} className="text-indigo-500 disabled:opacity-40">{loading ? '불러오는 중...' : '새로고침'}</button>
+          <button onClick={() => setEditing(true)}>링크 변경</button>
+        </span>
       </div>
     </div>
   );
