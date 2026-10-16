@@ -458,7 +458,7 @@ export default function Home() {
     <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
       role === 'husband' ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-600'
     }`}>
-      {role === 'husband' ? t.husbandInitial : t.wifeInitial}
+      {role === 'husband' ? '입' : '출'}
     </div>
   );
 
@@ -545,9 +545,6 @@ export default function Home() {
               </p>
               <p className={`text-xs font-medium mt-1.5 ${isZero ? 'text-green-600' : isPos ? 'text-blue-600' : 'text-rose-500'}`}>
                 {isZero ? '보관금 균형 맞음 · Đang cân bằng' : isPos ? '아내가 우리 공동 자금 보관 중 · Vợ đang giữ tiền nhà' : '⚠️ 아내 보관금 고갈 · 남편이 채워줘야 해요'}
-              </p>
-              <p className="text-xs text-gray-400 mt-1.5">
-                아내 총 지출 {balance.wifeTotal.toLocaleString('ko-KR')} ₫ · 남편 총 지출 {balance.husbandTotal.toLocaleString('ko-KR')} ₫
               </p>
             </div>
           );
