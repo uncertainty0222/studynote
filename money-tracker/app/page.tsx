@@ -31,8 +31,8 @@ const T = {
   ko: {
     appTitle: 'VOCHONG', appSub: '부부 공유 돈 관리',
     addBtn: '+ 거래 추가', logout: '로그아웃',
-    balanceLabel: '현재 잔액 현황', settled: '정산 완료!',
-    settledSub: '서로 주고받을 돈이 없어요',
+    balanceLabel: '아내 보관금 현황', settled: '균형 맞음 · 보관금 동일',
+    settledSub: '아내 계좌와 남편 지출이 같아요',
     husbandOwes: (a: string) => `남편 → 아내: ${a}`,
     wifeOwes: (a: string) => `아내 → 남편: ${a}`,
     husbandTotal: (a: string) => `남편 총 지출 ${a}`,
@@ -67,8 +67,8 @@ const T = {
   vi: {
     appTitle: 'VOCHONG', appSub: 'Quản lý tiền vợ chồng',
     addBtn: '+ Thêm giao dịch', logout: 'Đăng xuất',
-    balanceLabel: 'Số dư hiện tại', settled: 'Đã thanh toán xong!',
-    settledSub: 'Hiện không có tiền cần trả cho nhau',
+    balanceLabel: 'Tiền vợ đang giữ', settled: 'Cân bằng · Vợ giữ đúng phần',
+    settledSub: 'Tài khoản vợ và chi tiêu chồng đang bằng nhau',
     husbandOwes: (a: string) => `Chồng → Vợ: ${a}`,
     wifeOwes: (a: string) => `Vợ → Chồng: ${a}`,
     husbandTotal: (a: string) => `Chồng đã trả ${a}`,
@@ -501,8 +501,8 @@ export default function Home() {
             <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Tiền vào rồi lại ra</span>
           </button>
           <button onClick={() => setActiveTab('couple')} className={`flex-1 py-3 text-center rounded-lg transition-colors ${activeTab === 'couple' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400'}`}>
-            <span className="block text-[13px] font-bold leading-tight">남편과 아내 사이의 볼 일</span>
-            <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Chuyện vợ chồng</span>
+            <span className="block text-[13px] font-bold leading-tight">아내가 맡은 우리 돈</span>
+            <span className="block text-[12px] font-medium leading-tight mt-0.5 opacity-75">Tiền vợ đang giữ</span>
           </button>
         </div>
 
