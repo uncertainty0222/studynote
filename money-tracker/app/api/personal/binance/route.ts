@@ -29,7 +29,7 @@ export async function GET() {
     const [pricesR, spotR, futuresR, fundingR, fxR] = await Promise.allSettled([
       fetch('https://api.binance.com/api/v3/ticker/price'),
       fetch(`https://api.binance.com/api/v3/account?${qs}&signature=${sig}`, { headers: h }),
-      fetch(`https://fapi.binance.com/fapi/v2/account?${qs}&signature=${sig}`, { headers: h }),
+      fetch(`https://fapi.binance.com/fapi/v3/account?${qs}&signature=${sig}`, { headers: h }),
       fetch(`https://api.binance.com/sapi/v1/asset/get-funding-asset?${qs}&signature=${sig}`, { method: 'POST', headers: h }),
       fetch('https://open.er-api.com/v6/latest/USD'),
     ]);
