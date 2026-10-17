@@ -468,6 +468,7 @@ function StoryCard({ story: s }: { story: RankedStory }) {
         </span>
         <span className="text-zinc-300 dark:text-zinc-700">/</span>
         <span className="font-semibold text-zinc-500">{s.category}</span>
+        {s.weeksAgo ? <PastBadge weeksAgo={s.weeksAgo} /> : null}
         {s.status && (
           <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-1 font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
             <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
@@ -532,7 +533,10 @@ function CompactRow({ story: s }: { story: RankedStory }) {
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-start gap-3 px-5 py-3.5 text-left">
         <span className="w-6 shrink-0 font-mono text-[13px] font-bold tabular-nums text-zinc-400">{s.rank}</span>
         <span className="min-w-0 flex-1">
-          <span className="block text-xs font-semibold text-zinc-500">{s.category}</span>
+          <span className="flex items-center gap-2 text-xs font-semibold text-zinc-500">
+            {s.category}
+            {s.weeksAgo ? <PastBadge weeksAgo={s.weeksAgo} /> : null}
+          </span>
           <span className="block text-[15px] font-medium leading-snug">{s.headline}</span>
         </span>
         <Chevron open={open} />
@@ -543,6 +547,15 @@ function CompactRow({ story: s }: { story: RankedStory }) {
         </div>
       )}
     </li>
+  );
+}
+
+// 이번 주 순위가 30위를 못 채워 지난 주 순위에서 가져온 항목 표시
+function PastBadge({ weeksAgo }: { weeksAgo: number }) {
+  return (
+    <span className="rounded-md border border-zinc-200 px-1.5 py-0.5 text-[11px] font-medium text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+      {weeksAgo === 1 ? "지난주" : `${weeksAgo}주 전`}
+    </span>
   );
 }
 

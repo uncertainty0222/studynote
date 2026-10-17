@@ -49,7 +49,14 @@ const DEFAULT_CATEGORIES = "국제정세, 국내정책, 경제, 한국 관련, �
 
 export const SCOPES: Record<
   ScopeId,
-  { label: string; queries: Query[]; focus: string; categories?: string; weeklyOnly?: boolean }
+  {
+    label: string;
+    queries: Query[];
+    focus: string;
+    categories?: string;
+    weeklyOnly?: boolean;
+    carryOverWeeks?: number; // 주간 순위가 30위를 못 채우면 최대 이 주 수만큼 지난 주 순위로 채운다
+  }
 > = {
   national: {
     label: "베트남 전국",
@@ -151,6 +158,7 @@ Give extra weight to policies and rules from Nha Trang / Khanh Hoa. Rank by how 
   specialty: {
     label: "나트랑·달랏 특산품",
     weeklyOnly: true,
+    carryOverWeeks: 4,
     queries: [
       {
         lang: "vi",
@@ -222,6 +230,7 @@ export type RankedStory = {
   figures: { label: string; value: string }[]; // 핵심 수치 (근거 기사 제목에 있는 숫자만)
   timeline: { date: number; event: string }[]; // 진행 경과 (날짜는 근거 기사 발행일)
   articles: Headline[];
+  weeksAgo?: number; // 지난 주 순위에서 가져와 채운 항목이면 몇 주 전인지
 };
 
 export type Ranking = {
@@ -303,6 +312,7 @@ type Shared = {
   queue: Promise<void>;
   totals: { runs: number; inputTokens: number; outputTokens: number; costUsd: number; since: number };
   schedulerStarted: boolean;
+  history: Map<string, RankedStory[]>; // "scope:weekKey" → 그 주에 만든 순위 (지난 주로 채우기용)
 };
 const G = globalThis as unknown as { __vnTop10?: Shared };
 const shared: Shared = (G.__vnTop10 ??= {
@@ -310,7 +320,9 @@ const shared: Shared = (G.__vnTop10 ??= {
   queue: Promise.resolve(),
   totals: { runs: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, since: Date.now() },
   schedulerStarted: false,
+  history: new Map(),
 });
+shared.history ??= new Map(); // 이 필드가 생기기 전에 만들어진 저장소 대비
 const totals = shared.totals;
 
 export function usageTotals() {
@@ -457,7 +469,7 @@ export function buildRequests(scope: ScopeId, period: PeriodId, now = new Date()
       const w = weekRange(now);
       out.push({
         url: googleNews(`${query.q} after:${w.after} before:${w.before}`, query.lang),
-        maxAgeDays: 16,
+        maxAgeDays: Math.ceil((Date.now() - w.fromMs) / 86400_000) + 2, // 지난 주로 채울 때 몇 주 전 주도 받도록
         mustMatch: query.mustMatch,
         excludeTitle: query.excludeTitle,
         fromMs: w.fromMs,
@@ -489,8 +501,8 @@ export function buildRequests(scope: ScopeId, period: PeriodId, now = new Date()
   return out;
 }
 
-async function collect(scope: ScopeId, period: PeriodId): Promise<Headline[]> {
-  const requests = buildRequests(scope, period);
+async function collect(scope: ScopeId, period: PeriodId, now = new Date()): Promise<Headline[]> {
+  const requests = buildRequests(scope, period, now);
   const perQuery = PERIODS[period].perQuery;
   const lists: Headline[][] = [];
   // Google에 한꺼번에 몰리지 않도록 4개씩 나눠 요청
@@ -512,17 +524,99 @@ async function collect(scope: ScopeId, period: PeriodId): Promise<Headline[]> {
 async function generate(entry: Entry) {
   const { scope, period } = entry;
   try {
-    const pool = await collect(scope, period);
-    const wide = scope === "national" || scope === "expat";
-    const minPool = wide ? 30 : 5;
-    if (pool.length < minPool) throw new Error(`기사가 너무 적음 (${pool.length}건)`);
+    const carry = period === "week" ? (SCOPES[scope].carryOverWeeks ?? 0) : 0;
+    const now = new Date();
+    const result = await rank(scope, period, now, carry > 0);
+    const filled = carry > 0 ? await fillFromPastWeeks(scope, result, now, carry) : result;
+    if (filled.stories.length === 0) throw new Error(`기사가 너무 적음 (${result.poolSize}건)`);
 
-    // 같은 사건의 비슷한 제목을 미리 묶어 입력을 줄인다. 묶인 수(xN)는 보도량 신호로 쓴다
-    const clusters = clusterHeadlines(pool).slice(0, wide ? MAX_LINES_NATIONAL : MAX_LINES_LOCAL);
-    const want = Math.min(MAX_STORIES, Math.max(5, Math.floor(clusters.length / 2)));
-    const week = period === "week" ? weekRange() : null;
-    const periodText = week ? `the week ${week.label}` : PERIODS[period].label;
-    const system = `You are the editor of a Korean weekly newsletter about Vietnam, read by Korean residents in Vietnam (many in Nha Trang, aged 40-60) and people in the tourism business. From the numbered headlines (${periodText}, ${SCOPES[scope].label}), rank up to ${want} of the most significant stories.
+    entry.stories = filled.stories;
+    entry.poolSize = result.poolSize;
+    entry.usage = filled.usage ?? undefined;
+    if (result.week) {
+      entry.weekKey = result.week.key;
+      entry.rangeLabel = result.week.label;
+    }
+    entry.generatedAt = Date.now();
+    entry.status = "ready";
+    entry.error = undefined;
+  } catch (e) {
+    entry.failedAt = Date.now();
+    entry.error = describeError(e);
+    entry.status = entry.stories.length ? "ready" : "error";
+  }
+}
+
+type RankResult = { stories: RankedStory[]; poolSize: number; usage: Usage | null; week: ReturnType<typeof weekRange> | null };
+
+// 이번 주 순위가 30위를 못 채우면 지난주, 지지난주 … 순위로 채운다 (최대 carry주 전까지).
+// 지난 주 순위는 만들어 둔 것을 다시 쓰고, 서버 재시작 등으로 없으면 그 주 기사로 새로 만든다
+async function fillFromPastWeeks(scope: ScopeId, current: RankResult, now: Date, carry: number): Promise<RankResult> {
+  const history = shared.history;
+  const keyOf = (back: number) => `${scope}:${weekRange(new Date(now.getTime() - back * WEEK_MS)).key}`;
+  history.set(keyOf(0), current.stories);
+
+  const out = [...current.stories];
+  let usage = current.usage;
+  for (let back = 1; back <= carry && out.length < MAX_STORIES; back++) {
+    let past = history.get(keyOf(back));
+    if (!past) {
+      try {
+        const r = await rank(scope, "week", new Date(now.getTime() - back * WEEK_MS), true);
+        past = r.stories;
+        history.set(keyOf(back), past);
+        usage = addUsage(usage, r.usage);
+      } catch {
+        continue; // 그 주를 못 만들면 건너뛰고 더 이전 주로 채운다 (다음 발행 때 다시 시도)
+      }
+    }
+    for (const s of past) {
+      if (out.length >= MAX_STORIES) break;
+      if (out.some((o) => sameStory(o, s))) continue; // 이번 주에도 이어진 이야기는 한 번만
+      out.push({ ...s, weeksAgo: back });
+    }
+  }
+
+  // 채우기에 더 이상 쓰지 않을 오래된 주는 지운다
+  const keep = new Set(Array.from({ length: carry + 1 }, (_, i) => keyOf(i)));
+  for (const k of history.keys()) if (k.startsWith(`${scope}:`) && !keep.has(k)) history.delete(k);
+
+  return { ...current, stories: out.map((s, i) => ({ ...s, rank: i + 1 })), usage };
+}
+
+const WEEK_MS = 7 * 86400_000;
+
+function sameStory(a: RankedStory, b: RankedStory) {
+  if (a.articles.some((x) => b.articles.some((y) => y.link === x.link))) return true;
+  return jaccard(tokenize(a.headline), tokenize(b.headline)) >= 0.5;
+}
+
+function addUsage(a: Usage | null, b: Usage | null): Usage | null {
+  if (!a || !b) return a ?? b;
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    costUsd: a.costUsd === null || b.costUsd === null ? null : a.costUsd + b.costUsd,
+  };
+}
+
+// 한 기간(주간이면 now 기준 가장 최근 발행 주)의 기사를 모아 순위를 만든다.
+// allowEmpty: 기사가 너무 적으면 실패 대신 빈 순위를 돌려준다 (지난 주로 채우는 섹션용)
+async function rank(scope: ScopeId, period: PeriodId, now: Date, allowEmpty = false): Promise<RankResult> {
+  const week = period === "week" ? weekRange(now) : null;
+  const pool = await collect(scope, period, now);
+  const wide = scope === "national" || scope === "expat";
+  const minPool = wide ? 30 : 5;
+  if (pool.length < minPool) {
+    if (allowEmpty) return { stories: [], poolSize: pool.length, usage: null, week };
+    throw new Error(`기사가 너무 적음 (${pool.length}건)`);
+  }
+
+  // 같은 사건의 비슷한 제목을 미리 묶어 입력을 줄인다. 묶인 수(xN)는 보도량 신호로 쓴다
+  const clusters = clusterHeadlines(pool).slice(0, wide ? MAX_LINES_NATIONAL : MAX_LINES_LOCAL);
+  const want = Math.min(MAX_STORIES, Math.max(5, Math.floor(clusters.length / 2)));
+  const periodText = week ? `the week ${week.label}` : PERIODS[period].label;
+  const system = `You are the editor of a Korean weekly newsletter about Vietnam, read by Korean residents in Vietnam (many in Nha Trang, aged 40-60) and people in the tourism business. From the numbered headlines (${periodText}, ${SCOPES[scope].label}), rank up to ${want} of the most significant stories.
 ${SCOPES[scope].focus}
 Each line is: id, date (YYMMDD), xN = number of similar headlines merged into that line (more = wider coverage), headline. Prefer widely covered stories.
 
@@ -539,93 +633,80 @@ Rules:
 - Use only facts present in the headlines. Do not invent numbers, dates or quotes.
 - Order by significance, most important first. Return fewer stories if there are fewer real ones.`;
 
-    const lines = clusters
-      .map((c, i) => `${i}\t${yymmdd(c.date)}\t${c.members.length > 1 ? `x${c.members.length}` : ""}\t${c.title}`)
-      .join("\n");
-    const client = new Anthropic();
-    // 출력이 길 수 있어 스트리밍으로 받는다 (HTTP 타임아웃 방지)
-    const response = await client.beta.messages
-      .stream({
-        model: MODEL,
-        max_tokens: 32000,
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
-        // AI의 검토(thinking) 토큰도 출력 요금이라, 짧은 기간은 낮은 강도로 충분하다
-        output_config: {
-          effort: period === "day" || period === "month" ? "low" : "medium", // 주간·1년·3년은 중간
-          format: { type: "json_schema", schema: SCHEMA },
-        },
-        system,
-        messages: [{ role: "user", content: lines }],
-      })
-      .finalMessage();
-    if (response.stop_reason === "refusal") throw new Error("요청이 거절됨");
-    if (response.stop_reason === "max_tokens") throw new Error("응답이 잘림 (max_tokens)");
+  const lines = clusters
+    .map((c, i) => `${i}\t${yymmdd(c.date)}\t${c.members.length > 1 ? `x${c.members.length}` : ""}\t${c.title}`)
+    .join("\n");
+  const client = new Anthropic();
+  // 출력이 길 수 있어 스트리밍으로 받는다 (HTTP 타임아웃 방지)
+  const response = await client.beta.messages
+    .stream({
+      model: MODEL,
+      max_tokens: 32000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      // AI의 검토(thinking) 토큰도 출력 요금이라, 짧은 기간은 낮은 강도로 충분하다
+      output_config: {
+        effort: period === "day" || period === "month" ? "low" : "medium", // 주간·1년·3년은 중간
+        format: { type: "json_schema", schema: SCHEMA },
+      },
+      system,
+      messages: [{ role: "user", content: lines }],
+    })
+    .finalMessage();
+  if (response.stop_reason === "refusal") throw new Error("요청이 거절됨");
+  if (response.stop_reason === "max_tokens") throw new Error("응답이 잘림 (max_tokens)");
 
-    const usage = recordUsage(response.usage.input_tokens, response.usage.output_tokens);
+  const usage = recordUsage(response.usage.input_tokens, response.usage.output_tokens);
 
-    const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-    const parsed = JSON.parse(text) as {
-      s: {
-        h: string;
-        sm: string;
-        tp: string;
-        c: string;
-        st: string;
-        f: { l: string; v: string }[];
-        tl: { i: number; e: string }[];
-        ids: number[];
-      }[];
+  const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+  const parsed = JSON.parse(text) as {
+    s: {
+      h: string;
+      sm: string;
+      tp: string;
+      c: string;
+      st: string;
+      f: { l: string; v: string }[];
+      tl: { i: number; e: string }[];
+      ids: number[];
+    }[];
+  };
+  const validId = (id: number) => Number.isInteger(id) && id >= 0 && id < clusters.length;
+
+  const stories: RankedStory[] = parsed.s.slice(0, MAX_STORIES).map((s, i) => {
+    // 모델이 준 id 중 실제로 있는 줄만 근거로 남기고, 묶여 있던 기사까지 펼친다
+    const ids = [...new Set(s.ids)].filter(validId);
+    const allArticles = ids.flatMap((id) => clusters[id].members).sort((a, b) => a.publishedAt - b.publishedAt);
+    const sourceText = allArticles.map((a) => a.title).join(" \n ");
+
+    // 수치는 근거 기사 제목에 그 숫자가 실제로 있을 때만 남긴다 (지어낸 숫자 차단)
+    const figures = (s.f ?? [])
+      .filter((f) => f.v && numbersAppearIn(f.v, sourceText))
+      .slice(0, 3)
+      .map((f) => ({ label: f.l, value: f.v }));
+
+    // 타임라인 날짜는 모델이 쓴 날짜가 아니라 그 줄 기사의 발행일을 쓴다
+    const seenIds = new Set<number>();
+    const timeline = (s.tl ?? [])
+      .filter((t) => validId(t.i) && !seenIds.has(t.i) && seenIds.add(t.i))
+      .filter((t) => numbersAppearIn(t.e, clusters[t.i].members.map((m) => m.title).join(" \n ")))
+      .map((t) => ({ date: clusters[t.i].date, event: t.e }))
+      .sort((a, b) => a.date - b.date)
+      .slice(0, 5);
+    return {
+      rank: i + 1,
+      headline: s.h,
+      summary: s.sm,
+      talkingPoint: s.tp,
+      category: s.c,
+      period: monthRange(allArticles.map((a) => a.publishedAt)),
+      status: s.st ?? "",
+      figures,
+      timeline,
+      articles: allArticles.slice(-MAX_SOURCES), // 화면에는 최근 기사 위주로
     };
-    const validId = (id: number) => Number.isInteger(id) && id >= 0 && id < clusters.length;
-
-    entry.stories = parsed.s.slice(0, MAX_STORIES).map((s, i) => {
-      // 모델이 준 id 중 실제로 있는 줄만 근거로 남기고, 묶여 있던 기사까지 펼친다
-      const ids = [...new Set(s.ids)].filter(validId);
-      const allArticles = ids.flatMap((id) => clusters[id].members).sort((a, b) => a.publishedAt - b.publishedAt);
-      const sourceText = allArticles.map((a) => a.title).join(" \n ");
-
-      // 수치는 근거 기사 제목에 그 숫자가 실제로 있을 때만 남긴다 (지어낸 숫자 차단)
-      const figures = (s.f ?? [])
-        .filter((f) => f.v && numbersAppearIn(f.v, sourceText))
-        .slice(0, 3)
-        .map((f) => ({ label: f.l, value: f.v }));
-
-      // 타임라인 날짜는 모델이 쓴 날짜가 아니라 그 줄 기사의 발행일을 쓴다
-      const seenIds = new Set<number>();
-      const timeline = (s.tl ?? [])
-        .filter((t) => validId(t.i) && !seenIds.has(t.i) && seenIds.add(t.i))
-        .filter((t) => numbersAppearIn(t.e, clusters[t.i].members.map((m) => m.title).join(" \n ")))
-        .map((t) => ({ date: clusters[t.i].date, event: t.e }))
-        .sort((a, b) => a.date - b.date)
-        .slice(0, 5);
-      return {
-        rank: i + 1,
-        headline: s.h,
-        summary: s.sm,
-        talkingPoint: s.tp,
-        category: s.c,
-        period: monthRange(allArticles.map((a) => a.publishedAt)),
-        status: s.st ?? "",
-        figures,
-        timeline,
-        articles: allArticles.slice(-MAX_SOURCES), // 화면에는 최근 기사 위주로
-      };
-    });
-    entry.poolSize = pool.length;
-    entry.usage = usage;
-    if (week) {
-      entry.weekKey = week.key;
-      entry.rangeLabel = week.label;
-    }
-    entry.generatedAt = Date.now();
-    entry.status = "ready";
-    entry.error = undefined;
-  } catch (e) {
-    entry.failedAt = Date.now();
-    entry.error = describeError(e);
-    entry.status = entry.stories.length ? "ready" : "error";
-  }
+  });
+  return { stories, poolSize: pool.length, usage, week };
 }
 
 function recordUsage(inputTokens: number, outputTokens: number): Usage {
