@@ -315,59 +315,138 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
 
 function Top10Section({ top10, now }: { top10: NewsBundle["top10"]; now: number }) {
   const [open, setOpen] = useState<number | null>(null);
+  const [showMore, setShowMore] = useState(false);
+  const [category, setCategory] = useState<string | null>(null);
+
+  const categories = useMemo(() => [...new Set(top10.stories.map((s) => s.category))], [top10.stories]);
+  const stories = useMemo(
+    () => top10.stories.filter((s) => !category || s.category === category),
+    [top10.stories, category],
+  );
+  const head = stories.slice(0, 10);
+  const rest = stories.slice(10);
+
+  const toggle = (rank: number) => setOpen(open === rank ? null : rank);
+
   return (
     <section className="mb-4 rounded-xl border-2 border-red-200 bg-white p-4 shadow-sm">
-      <h2 className="text-base font-bold">🏆 최근 30일 베트남 뉴스 TOP 10</h2>
+      <h2 className="text-base font-bold">🏆 최근 2년 베트남 핵심 뉴스 TOP 10</h2>
       <p className="mb-3 text-xs text-gray-400">
-        AI가 보도량과 파급력을 기준으로 고른 목록입니다 (편집 판단이며 객관적 순위가 아님)
-        {top10.generatedAt && ` · ${top10.poolSize}개 제목 분석 · ${relTime(top10.generatedAt, now)} 생성`}
+        국제정세와 국내정책에서 큰 변화를 만든 사건 중심으로 AI가 고른 목록 (편집 판단이며 객관적 순위가 아님)
+        {top10.generatedAt && ` · 기사 제목 ${top10.poolSize}개 분석 · ${relTime(top10.generatedAt, now)} 생성`}
       </p>
+
       {!top10.enabled ? (
         <p className="text-sm text-gray-400">ANTHROPIC_API_KEY 환경변수를 설정하면 여기에 TOP 10이 표시됩니다.</p>
       ) : top10.stories.length === 0 ? (
         <p className="text-sm text-gray-400">
-          {top10.error ? `생성 실패: ${top10.error}` : "TOP 10을 만들고 있습니다. 1~2분 뒤 새로고침하세요."}
+          {top10.error
+            ? `생성 실패: ${top10.error}`
+            : "2년치 기사를 모아 순위를 매기고 있습니다. 2~3분 뒤 새로고침하세요."}
         </p>
       ) : (
-        <ol className="space-y-2">
-          {top10.stories.map((s) => (
-            <li key={s.rank} className="rounded-lg border border-gray-100 p-3">
-              <button
-                onClick={() => setOpen(open === s.rank ? null : s.rank)}
-                className="flex w-full items-start gap-3 text-left"
-                aria-expanded={open === s.rank}
-              >
-                <span className="w-6 shrink-0 font-mono text-lg font-bold text-red-700">{s.rank}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="mr-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{s.category}</span>
-                  <span className="font-semibold">{s.headline}</span>
-                  <span className="mt-1 block text-sm text-gray-600">{s.summary}</span>
-                  <span className="mt-1 block text-sm text-red-800">💬 {s.talkingPoint}</span>
-                </span>
-                <span className="shrink-0 text-xs text-gray-400">관련 {s.articles.length}건</span>
-              </button>
-              {open === s.rank && s.articles.length > 0 && (
-                <ul className="mt-2 ml-9 space-y-1 border-t border-gray-100 pt-2">
-                  {s.articles.map((a) => (
-                    <li key={a.link} className="text-xs">
-                      <a href={a.link} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">
-                        {a.title}
-                      </a>
-                      <span className="ml-1 text-gray-400">
-                        {a.publisher} · {new Date(a.publishedAt).toLocaleDateString("ko-KR")}
-                      </span>
+        <>
+          {categories.length > 1 && (
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <Chip active={!category} onClick={() => setCategory(null)}>
+                전체
+              </Chip>
+              {categories.map((c) => (
+                <Chip key={c} active={category === c} onClick={() => setCategory(category === c ? null : c)}>
+                  {c}
+                </Chip>
+              ))}
+            </div>
+          )}
+
+          <ol className="space-y-2">
+            {head.map((s) => (
+              <li key={s.rank} className="rounded-lg border border-gray-100 p-3">
+                <button
+                  onClick={() => toggle(s.rank)}
+                  className="flex w-full items-start gap-3 text-left"
+                  aria-expanded={open === s.rank}
+                >
+                  <span className="w-7 shrink-0 font-mono text-lg font-bold text-red-700">{s.rank}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="mr-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{s.category}</span>
+                    {s.period && <span className="mr-2 font-mono text-xs text-gray-400">{s.period}</span>}
+                    <span className="font-semibold">{s.headline}</span>
+                    <span className="mt-1 block text-sm text-gray-600">{s.summary}</span>
+                    <span className="mt-1 block text-sm text-red-800">💬 {s.talkingPoint}</span>
+                  </span>
+                  <span className="shrink-0 text-xs text-gray-400">관련 {s.articles.length}건</span>
+                </button>
+                {open === s.rank && <SourceLinks articles={s.articles} />}
+              </li>
+            ))}
+          </ol>
+
+          {rest.length > 0 && (
+            <>
+              {showMore && (
+                <ol className="mt-3 divide-y divide-gray-100 rounded-lg border border-gray-100">
+                  {rest.map((s) => (
+                    <li key={s.rank} className="px-3 py-2">
+                      <button
+                        onClick={() => toggle(s.rank)}
+                        className="flex w-full items-baseline gap-3 text-left"
+                        aria-expanded={open === s.rank}
+                      >
+                        <span className="w-7 shrink-0 font-mono text-sm font-bold text-gray-500">{s.rank}</span>
+                        <span className="min-w-0 flex-1 text-sm">
+                          <span className="mr-1.5 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
+                            {s.category}
+                          </span>
+                          {s.period && <span className="mr-2 font-mono text-xs text-gray-400">{s.period}</span>}
+                          <span className="font-medium">{s.headline}</span>
+                        </span>
+                        <span className="shrink-0 text-xs text-gray-400">{open === s.rank ? "▲" : "▼"}</span>
+                      </button>
+                      {open === s.rank && (
+                        <div className="ml-10 mt-1">
+                          <p className="text-sm text-gray-600">{s.summary}</p>
+                          <p className="mt-1 text-sm text-red-800">💬 {s.talkingPoint}</p>
+                          <SourceLinks articles={s.articles} />
+                        </div>
+                      )}
                     </li>
                   ))}
-                </ul>
+                </ol>
               )}
-            </li>
-          ))}
-        </ol>
+              <button
+                onClick={() => setShowMore(!showMore)}
+                className="mt-3 w-full rounded-lg border border-gray-200 py-2 text-sm text-gray-600 hover:bg-gray-50"
+                aria-expanded={showMore}
+              >
+                {showMore ? "접기 ▲" : `11~${10 + rest.length}위 더 보기 ▼`}
+              </button>
+            </>
+          )}
+        </>
       )}
       {top10.error && top10.stories.length > 0 && (
         <p className="mt-2 text-xs text-amber-700">최근 갱신 실패로 이전 결과를 보여주고 있습니다: {top10.error}</p>
       )}
     </section>
+  );
+}
+
+function SourceLinks({ articles }: { articles: NewsBundle["top10"]["stories"][number]["articles"] }) {
+  if (articles.length === 0) return null;
+  return (
+    <ul className="mt-2 ml-10 space-y-1 border-t border-gray-100 pt-2">
+      {articles.map((a) => (
+        <li key={a.link} className="text-xs">
+          <a href={a.link} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">
+            {a.title}
+          </a>
+          <span className="ml-1 text-gray-400">
+            {a.publisher} · {new Date(a.publishedAt).toLocaleDateString("ko-KR")}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
