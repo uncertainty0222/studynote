@@ -72,6 +72,16 @@ export default function WeeklyVietnam({
   const anchorRef = useRef<HTMLDivElement>(null); // 섹션 탭 바로 위의 고정 기준점 (탭은 sticky라 위치가 변한다)
   const touch = useRef<{ x: number; y: number } | null>(null);
   const [arrowsVisible, setArrowsVisible] = useState(false);
+  const [showHint, setShowHint] = useState(false);
+
+  // 처음 온 모바일 독자에게만 '옆으로 넘겨 보세요' 안내를 한 번 보여 준다
+  useEffect(() => {
+    try {
+      // 저장된 설정을 처음 한 번 읽어 온다
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (window.matchMedia("(pointer: coarse)").matches && !localStorage.getItem("vn-swipe-hint")) setShowHint(true);
+    } catch {}
+  }, []);
 
   // 양옆 화살표는 섹션 영역이 화면 가운데까지 올라왔을 때만 보인다 (첫 화면을 가리지 않게)
   useEffect(() => {
@@ -91,26 +101,50 @@ export default function WeeklyVietnam({
   // 섹션을 바꾸면 섹션 머리로 올려 준다 (이미 위에 있으면 그대로)
   function goTo(i: number) {
     const next = Math.max(0, Math.min(SECTIONS.length - 1, i));
+    if (next === section) return;
+    setEnterFrom(next > section ? "right" : "left");
     setSection(next);
+    setShowHint(false);
+    try {
+      localStorage.setItem("vn-swipe-hint", "seen");
+    } catch {}
     const anchor = anchorRef.current;
     if (!anchor) return;
     const top = anchor.getBoundingClientRect().top + window.scrollY - 56; // 상단 바 높이만큼 위로
     if (window.scrollY > top) window.scrollTo({ top, behavior: "smooth" });
   }
 
-  // 좌우 스와이프: 가로로 충분히, 세로보다 확실히 많이 움직였을 때만
+  // 좌우 스와이프: 손가락을 따라 화면이 움직이고, 충분히 밀면 다음 섹션으로 미끄러져 넘어간다
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [enterFrom, setEnterFrom] = useState<"left" | "right" | null>(null);
+  const axis = useRef<"x" | "y" | null>(null);
+
   function onTouchStart(e: React.TouchEvent) {
     const t = e.touches[0];
     touch.current = { x: t.clientX, y: t.clientY };
+    axis.current = null;
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    const start = touch.current;
+    if (!start) return;
+    const t = e.touches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (!axis.current && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) axis.current = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    if (axis.current !== "x") return;
+    const blocked = (dx > 0 && section === 0) || (dx < 0 && section === SECTIONS.length - 1);
+    setDragging(true);
+    setDragX(blocked ? dx * 0.25 : dx); // 끝 섹션에서는 고무줄처럼 덜 움직인다
   }
   function onTouchEnd(e: React.TouchEvent) {
     const start = touch.current;
     touch.current = null;
-    if (!start) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - start.x;
-    const dy = t.clientY - start.y;
-    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    setDragging(false);
+    setDragX(0);
+    if (!start || axis.current !== "x") return;
+    const dx = e.changedTouches[0].clientX - start.x;
+    if (Math.abs(dx) < 70) return;
     goTo(dx < 0 ? section + 1 : section - 1);
   }
 
@@ -229,7 +263,26 @@ export default function WeeklyVietnam({
           </div>
         </nav>
 
-        <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} data-swipe>
+        <div
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onTouchEnd}
+          data-swipe
+          className="touch-pan-y"
+        >
+          {showHint && (
+            <p className="mt-4 flex items-center justify-center gap-2 text-[13px] font-medium text-zinc-400">
+              <ArrowIcon dir="left" /> 옆으로 넘기면 다음 섹션 <ArrowIcon dir="right" />
+            </p>
+          )}
+          <div
+            key={section}
+            style={{ transform: dragX ? `translateX(${dragX}px)` : undefined, opacity: dragX ? 1 - Math.min(Math.abs(dragX) / 600, 0.35) : undefined }}
+            className={`${dragging ? "" : "transition-transform duration-200 ease-out"} ${
+              enterFrom === "right" ? "animate-slide-from-right" : enterFrom === "left" ? "animate-slide-from-left" : ""
+            }`}
+          >
           {section === 0 && (
             <Section id="vietnam" title="베트남" desc={SECTIONS[0].desc} badge={periodTab.label}>
               <RankingView key={`national:${period}`} ranking={national} onPaywall={() => setPaywall(true)} />
@@ -269,29 +322,10 @@ export default function WeeklyVietnam({
             </Section>
           )}
 
-          {/* 아래쪽 이전/다음 */}
-          <div className="mt-8 grid grid-cols-2 gap-3">
-            {section > 0 ? (
-              <button
-                onClick={() => goTo(section - 1)}
-                className="flex h-14 items-center gap-2 rounded-2xl border border-zinc-200 px-4 text-left text-sm font-semibold dark:border-zinc-800"
-              >
-                <ArrowIcon dir="left" />
-                <span className="truncate">{SECTIONS[section - 1].title}</span>
-              </button>
-            ) : (
-              <span />
-            )}
-            {section < SECTIONS.length - 1 && (
-              <button
-                onClick={() => goTo(section + 1)}
-                className="flex h-14 items-center justify-end gap-2 rounded-2xl bg-zinc-900 px-4 text-right text-sm font-semibold text-white dark:bg-white dark:text-zinc-900"
-              >
-                <span className="truncate">다음 · {SECTIONS[section + 1].title}</span>
-                <ArrowIcon dir="right" />
-              </button>
-            )}
           </div>
+
+          {/* 아래쪽 넘김: 기간 탭과 같은 알약 모양 */}
+          <Pager section={section} onGo={goTo} />
         </div>
 
         {/* 양옆 화살표 (화면 가운데 높이에 고정) */}
@@ -615,11 +649,11 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
         <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700 sm:hidden" />
         <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">{SITE_NAME} PRO</p>
         <h2 id="paywall-title" className="mt-1 whitespace-pre-line text-xl font-bold leading-snug tracking-tight">
-          {access.premium ? "PRO 이용 중" : "쌀국수 한 그릇 가격으로,\n베트남 한 달을 통째로"}
+          {access.premium ? "PRO 이용 중" : "정성껏 우린 쌀국수 한 그릇처럼,\n더 깊게, 더 자세히"}
         </h2>
         {!access.premium && (
           <p className="mt-2 text-sm leading-relaxed text-zinc-500">
-            고수는 빼도 뉴스는 빼지 마세요. 한 달에 쌀국수 한 그릇이면 일간부터 3년까지, 11위 아래 이야기까지 전부 열립니다.
+            한 달에 쌀국수 한 그릇 가격이면 일간부터 3년까지, 11위 아래 이야기까지 진하게 우려 드려요.
           </p>
         )}
 
@@ -692,8 +726,52 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
   );
 }
 
+function Pager({ section, onGo }: { section: number; onGo: (i: number) => void }) {
+  const prev = section > 0 ? SECTIONS[section - 1] : null;
+  const next = section < SECTIONS.length - 1 ? SECTIONS[section + 1] : null;
+  const circle =
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition active:scale-95 disabled:opacity-30";
+  return (
+    <nav aria-label="섹션 넘기기" className="mt-10 flex items-center gap-1 rounded-full bg-zinc-100 p-1 dark:bg-zinc-900">
+      <button
+        onClick={() => onGo(section - 1)}
+        disabled={!prev}
+        aria-label={prev ? `이전: ${prev.title}` : "이전 없음"}
+        className={`${circle} text-zinc-600 hover:bg-white dark:text-zinc-300 dark:hover:bg-zinc-800`}
+      >
+        <ArrowIcon dir="left" />
+      </button>
+
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
+        <div className="flex gap-1.5" aria-hidden>
+          {SECTIONS.map((s, i) => (
+            <button
+              key={s.id}
+              tabIndex={-1}
+              onClick={() => onGo(i)}
+              className={`h-1.5 rounded-full transition-all ${i === section ? "w-5 bg-rose-600" : "w-1.5 bg-zinc-300 dark:bg-zinc-700"}`}
+            />
+          ))}
+        </div>
+        <span className="truncate text-[13px] font-semibold text-zinc-600 dark:text-zinc-300">
+          {next ? `다음 · ${next.title}` : "마지막 섹션"}
+        </span>
+      </div>
+
+      <button
+        onClick={() => onGo(section + 1)}
+        disabled={!next}
+        aria-label={next ? `다음: ${next.title}` : "다음 없음"}
+        className={`${circle} bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white`}
+      >
+        <ArrowIcon dir="right" />
+      </button>
+    </nav>
+  );
+}
+
 function SideArrow({ dir, label, onClick }: { dir: "left" | "right"; label: string; onClick: () => void }) {
-  // 모바일: 화면 가장자리, 넓은 화면: 본문(672px) 바깥
+  // 넓은 화면 전용 (본문 672px 바깥). 모바일은 스와이프와 아래 넘김 버튼을 쓴다
   const pos =
     dir === "left"
       ? "left-[max(4px,calc(50%-336px-60px))]"
@@ -703,7 +781,7 @@ function SideArrow({ dir, label, onClick }: { dir: "left" | "right"; label: stri
       onClick={onClick}
       aria-label={label}
       title={label}
-      className={`fixed top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-200 bg-white/80 text-zinc-700 shadow-md backdrop-blur-md transition hover:bg-white active:scale-95 dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-zinc-200 dark:hover:bg-zinc-900 ${pos}`}
+      className={`fixed top-1/2 z-30 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full sm:flex border border-zinc-200 bg-white/80 text-zinc-700 shadow-md backdrop-blur-md transition hover:bg-white active:scale-95 dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-zinc-200 dark:hover:bg-zinc-900 ${pos}`}
     >
       <ArrowIcon dir={dir} />
     </button>
