@@ -37,7 +37,7 @@ export const SECTIONS: { id: string; title: string; desc: string; scopes: { id: 
   {
     id: "specialty",
     title: "특산품",
-    desc: "침향 · 커피 · 상황버섯 · 아티소 · 보석·진주·옥 · 제비집 · 동충하초 · 연구 소식",
+    desc: "침향 · 상황버섯 · 커피 · 연구 소식",
     scopes: [{ id: "specialty", label: "특산품" }],
   },
 ];

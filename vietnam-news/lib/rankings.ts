@@ -38,12 +38,12 @@ type Query = {
 const NHATRANG_RE = /nha trang|khanh hoa|khánh hòa|cam ranh|나트랑|냐짱|카인호아|깜라인/i;
 const DALAT_RE = /da lat|dalat|đà lạt|달랏|lang biang|langbiang/i;
 
-// 특산품: 침향, 커피, 상황버섯, 아티소, 보석·진주·옥, 제비집, 동충하초 (한·베·영, 논문 학명 포함)
-// pearl은 단어 경계를 둬서 Vinpearl은 걸리지 않는다. '옥'은 한 글자 단어로만 (옥상·옥수수 제외)
+// 특산품: 침향, 상황버섯, 커피 (한·베·영, 논문 학명 포함)
 const SPECIALTY_RE =
-  /trầm hương|kỳ nam|agarwood|aquilaria|\boud\b|침향|cà phê|coffee|robusta|arabica|커피|thượng hoàng|phellinus|상황버섯|atiso|actiso|artichoke|cynara|아티소|아티초크|đá quý|gemstones?|\bgems?\b|ruby|sapphire|보석|ngọc trai|\bpearls?\b|pinctada|진주|ngọc bích|cẩm thạch|\bjade\b|비취|(?<![가-힣])옥(?![가-힣])|yến sào|tổ yến|chim yến|bird'?s nest|swiftlet|aerodramus|제비집|đông trùng hạ thảo|cordyceps|동충하초/i;
+  /trầm hương|kỳ nam|agarwood|aquilaria|\boud\b|침향|기남|thượng hoàng|phellinus|상황버섯|cà phê|coffee|robusta|arabica|커피/i;
+const COFFEE_RE = /cà phê|coffee|robusta|arabica|커피/i;
 // 매일 나오는 시세 기사(예: "Giá cà phê hôm nay 14/10")는 사건이 아니므로 뺀다
-const DAILY_PRICE_RE = /giá (cà phê|tiêu|yến)[^,:]*(hôm nay|ngày \d)|coffee prices? today/i;
+const DAILY_PRICE_RE = /giá (cà phê|trầm hương)[^,:]*(hôm nay|ngày \d)|coffee prices? today/i;
 
 const DEFAULT_CATEGORIES = "국제정세, 국내정책, 경제, 한국 관련, 관광, 사회, 문화, 날씨·재해";
 
@@ -56,6 +56,7 @@ export const SCOPES: Record<
     categories?: string;
     weeklyOnly?: boolean;
     carryOverWeeks?: number; // 주간 순위가 30위를 못 채우면 최대 이 주 수만큼 지난 주 순위로 채운다
+    topCaps?: Record<string, number>; // 분류별 TOP 10 안 최대 개수. 넘치는 항목은 11위 아래로 내린다
   }
 > = {
   national: {
@@ -156,66 +157,39 @@ Give extra weight to policies and rules from Nha Trang / Khanh Hoa. Rank by how 
   },
   // 특산품: 나트랑·달랏 쇼핑 품목 뉴스. 기사가 적은 분야라 연구·논문도 넣는다. 주간 전용
   specialty: {
-    label: "나트랑·달랏 특산품",
+    label: "나트랑·달랏 특산품 (침향·상황버섯·커피)",
     weeklyOnly: true,
     carryOverWeeks: 4,
+    topCaps: { 커피: 1 },
     queries: [
-      {
-        lang: "vi",
-        q: '"trầm hương" OR "kỳ nam" OR "yến sào" OR "tổ yến" OR "đông trùng hạ thảo" OR "nấm thượng hoàng"',
-        mustMatch: SPECIALTY_RE,
-        excludeTitle: DAILY_PRICE_RE,
-      },
-      {
-        lang: "vi",
-        q: '"cà phê" ("Lâm Đồng" OR "Đà Lạt" OR "xuất khẩu" OR Arabica OR Robusta OR "chỉ dẫn địa lý") -"giá cà phê hôm nay"',
-        mustMatch: SPECIALTY_RE,
-        excludeTitle: DAILY_PRICE_RE,
-      },
-      {
-        lang: "vi",
-        q: '"atiso" OR "actiso" OR "ngọc trai" OR "đá quý" OR "ngọc bích" OR "cẩm thạch"',
-        mustMatch: SPECIALTY_RE,
-        excludeTitle: DAILY_PRICE_RE,
-      },
+      { lang: "vi", q: '"trầm hương" OR "kỳ nam"', mustMatch: SPECIALTY_RE, excludeTitle: DAILY_PRICE_RE },
+      { lang: "vi", q: '"nấm thượng hoàng"', mustMatch: SPECIALTY_RE },
       // 국내 언론의 연구 소식
       {
         lang: "vi",
-        q: '("trầm hương" OR "yến sào" OR "đông trùng hạ thảo" OR "atiso" OR "nấm thượng hoàng" OR "ngọc trai" OR "cà phê") ("nghiên cứu" OR "nhà khoa học" OR "công bố" OR "đề tài" OR "bằng sáng chế")',
+        q: '("trầm hương" OR "nấm thượng hoàng") ("nghiên cứu" OR "nhà khoa học" OR "công bố" OR "đề tài" OR "bằng sáng chế")',
         mustMatch: SPECIALTY_RE,
+      },
+      // 커피는 TOP 10에 1건만 쓰므로 검색도 하나만
+      {
+        lang: "vi",
+        q: '"cà phê" ("Lâm Đồng" OR "Đà Lạt" OR "xuất khẩu" OR Arabica OR Robusta OR "chỉ dẫn địa lý") -"giá cà phê hôm nay"',
+        mustMatch: COFFEE_RE,
         excludeTitle: DAILY_PRICE_RE,
       },
-      {
-        lang: "en",
-        q: 'Vietnam (agarwood OR "bird\'s nest" OR swiftlet OR cordyceps OR artichoke OR pearl OR jade OR gemstone OR "Phellinus")',
-        mustMatch: [SPECIALTY_RE, VIETNAM_RE],
-        excludeTitle: DAILY_PRICE_RE,
-      },
-      {
-        lang: "en",
-        q: 'Vietnam coffee (export OR robusta OR arabica OR "Lam Dong" OR "Da Lat" OR harvest)',
-        mustMatch: [SPECIALTY_RE, VIETNAM_RE],
-        excludeTitle: DAILY_PRICE_RE,
-      },
-      {
-        lang: "ko",
-        q: "베트남 (침향 OR 제비집 OR 상황버섯 OR 동충하초 OR 아티소 OR 아티초크 OR 커피 OR 진주 OR 보석 OR 침향환)",
-        mustMatch: [SPECIALTY_RE, VIETNAM_RE],
-        excludeTitle: DAILY_PRICE_RE,
-      },
-      // 논문 (PubMed): 품목 학명·영문명. 커피는 논문이 너무 많아 베트남 관련만
-      {
-        lang: "en",
-        source: "pubmed",
-        q: '(agarwood OR Aquilaria OR "edible bird\'s nest" OR swiftlet OR "Cordyceps militaris" OR "Phellinus linteus" OR "Cynara scolymus" OR Pinctada) OR (coffee AND (Vietnam OR Vietnamese))',
-      },
+      { lang: "en", q: 'Vietnam (agarwood OR "Phellinus")', mustMatch: [SPECIALTY_RE, VIETNAM_RE] },
+      { lang: "ko", q: "베트남 (침향 OR 상황버섯 OR 침향환)", mustMatch: [SPECIALTY_RE, VIETNAM_RE] },
+      // 논문 (PubMed): 침향·상황버섯 학명
+      { lang: "en", source: "pubmed", q: 'agarwood OR Aquilaria OR "Phellinus linteus"' },
     ],
-    focus: `Pick news about the regional specialty products sold to visitors in Nha Trang and Da Lat: agarwood (trầm hương, kỳ nam), coffee (especially Lam Dong / Da Lat), Phellinus linteus mushroom (nấm thượng hoàng, 상황버섯), artichoke (atiso), gemstones, pearls, jade, edible bird's nest (yến sào), cordyceps (đông trùng hạ thảo).
-Rank first by how widely discussed the story is (xN) and its impact: export deals and prices moving sharply, new rules and certification (geographical indications, food safety, quarantine, customs limits for travellers), counterfeit or fraud cases and crackdowns, harvest failures, big investments, anything involving Korean buyers or tourists, Khanh Hoa and Lam Dong stories.
-News on these products is scarce, so also include research: Vietnamese press reports on studies, and lines from PubMed (journal articles, usually English titles). For research use only what the title states; do not claim health benefits beyond it. Prefer research done in Vietnam or with practical meaning (quality, authenticity testing, cultivation, safety). Keep at most 3 research items in the top 10, and no product more than 3 times in the top 10 unless there is little else.
+    focus: `Pick news about three specialty products sold to visitors in Nha Trang and Da Lat: agarwood (trầm hương, kỳ nam), Phellinus linteus mushroom (nấm thượng hoàng) and coffee. Ignore every other product.
+The section is mainly about agarwood and the mushroom: include at most ONE coffee story in the top 10 (the most significant one), and fill the rest of the top 10 with agarwood and mushroom stories.
+Rank by how widely discussed the story is (xN) and its impact: export deals and prices moving sharply, new rules and certification (geographical indications, food safety, quarantine, customs limits for travellers), counterfeit or fraud cases and crackdowns, harvest and cultivation news, big investments, anything involving Korean buyers or tourists, Khanh Hoa and Lam Dong stories.
+News on these products is scarce, so also include research: Vietnamese press reports on studies, and lines from PubMed (journal articles, usually English titles). For research use only what the title states; do not claim health benefits beyond it. Prefer research done in Vietnam or with practical meaning (quality, authenticity testing, cultivation, safety). Keep at most 3 research items in the top 10.
+Korean terms: always write trầm hương / agarwood as 침향 (never transliterate it as 트람흥 or 짬흐엉), kỳ nam as 기남침향, nấm thượng hoàng / Phellinus linteus as 상황버섯.
 Skip routine daily price bulletins, advertisements and product promotions, and stories that only mention a product in passing.
 For research items, set st to "연구 발표". When a headline has a price, export value, volume or percentage, put it in f.`,
-    categories: "침향, 커피, 상황버섯, 아티소, 보석·진주·옥, 제비집, 동충하초, 기타 특산품",
+    categories: "침향, 상황버섯, 커피",
   },
 };
 
@@ -528,6 +502,7 @@ async function generate(entry: Entry) {
     const now = new Date();
     const result = await rank(scope, period, now, carry > 0);
     const filled = carry > 0 ? await fillFromPastWeeks(scope, result, now, carry) : result;
+    filled.stories = applyTopCaps(filled.stories, SCOPES[scope].topCaps);
     if (filled.stories.length === 0) throw new Error(`기사가 너무 적음 (${result.poolSize}건)`);
 
     entry.stories = filled.stories;
@@ -585,6 +560,37 @@ async function fillFromPastWeeks(scope: ScopeId, current: RankResult, now: Date,
 }
 
 const WEEK_MS = 7 * 86400_000;
+
+// AI가 지시를 어겨도 분류별 TOP 10 개수 제한을 지키도록 서버에서 다시 정렬한다 (예: 커피는 TOP 10 안에 1건)
+export function applyTopCaps(stories: RankedStory[], caps?: Record<string, number>): RankedStory[] {
+  if (!caps) return stories;
+  const top: RankedStory[] = [];
+  const pushedDown: RankedStory[] = [];
+  const rest: RankedStory[] = [];
+  const count: Record<string, number> = {};
+  for (const s of stories) {
+    if (top.length >= FREE_RANKS) {
+      rest.push(s);
+      continue;
+    }
+    const cap = caps[s.category];
+    if (cap !== undefined && (count[s.category] ?? 0) >= cap) {
+      pushedDown.push(s);
+      continue;
+    }
+    count[s.category] = (count[s.category] ?? 0) + 1;
+    top.push(s);
+  }
+  // 다른 항목이 모자라 TOP 10을 못 채우면, 내린 항목이 다시 10위 안에 들어오므로 아예 뺀다
+  const below = top.length >= FREE_RANKS ? pushedDown : [];
+  return [...top, ...below, ...rest].map((s, i) => ({ ...s, rank: i + 1 }));
+}
+
+// 모델이 음역해 버린 품목명을 바로잡는다 (Trầm hương → 침향)
+const KO_FIXES: [RegExp, string][] = [[/트람\s?흐?엉|트람흥|짬\s?흐엉|쩜\s?흐엉|짬흥/g, "침향"]];
+export function fixTerms(text: string) {
+  return KO_FIXES.reduce((t, [re, to]) => t.replace(re, to), text);
+}
 
 function sameStory(a: RankedStory, b: RankedStory) {
   if (a.articles.some((x) => b.articles.some((y) => y.link === x.link))) return true;
@@ -690,14 +696,14 @@ Rules:
     const timeline = (s.tl ?? [])
       .filter((t) => validId(t.i) && !seenIds.has(t.i) && seenIds.add(t.i))
       .filter((t) => numbersAppearIn(t.e, clusters[t.i].members.map((m) => m.title).join(" \n ")))
-      .map((t) => ({ date: clusters[t.i].date, event: t.e }))
+      .map((t) => ({ date: clusters[t.i].date, event: fixTerms(t.e) }))
       .sort((a, b) => a.date - b.date)
       .slice(0, 5);
     return {
       rank: i + 1,
-      headline: s.h,
-      summary: s.sm,
-      talkingPoint: s.tp,
+      headline: fixTerms(s.h),
+      summary: fixTerms(s.sm),
+      talkingPoint: fixTerms(s.tp),
       category: s.c,
       period: monthRange(allArticles.map((a) => a.publishedAt)),
       status: s.st ?? "",

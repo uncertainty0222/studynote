@@ -203,7 +203,13 @@ export default function WeeklyVietnam({
             Weekly
             <br />
             Vietnam <span className="text-rose-600">Brief</span>
+            <span className="ml-2 inline-block -translate-y-[0.55em] rounded-full border border-zinc-300 px-2 py-0.5 align-middle font-mono text-[11px] font-semibold tracking-normal text-zinc-500 sm:text-xs dark:border-zinc-700 dark:text-zinc-400">
+              by AI
+            </span>
           </h1>
+          <p className="mt-3 text-[15px] font-medium text-zinc-600 dark:text-zinc-400">
+            AI가 화제성과 중요성을 기준으로 고른 이번 주 뉴스
+          </p>
           <p className="mt-5 flex flex-wrap items-baseline gap-x-2 text-xl font-bold tracking-tight">
             {week ? week.title : "이번 주"}
             {week && <span className="text-base font-medium tabular-nums text-zinc-400">({week.range})</span>}
@@ -661,6 +667,9 @@ function Empty({ children }: { children: React.ReactNode }) {
 }
 
 // ── 이용권 안내 · 코드 입력 ─────────────────────
+// PREMIUM_PRICE_TEXT가 없을 때 보여 줄 가격
+const DEFAULT_PRICE = "70,000동";
+
 function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purchase; onClose: () => void }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -712,7 +721,7 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
           {access.premium ? "PRO 이용 중" : "정성껏 우린 쌀국수 한 그릇처럼,\n더 깊게, 더 자세히"}
         </h2>
         {!access.premium && (
-          <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+          <p className="mt-2 break-keep text-sm leading-relaxed text-zinc-500">
             한 달에 쌀국수 한 그릇 가격이면 일간부터 3년까지, 11위 아래 이야기까지 진하게 우려 드려요.
           </p>
         )}
@@ -738,7 +747,16 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
             </ul>
             <div className="mt-5 flex items-baseline justify-between gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
               <span className="text-sm text-zinc-500">🍜 한 달, 쌀국수 한 그릇</span>
-              {purchase.price && <span className="text-lg font-bold tabular-nums">{purchase.price}</span>}
+              <span className="text-lg font-bold tabular-nums">{purchase.price || DEFAULT_PRICE}</span>
+            </div>
+
+            <div className="mt-4 flex gap-3 rounded-xl border border-dashed border-zinc-300 p-4 dark:border-zinc-700">
+              <span aria-hidden className="text-lg leading-none">🤖</span>
+              <p className="break-keep text-[13px] leading-relaxed text-zinc-600 dark:text-zinc-400">
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200">회비는 어디에 쓰이나요?</span>
+                <br />
+                매주 수백 건의 기사 제목을 읽고 고르는 AI 이용료와 서버비로 쓰여요. AI도 쌀국수 한 그릇은 먹어야 일하거든요.
+              </p>
             </div>
 
             <div className="mt-5 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800/60">
