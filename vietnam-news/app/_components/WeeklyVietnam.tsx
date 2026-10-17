@@ -49,25 +49,6 @@ function useRanking(scope: ScopeId, period: PeriodId, initial: Ranking[]) {
   return current;
 }
 
-// 글자 크기: 보통 18px / 크게 21px (이 기기에만 기억)
-function useFontSize() {
-  const [large, setLarge] = useState(false);
-  useEffect(() => {
-    try {
-      // 저장된 설정을 처음 한 번 읽어 온다
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (localStorage.getItem("vn-font") === "large") setLarge(true);
-    } catch {}
-  }, []);
-  useEffect(() => {
-    document.documentElement.style.fontSize = large ? "21px" : "18px";
-    try {
-      localStorage.setItem("vn-font", large ? "large" : "normal");
-    } catch {}
-  }, [large]);
-  return [large, setLarge] as const;
-}
-
 // ── 화면 ──────────────────────────────────
 export default function WeeklyVietnam({
   access,
@@ -86,7 +67,6 @@ export default function WeeklyVietnam({
   const [city, setCity] = useState<ScopeId>("nhatrang");
   const [paywall, setPaywall] = useState(false);
   const [showUsage, setShowUsage] = useState(false);
-  const [large, setLarge] = useFontSize();
 
   useEffect(() => {
     // 운영자용: 주소 끝에 #usage 를 붙이면 AI 사용량을 보여준다
@@ -102,6 +82,7 @@ export default function WeeklyVietnam({
   const weekly = expat?.weekKey ? expat : initial.find((r) => r.scope === "national");
   const issue = issueNumber(weekly?.weekKey);
   const periodTab = PERIOD_TABS.find((p) => p.id === period)!;
+  const cityLabel = city === "dalat" ? "달랏" : "나트랑";
 
   function choosePeriod(id: PeriodId) {
     const tab = PERIOD_TABS.find((p) => p.id === id)!;
@@ -113,113 +94,93 @@ export default function WeeklyVietnam({
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900">
-      {/* 머리말 */}
-      <header className="border-b-4 border-red-700 bg-white">
-        <div className="mx-auto max-w-3xl px-4 pb-5 pt-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h1 className="text-[2.2rem] font-black leading-none tracking-tight text-red-700">{SITE_NAME}</h1>
-              <p className="mt-2 text-base text-stone-700">나트랑 교민을 위한 한 주 베트남 뉴스</p>
-            </div>
-            <button
-              onClick={() => setLarge(!large)}
-              className="min-h-12 rounded-xl border-2 border-stone-300 px-4 text-base font-bold text-stone-800"
-              aria-pressed={large}
-            >
-              {large ? "글자 보통" : "글자 크게"}
-            </button>
+    <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+      {/* 상단 바 */}
+      <header className="sticky top-0 z-20 border-b border-zinc-200/80 bg-white/85 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/85">
+        <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-5">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[17px] font-extrabold tracking-tight">{SITE_NAME}</span>
+            {issue && <span className="text-xs font-medium text-zinc-400">No.{issue}</span>}
           </div>
-          <p className="mt-4 text-lg font-bold text-stone-900">
-            {issue ? `제${issue}호 · ` : ""}
-            {weekly?.rangeLabel ?? "이번 주"}
-          </p>
-          <p className="text-base text-stone-600">매주 월요일 아침 6시(베트남 시간) 발행</p>
+          <button
+            onClick={() => setPaywall(true)}
+            className={`h-8 rounded-full px-3.5 text-[13px] font-semibold ${
+              access.premium
+                ? "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+            }`}
+          >
+            {access.premium ? "PRO 이용 중" : "PRO 이용권"}
+          </button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 pb-20">
-        {/* 이용권 상태 */}
-        <div className="mt-4">
-          {access.premium ? (
-            <div className="rounded-xl bg-emerald-50 px-4 py-3 text-base text-emerald-900">
-              <b>이용권 사용 중</b>
-              {access.expiresAt ? ` · ${fmtDate(access.expiresAt)}까지` : ""} · 모든 기간과 11~30위를 볼 수 있습니다.
-            </div>
-          ) : (
-            <button
-              onClick={() => setPaywall(true)}
-              className="flex min-h-12 w-full items-center justify-between rounded-xl bg-amber-50 px-4 py-3 text-left text-base text-amber-900"
-            >
-              <span>
-                <b>이용권</b>이 있으면 일간·월간·1년·3년 순위와 11~30위까지 볼 수 있어요
-              </span>
-              <span className="shrink-0 font-bold underline">안내 보기</span>
-            </button>
-          )}
-        </div>
+      <main className="mx-auto max-w-2xl px-5 pb-24">
+        {/* 이번 호 */}
+        <section className="pt-10">
+          <p className="text-[13px] font-semibold text-rose-600">Weekly Vietnam Brief</p>
+          <h1 className="mt-2 text-[28px] font-bold leading-tight tracking-tight">
+            {weekly?.rangeLabel ? weekly.rangeLabel.replace(/\((월|일)\)/g, "") : "이번 주"}
+          </h1>
+          <p className="mt-1.5 text-sm text-zinc-500">베트남 · 나트랑/달랏 · 교민정보 · 매주 월요일 06:00 발행</p>
+        </section>
 
         {/* 기간 */}
-        <nav aria-label="기간" className="mt-5">
-          <div className="grid grid-cols-5 gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm">
-            {PERIOD_TABS.map((p) => {
-              const locked = p.premium && !access.premium;
-              const active = period === p.id;
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => choosePeriod(p.id)}
-                  aria-pressed={active}
-                  className={`min-h-14 rounded-xl text-base font-bold ${
-                    active ? "bg-red-700 text-white" : "text-stone-800 hover:bg-stone-100"
-                  }`}
-                >
-                  {p.label}
-                  {locked && <span className="block text-xs font-medium text-stone-500">🔒 유료</span>}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
+        <div className="mt-7 grid grid-cols-5 gap-0.5 rounded-full bg-zinc-100 p-1 dark:bg-zinc-900" role="tablist" aria-label="기간">
+          {PERIOD_TABS.map((p) => {
+            const locked = p.premium && !access.premium;
+            const active = period === p.id;
+            return (
+              <button
+                key={p.id}
+                role="tab"
+                aria-selected={active}
+                onClick={() => choosePeriod(p.id)}
+                className={`flex h-9 items-center justify-center gap-0.5 whitespace-nowrap rounded-full text-sm font-semibold transition ${
+                  active
+                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                }`}
+              >
+                {p.label}
+                {locked && <LockIcon />}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 30초 요약 */}
+        {period === "week" && <Glance rankings={[national, local, expat]} cityLabel={cityLabel} />}
 
         {/* 섹션 바로가기 */}
-        <nav aria-label="섹션" className="sticky top-0 z-10 -mx-4 mt-3 bg-stone-50/95 px-4 py-2 backdrop-blur">
-          <div className="flex gap-2 overflow-x-auto">
+        <nav className="sticky top-14 z-10 -mx-5 mt-10 border-b border-zinc-200 bg-white/90 px-5 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90" aria-label="섹션">
+          <div className="flex gap-6">
             {SECTIONS.map((s) => (
-              <a
-                key={s.id}
-                href={`#${s.id}`}
-                className="flex min-h-12 shrink-0 items-center rounded-full border-2 border-stone-300 bg-white px-5 text-base font-bold text-stone-800"
-              >
+              <a key={s.id} href={`#${s.id}`} className="py-3 text-sm font-semibold text-zinc-500 hover:text-zinc-900 dark:hover:text-white">
                 {s.title}
               </a>
             ))}
           </div>
         </nav>
 
-        {/* 한눈에 보기: 각 섹션 1~3위 */}
-        {period === "week" && <Glance rankings={[national, local, expat]} cityLabel={city === "dalat" ? "달랏" : "나트랑"} />}
-
-        {/* 베트남 */}
         <Section id="vietnam" title="베트남" desc={SECTIONS[0].desc} badge={periodTab.label}>
           <RankingView key={`national:${period}`} ranking={national} onPaywall={() => setPaywall(true)} />
         </Section>
 
-        {/* 나트랑·달랏 */}
         <Section
           id="local"
           title="나트랑 · 달랏"
           desc={SECTIONS[1].desc}
           badge={periodTab.label}
           right={
-            <div className="flex gap-1 rounded-xl bg-white p-1 shadow-sm">
+            <div className="flex rounded-full bg-zinc-100 p-0.5 dark:bg-zinc-900">
               {SECTIONS[1].scopes.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => setCity(c.id)}
                   aria-pressed={city === c.id}
-                  className={`min-h-12 rounded-lg px-5 text-base font-bold ${
-                    city === c.id ? "bg-stone-900 text-white" : "text-stone-700"
+                  className={`h-8 rounded-full px-3.5 text-[13px] font-semibold ${
+                    city === c.id ? "bg-white shadow-sm dark:bg-zinc-700" : "text-zinc-500"
                   }`}
                 >
                   {c.label}
@@ -231,21 +192,20 @@ export default function WeeklyVietnam({
           <RankingView key={`${city}:${period}`} ranking={local} onPaywall={() => setPaywall(true)} />
         </Section>
 
-        {/* 교민정보 */}
         <Section id="expat" title="교민정보" desc={SECTIONS[2].desc} badge="주간">
           <RankingView key="expat" ranking={expat} onPaywall={() => setPaywall(true)} />
         </Section>
 
-        <footer className="mt-16 space-y-2 border-t-2 border-stone-200 pt-5 text-base leading-relaxed text-stone-600">
+        <footer className="mt-20 space-y-2 border-t border-zinc-200 pt-6 text-[13px] leading-relaxed text-zinc-500 dark:border-zinc-800">
           <p>
-            순위와 요약은 AI가 영어·한국어·베트남어 기사 제목을 읽고 정리한 것입니다. 중요한 내용(금액, 날짜, 시행 규정)은
-            &lsquo;근거 기사&rsquo;의 원문에서 꼭 확인하세요.
+            순위와 요약은 AI가 영어·한국어·베트남어 기사 제목을 읽고 정리한 편집 판단입니다. 금액·날짜·시행 규정은 근거
+            기사 원문에서 확인하세요.
           </p>
-          <p>주간·교민정보는 매주 월요일 아침 6시(베트남 시간)에 지난주 월~일 뉴스로 새로 나옵니다.</p>
+          <p>주간·교민정보는 매주 월요일 06:00(베트남 시간)에 지난주 월~일 기준으로 발행됩니다.</p>
           {showUsage && (
-            <p className="text-sm text-stone-500">
-              [운영자] 모델 {model} · 서버 시작 후 순위 {totals.runs}회 생성 · 입력 {totals.inputTokens.toLocaleString()} ·
-              출력 {totals.outputTokens.toLocaleString()} 토큰{totals.priced && ` · 약 $${totals.costUsd.toFixed(2)}`}
+            <p className="font-mono text-xs">
+              [운영자] {model} · 순위 {totals.runs}회 · 입력 {totals.inputTokens.toLocaleString()} · 출력{" "}
+              {totals.outputTokens.toLocaleString()} 토큰{totals.priced && ` · $${totals.costUsd.toFixed(2)}`}
             </p>
           )}
         </footer>
@@ -272,13 +232,12 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="mt-12 scroll-mt-20">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b-2 border-stone-900 pb-3">
-        <div>
-          <h2 className="text-[1.6rem] font-black leading-tight">
-            {title} <span className="align-middle text-base font-bold text-red-700">{badge} TOP 10</span>
-          </h2>
-          <p className="mt-1 text-base text-stone-600">{desc}</p>
+    <section id={id} className="scroll-mt-28 pt-12">
+      <div className="mb-5 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">{badge} Top 10</p>
+          <h2 className="mt-1 text-[22px] font-bold tracking-tight">{title}</h2>
+          <p className="mt-1 text-[13px] text-zinc-500">{desc}</p>
         </div>
         {right}
       </div>
@@ -287,24 +246,24 @@ function Section({
   );
 }
 
-// 이번 주 한눈에: 섹션별 1~3위 제목만
+// 30초 요약: 섹션별 1~3위 제목
 function Glance({ rankings, cityLabel }: { rankings: (Ranking | undefined)[]; cityLabel: string }) {
   const titles = ["베트남", cityLabel, "교민정보"];
   const rows = rankings.map((r, i) => ({ title: titles[i], stories: r?.stories.slice(0, 3) ?? [] }));
   if (rows.every((r) => r.stories.length === 0)) return null;
   return (
-    <section className="mt-6 rounded-2xl bg-stone-900 p-5 text-white">
-      <h2 className="text-xl font-black">이번 주 한눈에</h2>
-      <div className="mt-3 space-y-4">
+    <section className="mt-8 rounded-2xl border border-zinc-200 p-5 dark:border-zinc-800">
+      <h2 className="text-sm font-bold">30초 요약</h2>
+      <div className="mt-4 grid gap-5">
         {rows.map((r) =>
           r.stories.length ? (
             <div key={r.title}>
-              <p className="text-sm font-bold text-amber-300">{r.title}</p>
-              <ol className="mt-1 space-y-1">
+              <p className="text-xs font-semibold text-zinc-400">{r.title}</p>
+              <ol className="mt-2 space-y-1.5">
                 {r.stories.map((s) => (
-                  <li key={s.rank} className="flex gap-2 text-base leading-snug">
-                    <span className="w-5 shrink-0 font-bold text-amber-300">{s.rank}</span>
-                    <span>{s.headline}</span>
+                  <li key={s.rank} className="flex gap-3 text-[15px] leading-snug">
+                    <span className="w-4 shrink-0 font-semibold tabular-nums text-rose-600">{s.rank}</span>
+                    <span className="text-zinc-800 dark:text-zinc-200">{s.headline}</span>
                   </li>
                 ))}
               </ol>
@@ -321,29 +280,21 @@ function RankingView({ ranking, onPaywall }: { ranking?: Ranking; onPaywall: () 
 
   if (ranking?.status === "locked") {
     return (
-      <Notice>
-        <p className="text-lg font-bold">🔒 이용권 전용 순위입니다</p>
-        <p className="mt-1 text-base text-stone-700">주간 순위는 무료로, 다른 기간은 이용권으로 볼 수 있어요.</p>
-        <button onClick={onPaywall} className="mt-4 min-h-12 rounded-xl bg-red-700 px-6 text-base font-bold text-white">
-          이용권 안내 보기
-        </button>
-      </Notice>
+      <Locked
+        title="PRO 이용권 전용"
+        body="주간 순위는 무료입니다. 일간·월간·1년·3년 순위는 PRO 이용권으로 볼 수 있어요."
+        onPaywall={onPaywall}
+      />
     );
   }
   if (ranking && !ranking.enabled) {
-    return <Notice>순위를 준비 중입니다. (운영자: ANTHROPIC_API_KEY 설정 필요)</Notice>;
+    return <Empty>순위를 준비 중입니다. (운영자: ANTHROPIC_API_KEY 설정 필요)</Empty>;
   }
   if (!ranking || ranking.status === "idle" || ranking.status === "pending") {
-    return (
-      <Notice>
-        <p className="animate-pulse text-base text-stone-700">
-          뉴스를 모아 순위를 정리하고 있습니다. 1~3분 뒤 다시 확인해 주세요.
-        </p>
-      </Notice>
-    );
+    return <Skeleton />;
   }
   if (ranking.stories.length === 0) {
-    return <Notice>이번에는 순위를 만들지 못했습니다. 잠시 후 다시 시도해 주세요.</Notice>;
+    return <Empty>순위를 만들지 못했습니다. 잠시 후 다시 확인해 주세요.</Empty>;
   }
 
   const head = ranking.stories.slice(0, 10);
@@ -352,26 +303,25 @@ function RankingView({ ranking, onPaywall }: { ranking?: Ranking; onPaywall: () 
 
   return (
     <div>
-      <ol className="space-y-5">
+      <ol className="space-y-3">
         {head.map((s) => (
           <StoryCard key={s.rank} story={s} />
         ))}
       </ol>
 
       {lockedCount > 0 && (
-        <div className="mt-5 rounded-2xl border-2 border-dashed border-stone-300 bg-white p-6 text-center">
-          <p className="text-lg font-bold">11위 ~ {10 + lockedCount}위 더 보기</p>
-          <p className="mt-1 text-base text-stone-600">이번 순위에 {lockedCount}건이 더 있습니다. 이용권으로 볼 수 있어요.</p>
-          <button onClick={onPaywall} className="mt-4 min-h-12 rounded-xl bg-red-700 px-6 text-base font-bold text-white">
-            🔒 이용권 안내 보기
-          </button>
-        </div>
+        <Locked
+          title={`11–${10 + lockedCount}위`}
+          body={`이번 순위에 ${lockedCount}건이 더 있습니다.`}
+          onPaywall={onPaywall}
+          className="mt-3"
+        />
       )}
 
       {rest.length > 0 && (
         <>
           {showMore && (
-            <ol className="mt-5 divide-y-2 divide-stone-100 rounded-2xl bg-white shadow-sm">
+            <ol className="mt-3 divide-y divide-zinc-100 rounded-2xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
               {rest.map((s) => (
                 <CompactRow key={s.rank} story={s} />
               ))}
@@ -380,9 +330,9 @@ function RankingView({ ranking, onPaywall }: { ranking?: Ranking; onPaywall: () 
           <button
             onClick={() => setShowMore(!showMore)}
             aria-expanded={showMore}
-            className="mt-5 min-h-14 w-full rounded-2xl border-2 border-stone-300 bg-white text-lg font-bold text-stone-800"
+            className="mt-3 h-11 w-full rounded-xl text-sm font-semibold text-zinc-600 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-900"
           >
-            {showMore ? "접기 ▲" : `11위 ~ ${10 + rest.length}위 보기 ▼`}
+            {showMore ? "접기" : `11–${10 + rest.length}위 보기`}
           </button>
         </>
       )}
@@ -390,79 +340,52 @@ function RankingView({ ranking, onPaywall }: { ranking?: Ranking; onPaywall: () 
   );
 }
 
-const CATEGORY_COLOR: Record<string, string> = {
-  국제정세: "bg-blue-100 text-blue-900",
-  국내정책: "bg-violet-100 text-violet-900",
-  경제: "bg-emerald-100 text-emerald-900",
-  "한국 관련": "bg-red-100 text-red-900",
-  관광: "bg-sky-100 text-sky-900",
-  사회: "bg-stone-200 text-stone-800",
-  문화: "bg-pink-100 text-pink-900",
-  "날씨·재해": "bg-orange-100 text-orange-900",
-  "비자·체류": "bg-blue-100 text-blue-900",
-  "금융·환율": "bg-emerald-100 text-emerald-900",
-  부동산: "bg-amber-100 text-amber-900",
-  "사업·세금": "bg-violet-100 text-violet-900",
-  "관광업 규정": "bg-sky-100 text-sky-900",
-  사건사고: "bg-orange-100 text-orange-900",
-  "나트랑 생활": "bg-teal-100 text-teal-900",
-};
-
 function StoryCard({ story: s }: { story: RankedStory }) {
   const [open, setOpen] = useState(false);
   return (
-    <li className="rounded-2xl bg-white p-5 shadow-sm">
-      <div className="flex items-start gap-4">
-        <span
-          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-xl font-black tabular-nums ${
-            s.rank <= 3 ? "bg-red-700 text-white" : "bg-stone-200 text-stone-800"
-          }`}
-        >
-          {s.rank}
+    <li className="rounded-2xl border border-zinc-200 p-5 dark:border-zinc-800">
+      <div className="flex items-center gap-2 text-xs">
+        <span className={`font-mono text-[13px] font-bold tabular-nums ${s.rank <= 3 ? "text-rose-600" : "text-zinc-400"}`}>
+          {String(s.rank).padStart(2, "0")}
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-lg px-2.5 py-1 text-sm font-bold ${CATEGORY_COLOR[s.category] ?? "bg-stone-200 text-stone-800"}`}>
-              {s.category}
-            </span>
-            {s.status && (
-              <span className="rounded-lg border-2 border-amber-400 px-2.5 py-0.5 text-sm font-bold text-amber-900">
-                {s.status}
-              </span>
-            )}
-          </div>
-          <h3 className="mt-2 text-[1.25rem] font-bold leading-snug">{s.headline}</h3>
-        </div>
+        <span className="text-zinc-300 dark:text-zinc-700">/</span>
+        <span className="font-semibold text-zinc-500">{s.category}</span>
+        {s.status && (
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-zinc-100 px-2.5 py-1 font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+            {s.status}
+          </span>
+        )}
       </div>
 
+      <h3 className="mt-2.5 text-[17px] font-semibold leading-snug tracking-tight">{s.headline}</h3>
+
       {s.figures.length > 0 && (
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
           {s.figures.map((f) => (
-            <div key={f.label + f.value} className="rounded-xl bg-stone-100 px-4 py-3">
-              <p className="text-sm font-medium text-stone-600">{f.label}</p>
-              <p className="text-[1.5rem] font-black leading-tight tabular-nums">{f.value}</p>
+            <div key={f.label + f.value}>
+              <dt className="text-xs text-zinc-500">{f.label}</dt>
+              <dd className="mt-0.5 text-xl font-bold tabular-nums tracking-tight">{f.value}</dd>
             </div>
           ))}
-        </div>
+        </dl>
       )}
 
-      {s.summary && <p className="mt-4 text-base leading-relaxed text-stone-800">{s.summary}</p>}
+      {s.summary && <p className="mt-3 text-[15px] leading-relaxed text-zinc-600 dark:text-zinc-400">{s.summary}</p>}
 
       {s.timeline.length > 0 && (
-        <ol className="mt-4 space-y-2 border-l-4 border-stone-200 pl-4">
+        <ol className="mt-4 space-y-2">
           {s.timeline.map((t, i) => (
-            <li key={i} className="text-base leading-snug text-stone-800">
-              <span className="mr-2 font-bold tabular-nums text-stone-500">{fmtDate(t.date)}</span>
-              {t.event}
+            <li key={i} className="flex gap-3 text-[13px] leading-snug">
+              <span className="w-[4.5rem] shrink-0 font-mono tabular-nums text-zinc-400">{fmtShort(t.date)}</span>
+              <span className="text-zinc-700 dark:text-zinc-300">{t.event}</span>
             </li>
           ))}
         </ol>
       )}
 
       {s.talkingPoint && (
-        <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-base leading-relaxed text-amber-950">
-          <b>💡 우리에게 의미</b>
-          <br />
+        <p className="mt-4 border-l-2 border-rose-500 pl-3 text-[14px] leading-relaxed text-zinc-700 dark:text-zinc-300">
           {s.talkingPoint}
         </p>
       )}
@@ -472,9 +395,10 @@ function StoryCard({ story: s }: { story: RankedStory }) {
           <button
             onClick={() => setOpen(!open)}
             aria-expanded={open}
-            className="mt-4 min-h-12 w-full rounded-xl border-2 border-stone-200 text-base font-bold text-stone-700"
+            className="mt-4 flex items-center gap-1 text-[13px] font-semibold text-zinc-500 hover:text-zinc-900 dark:hover:text-white"
           >
-            근거 기사 {s.articles.length}건 {open ? "접기 ▲" : "보기 ▼"}
+            근거 기사 {s.articles.length}
+            <Chevron open={open} />
           </button>
           {open && <Sources story={s} />}
         </>
@@ -487,18 +411,16 @@ function CompactRow({ story: s }: { story: RankedStory }) {
   const [open, setOpen] = useState(false);
   return (
     <li>
-      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-h-14 w-full items-start gap-3 px-5 py-4 text-left">
-        <span className="w-8 shrink-0 text-lg font-black tabular-nums text-stone-500">{s.rank}</span>
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-start gap-3 px-5 py-3.5 text-left">
+        <span className="w-6 shrink-0 font-mono text-[13px] font-bold tabular-nums text-zinc-400">{s.rank}</span>
         <span className="min-w-0 flex-1">
-          <span className={`mr-2 rounded-md px-2 py-0.5 text-sm font-bold ${CATEGORY_COLOR[s.category] ?? "bg-stone-200 text-stone-800"}`}>
-            {s.category}
-          </span>
-          <span className="text-base font-bold leading-snug">{s.headline}</span>
+          <span className="block text-xs font-semibold text-zinc-500">{s.category}</span>
+          <span className="block text-[15px] font-medium leading-snug">{s.headline}</span>
         </span>
-        <span className="shrink-0 text-base text-stone-500">{open ? "▲" : "▼"}</span>
+        <Chevron open={open} />
       </button>
       {open && (
-        <div className="px-5 pb-4">
+        <div className="px-5 pb-4 pl-14">
           <Sources story={s} />
         </div>
       )}
@@ -508,14 +430,14 @@ function CompactRow({ story: s }: { story: RankedStory }) {
 
 function Sources({ story }: { story: RankedStory }) {
   return (
-    <ul className="mt-3 space-y-3">
+    <ul className="mt-3 space-y-2.5">
       {story.articles.map((a) => (
-        <li key={a.link} className="text-base leading-snug">
-          <a href={a.link} target="_blank" rel="noopener noreferrer" className="text-blue-800 underline underline-offset-2">
+        <li key={a.link} className="text-[13px] leading-snug">
+          <a href={a.link} target="_blank" rel="noopener noreferrer" className="text-zinc-800 underline decoration-zinc-300 underline-offset-2 hover:decoration-zinc-800 dark:text-zinc-200 dark:decoration-zinc-600">
             {a.title}
           </a>
-          <span className="block text-sm text-stone-600">
-            {a.publisher} · {fmtDate(a.publishedAt)}
+          <span className="mt-0.5 block text-xs text-zinc-400">
+            {a.publisher} · {fmtShort(a.publishedAt)}
           </span>
         </li>
       ))}
@@ -523,8 +445,48 @@ function Sources({ story }: { story: RankedStory }) {
   );
 }
 
-function Notice({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-2xl bg-white p-6 text-base text-stone-700 shadow-sm">{children}</div>;
+// 잠긴 순위: 실제 데이터는 서버가 보내지 않으므로 흐린 가짜 줄 위에 안내를 얹는다
+function Locked({ title, body, onPaywall, className = "" }: { title: string; body: string; onPaywall: () => void; className?: string }) {
+  return (
+    <div className={`relative overflow-hidden rounded-2xl border border-zinc-200 dark:border-zinc-800 ${className}`}>
+      <div aria-hidden className="space-y-4 p-5 blur-[3px]">
+        {[0.9, 0.7, 0.8].map((w, i) => (
+          <div key={i} className="space-y-2">
+            <div className="h-2.5 w-16 rounded bg-zinc-200 dark:bg-zinc-800" />
+            <div className="h-3.5 rounded bg-zinc-200 dark:bg-zinc-800" style={{ width: `${w * 100}%` }} />
+          </div>
+        ))}
+      </div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/70 px-6 text-center dark:bg-zinc-950/70">
+        <p className="flex items-center gap-1.5 text-[15px] font-bold">
+          <LockIcon /> {title}
+        </p>
+        <p className="mt-1 text-[13px] text-zinc-500">{body}</p>
+        <button onClick={onPaywall} className="mt-3 h-9 rounded-full bg-zinc-900 px-4 text-[13px] font-semibold text-white dark:bg-white dark:text-zinc-900">
+          PRO로 전체 보기
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Skeleton() {
+  return (
+    <div className="space-y-3" aria-busy="true">
+      <p className="text-[13px] text-zinc-500">뉴스를 모아 순위를 정리하고 있어요. 1~3분 걸립니다.</p>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="animate-pulse space-y-3 rounded-2xl border border-zinc-200 p-5 dark:border-zinc-800">
+          <div className="h-2.5 w-20 rounded bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-4 w-4/5 rounded bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-3 w-full rounded bg-zinc-100 dark:bg-zinc-900" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return <div className="rounded-2xl border border-dashed border-zinc-300 p-6 text-sm text-zinc-500 dark:border-zinc-700">{children}</div>;
 }
 
 // ── 이용권 안내 · 코드 입력 ─────────────────────
@@ -532,6 +494,12 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -559,72 +527,79 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="paywall-title"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-6 sm:rounded-3xl"
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-6 pb-8 dark:bg-zinc-900 sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 id="paywall-title" className="text-2xl font-black">
-          {SITE_NAME} 이용권
+        <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700 sm:hidden" />
+        <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">{SITE_NAME} PRO</p>
+        <h2 id="paywall-title" className="mt-1 text-xl font-bold tracking-tight">
+          {access.premium ? "PRO 이용 중" : "더 길게, 더 깊게"}
         </h2>
 
         {access.premium ? (
           <>
-            <p className="mt-3 text-base text-stone-700">
-              이 기기에서 이용권을 사용 중입니다{access.expiresAt ? ` (${fmtDate(access.expiresAt)}까지)` : ""}.
+            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+              이 기기에서 PRO를 사용 중입니다{access.expiresAt ? ` · ${fmtShort(access.expiresAt)}까지` : ""}.
             </p>
-            <button onClick={logout} className="mt-5 min-h-12 w-full rounded-xl border-2 border-stone-300 text-base font-bold">
-              이 기기에서 이용권 해제
+            <button onClick={logout} className="mt-6 h-11 w-full rounded-xl border border-zinc-300 text-sm font-semibold dark:border-zinc-700">
+              이 기기에서 해제
             </button>
           </>
         ) : (
           <>
-            <ul className="mt-4 space-y-2 text-base text-stone-800">
-              <li>✔ 일간 · 월간 · 1년 · 3년 순위</li>
-              <li>✔ 모든 섹션 11위 ~ 30위</li>
-              <li>✔ 주간 1~10위는 지금처럼 무료</li>
+            <ul className="mt-4 space-y-2.5 text-sm text-zinc-700 dark:text-zinc-300">
+              {["일간 · 월간 · 1년 · 3년 순위", "모든 섹션 11–30위", "주간 1–10위는 계속 무료"].map((t) => (
+                <li key={t} className="flex items-center gap-2.5">
+                  <CheckIcon />
+                  {t}
+                </li>
+              ))}
             </ul>
-            {purchase.price && <p className="mt-4 text-xl font-black text-red-700">{purchase.price}</p>}
+            {purchase.price && <p className="mt-5 text-lg font-bold">{purchase.price}</p>}
 
-            <div className="mt-5 rounded-xl bg-stone-100 p-4">
-              <p className="text-base font-bold">구매 방법</p>
-              <p className="mt-1 text-base text-stone-700">아래 연락처로 문의하시면 결제 후 이용권 코드를 보내 드립니다.</p>
+            <div className="mt-5 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800/60">
+              <p className="text-xs font-semibold text-zinc-500">구매 문의</p>
               {purchase.contact ? (
-                <p className="mt-2 select-all text-lg font-bold">{purchase.contact}</p>
+                <p className="mt-1 select-all text-[15px] font-semibold">{purchase.contact}</p>
               ) : (
-                <p className="mt-2 text-sm text-stone-500">(운영자: PREMIUM_CONTACT 설정 필요)</p>
+                <p className="mt-1 text-xs text-zinc-400">(운영자: PREMIUM_CONTACT 설정 필요)</p>
               )}
+              <p className="mt-1 text-xs text-zinc-500">결제 후 이용권 코드를 보내 드립니다.</p>
             </div>
 
             <form onSubmit={submit} className="mt-5">
-              <label htmlFor="premium-code" className="text-base font-bold">
-                이용권 코드 입력
+              <label htmlFor="premium-code" className="text-xs font-semibold text-zinc-500">
+                이용권 코드
               </label>
-              <input
-                id="premium-code"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                autoCapitalize="characters"
-                autoComplete="off"
-                placeholder="예: NHATRANG2026"
-                className="mt-2 min-h-14 w-full rounded-xl border-2 border-stone-300 px-4 text-lg uppercase"
-              />
-              {error && <p className="mt-2 text-base font-bold text-red-700">{error}</p>}
-              <button
-                type="submit"
-                disabled={busy || !code.trim()}
-                className="mt-3 min-h-14 w-full rounded-xl bg-red-700 text-lg font-bold text-white disabled:opacity-50"
-              >
-                {busy ? "확인 중…" : "이용권 등록"}
-              </button>
+              <div className="mt-1.5 flex gap-2">
+                <input
+                  id="premium-code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  placeholder="코드 입력"
+                  className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-300 bg-transparent px-3.5 text-[15px] uppercase outline-none focus:border-zinc-900 dark:border-zinc-700 dark:focus:border-zinc-300"
+                />
+                <button
+                  type="submit"
+                  disabled={busy || !code.trim()}
+                  className="h-11 shrink-0 rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-zinc-900"
+                >
+                  {busy ? "확인 중" : "등록"}
+                </button>
+              </div>
+              {error && <p className="mt-2 text-[13px] font-medium text-rose-600">{error}</p>}
             </form>
           </>
         )}
 
-        <button onClick={onClose} className="mt-3 min-h-12 w-full rounded-xl text-base font-bold text-stone-600">
+        <button onClick={onClose} className="mt-4 h-10 w-full text-sm font-medium text-zinc-500">
           닫기
         </button>
       </div>
@@ -632,7 +607,43 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
   );
 }
 
-function fmtDate(t: number) {
+// ── 아이콘 ─────────────────────────────────
+function LockIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden className="shrink-0 opacity-70">
+      <rect x="5" y="11" width="14" height="10" rx="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e11d48" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 12l5 5L20 7" />
+    </svg>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+      aria-hidden
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+function fmtShort(t: number) {
   const d = new Date(t);
-  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+  return `${String(d.getFullYear()).slice(2)}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }

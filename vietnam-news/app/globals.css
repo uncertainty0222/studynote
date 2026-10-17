@@ -1,18 +1,26 @@
 @import "tailwindcss";
 
 html {
-  font-size: 18px; /* 40~50대 독자 기준 기본 글자 크기. '글자 크게'를 누르면 21px */
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
-  font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  line-height: 1.6;
-  -webkit-text-size-adjust: 100%;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
 }
 
 a:focus-visible,
 button:focus-visible,
 input:focus-visible {
-  outline: 3px solid #b91c1c;
+  outline: 2px solid #e11d48;
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
