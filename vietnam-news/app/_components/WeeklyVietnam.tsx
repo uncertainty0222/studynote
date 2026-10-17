@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PeriodId, Ranking, RankedStory, ScopeId } from "@/lib/rankings";
 import type { Access } from "@/lib/premium";
 import { issueNumber, PERIOD_TABS, SECTIONS, SITE_NAME, weekTitle } from "@/lib/labels";
@@ -67,6 +67,52 @@ export default function WeeklyVietnam({
   const [city, setCity] = useState<ScopeId>("nhatrang");
   const [paywall, setPaywall] = useState(false);
   const [showUsage, setShowUsage] = useState(false);
+  const [section, setSection] = useState(0);
+  const navRef = useRef<HTMLElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null); // 섹션 탭 바로 위의 고정 기준점 (탭은 sticky라 위치가 변한다)
+  const touch = useRef<{ x: number; y: number } | null>(null);
+  const [arrowsVisible, setArrowsVisible] = useState(false);
+
+  // 양옆 화살표는 섹션 영역이 화면 가운데까지 올라왔을 때만 보인다 (첫 화면을 가리지 않게)
+  useEffect(() => {
+    const update = () => {
+      const anchor = anchorRef.current;
+      if (anchor) setArrowsVisible(anchor.getBoundingClientRect().top < window.innerHeight * 0.3);
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, []);
+
+  // 섹션을 바꾸면 섹션 머리로 올려 준다 (이미 위에 있으면 그대로)
+  function goTo(i: number) {
+    const next = Math.max(0, Math.min(SECTIONS.length - 1, i));
+    setSection(next);
+    const anchor = anchorRef.current;
+    if (!anchor) return;
+    const top = anchor.getBoundingClientRect().top + window.scrollY - 56; // 상단 바 높이만큼 위로
+    if (window.scrollY > top) window.scrollTo({ top, behavior: "smooth" });
+  }
+
+  // 좌우 스와이프: 가로로 충분히, 세로보다 확실히 많이 움직였을 때만
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    touch.current = { x: t.clientX, y: t.clientY };
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    const start = touch.current;
+    touch.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    goTo(dx < 0 ? section + 1 : section - 1);
+  }
 
   useEffect(() => {
     // 운영자용: 주소 끝에 #usage 를 붙이면 AI 사용량을 보여준다
@@ -155,49 +201,106 @@ export default function WeeklyVietnam({
         </div>
 
 
-        {/* 섹션 바로가기 */}
-        <nav className="sticky top-14 z-10 -mx-5 mt-10 border-b border-zinc-200 bg-white/90 px-5 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90" aria-label="섹션">
-          <div className="flex gap-6">
-            {SECTIONS.map((s) => (
-              <a key={s.id} href={`#${s.id}`} className="py-3 text-sm font-semibold text-zinc-500 hover:text-zinc-900 dark:hover:text-white">
+        {/* 섹션: 한 번에 하나씩, 양옆 화살표·탭·좌우 스와이프로 넘긴다 */}
+        <div ref={anchorRef} className="mt-10" aria-hidden />
+        <nav
+          ref={navRef}
+          className="sticky top-14 z-10 -mx-5 border-b border-zinc-200 bg-white/90 px-5 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90"
+          aria-label="섹션"
+        >
+          <div className="flex items-center gap-6" role="tablist">
+            {SECTIONS.map((s, i) => (
+              <button
+                key={s.id}
+                role="tab"
+                aria-selected={section === i}
+                onClick={() => goTo(i)}
+                className={`relative py-3 text-sm font-semibold transition-colors ${
+                  section === i ? "text-zinc-900 dark:text-white" : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                }`}
+              >
                 {s.title}
-              </a>
+                {section === i && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-rose-600" />}
+              </button>
             ))}
+            <span className="ml-auto font-mono text-xs tabular-nums text-zinc-400">
+              {section + 1}/{SECTIONS.length}
+            </span>
           </div>
         </nav>
 
-        <Section id="vietnam" title="베트남" desc={SECTIONS[0].desc} badge={periodTab.label}>
-          <RankingView key={`national:${period}`} ranking={national} onPaywall={() => setPaywall(true)} />
-        </Section>
+        <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} data-swipe>
+          {section === 0 && (
+            <Section id="vietnam" title="베트남" desc={SECTIONS[0].desc} badge={periodTab.label}>
+              <RankingView key={`national:${period}`} ranking={national} onPaywall={() => setPaywall(true)} />
+            </Section>
+          )}
 
-        <Section
-          id="local"
-          title="나트랑 · 달랏"
-          desc={SECTIONS[1].desc}
-          badge={periodTab.label}
-          right={
-            <div className="flex rounded-full bg-zinc-100 p-0.5 dark:bg-zinc-900">
-              {SECTIONS[1].scopes.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setCity(c.id)}
-                  aria-pressed={city === c.id}
-                  className={`h-8 rounded-full px-3.5 text-[13px] font-semibold ${
-                    city === c.id ? "bg-white shadow-sm dark:bg-zinc-700" : "text-zinc-500"
-                  }`}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-          }
-        >
-          <RankingView key={`${city}:${period}`} ranking={local} onPaywall={() => setPaywall(true)} />
-        </Section>
+          {section === 1 && (
+            <Section
+              id="local"
+              title="나트랑 · 달랏"
+              desc={SECTIONS[1].desc}
+              badge={periodTab.label}
+              right={
+                <div className="flex rounded-full bg-zinc-100 p-0.5 dark:bg-zinc-900">
+                  {SECTIONS[1].scopes.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setCity(c.id)}
+                      aria-pressed={city === c.id}
+                      className={`h-8 rounded-full px-3.5 text-[13px] font-semibold ${
+                        city === c.id ? "bg-white shadow-sm dark:bg-zinc-700" : "text-zinc-500"
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              }
+            >
+              <RankingView key={`${city}:${period}`} ranking={local} onPaywall={() => setPaywall(true)} />
+            </Section>
+          )}
 
-        <Section id="expat" title="교민생활" desc={SECTIONS[2].desc} badge="주간">
-          <RankingView key="expat" ranking={expat} onPaywall={() => setPaywall(true)} />
-        </Section>
+          {section === 2 && (
+            <Section id="expat" title="교민생활" desc={SECTIONS[2].desc} badge="주간">
+              <RankingView key="expat" ranking={expat} onPaywall={() => setPaywall(true)} />
+            </Section>
+          )}
+
+          {/* 아래쪽 이전/다음 */}
+          <div className="mt-8 grid grid-cols-2 gap-3">
+            {section > 0 ? (
+              <button
+                onClick={() => goTo(section - 1)}
+                className="flex h-14 items-center gap-2 rounded-2xl border border-zinc-200 px-4 text-left text-sm font-semibold dark:border-zinc-800"
+              >
+                <ArrowIcon dir="left" />
+                <span className="truncate">{SECTIONS[section - 1].title}</span>
+              </button>
+            ) : (
+              <span />
+            )}
+            {section < SECTIONS.length - 1 && (
+              <button
+                onClick={() => goTo(section + 1)}
+                className="flex h-14 items-center justify-end gap-2 rounded-2xl bg-zinc-900 px-4 text-right text-sm font-semibold text-white dark:bg-white dark:text-zinc-900"
+              >
+                <span className="truncate">다음 · {SECTIONS[section + 1].title}</span>
+                <ArrowIcon dir="right" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 양옆 화살표 (화면 가운데 높이에 고정) */}
+        {arrowsVisible && section > 0 && (
+          <SideArrow dir="left" label={`이전: ${SECTIONS[section - 1].title}`} onClick={() => goTo(section - 1)} />
+        )}
+        {arrowsVisible && section < SECTIONS.length - 1 && (
+          <SideArrow dir="right" label={`다음: ${SECTIONS[section + 1].title}`} onClick={() => goTo(section + 1)} />
+        )}
 
         <footer className="mt-20 space-y-2 border-t border-zinc-200 pt-6 text-[13px] leading-relaxed text-zinc-500 dark:border-zinc-800">
           <p>
@@ -235,7 +338,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-28 pt-12">
+    <section id={id} className="pt-8">
       <div className="mb-5 flex items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">{badge} Top 10</p>
@@ -589,7 +692,33 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
   );
 }
 
+function SideArrow({ dir, label, onClick }: { dir: "left" | "right"; label: string; onClick: () => void }) {
+  // 모바일: 화면 가장자리, 넓은 화면: 본문(672px) 바깥
+  const pos =
+    dir === "left"
+      ? "left-[max(4px,calc(50%-336px-60px))]"
+      : "right-[max(4px,calc(50%-336px-60px))]";
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={`fixed top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-zinc-200 bg-white/80 text-zinc-700 shadow-md backdrop-blur-md transition hover:bg-white active:scale-95 dark:border-zinc-700 dark:bg-zinc-900/80 dark:text-zinc-200 dark:hover:bg-zinc-900 ${pos}`}
+    >
+      <ArrowIcon dir={dir} />
+    </button>
+  );
+}
+
 // ── 아이콘 ─────────────────────────────────
+function ArrowIcon({ dir }: { dir: "left" | "right" }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="shrink-0">
+      {dir === "left" ? <path d="M15 6l-6 6 6 6" /> : <path d="M9 6l6 6-6 6" />}
+    </svg>
+  );
+}
+
 function LockIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden className="shrink-0 opacity-70">
