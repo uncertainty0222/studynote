@@ -718,8 +718,13 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
         <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700 sm:hidden" />
         <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">{SITE_NAME} PRO</p>
         <h2 id="paywall-title" className="mt-1 whitespace-pre-line text-xl font-bold leading-snug tracking-tight">
-          {access.premium ? "PRO 이용 중" : "더 깊게, 더 자세히"}
+          {access.premium ? "PRO 이용 중" : "멤버십 구독으로\n더 깊게, 더 자세히"}
         </h2>
+        {!access.premium && (
+          <p className="mt-2 break-keep text-[15px] leading-relaxed text-zinc-600 dark:text-zinc-400">
+            주간 베스트뿐만 아니라 <b className="font-semibold text-zinc-900 dark:text-white">일간 · 월간 · 연간</b> 베스트 뉴스를 한눈에!
+          </p>
+        )}
 
         {access.premium ? (
           <>
@@ -733,7 +738,7 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
         ) : (
           <>
             <ul className="mt-4 space-y-2.5 text-sm text-zinc-700 dark:text-zinc-300">
-              {["일간 · 월간 · 1년 · 3년 순위", "모든 섹션 11–30위까지", "주간 TOP 10은 지금처럼 무료"].map((t) => (
+              {["3년 장기 순위까지", "모든 섹션 11–30위까지", "주간 TOP 10은 지금처럼 무료"].map((t) => (
                 <li key={t} className="flex items-center gap-2.5">
                   <CheckIcon />
                   {t}
