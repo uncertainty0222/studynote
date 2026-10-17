@@ -602,9 +602,49 @@ function Locked({ title, body, onPaywall, className = "" }: { title: string; bod
 }
 
 function Skeleton() {
+  // 이 화면에서 기다린 시간 (순위 생성이 시작된 시각은 서버가 따로 알려주지 않는다)
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const elapsed = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+
   return (
     <div className="space-y-3" aria-busy="true">
-      <p className="text-[13px] text-zinc-500">뉴스를 모아 순위를 정리하고 있어요. 1~3분 걸립니다.</p>
+      <div
+        role="status"
+        className="rounded-2xl border border-rose-200 bg-rose-50 p-5 dark:border-rose-500/25 dark:bg-rose-500/10"
+      >
+        <div className="flex items-center gap-4">
+          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-2xl shadow-sm dark:bg-zinc-900">
+            <span aria-hidden className="absolute -top-0.5 left-1/2 flex -translate-x-1/2 gap-1">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className="h-2.5 w-0.5 animate-steam rounded-full bg-rose-300 opacity-0 dark:bg-rose-400"
+                  style={{ animationDelay: `${i * 0.35}s` }}
+                />
+              ))}
+            </span>
+            <span aria-hidden className="mt-1">🍜</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="break-keep text-[15px] font-bold tracking-tight text-zinc-900 dark:text-white">뉴스를 모아 순위를 정리하고 있어요</p>
+            <p className="mt-0.5 break-keep text-[13px] leading-snug text-zinc-600 dark:text-zinc-400">
+              보통 1~3분 걸려요. 끝나면 이 화면에 바로 나타나요.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-rose-100 dark:bg-rose-500/15" aria-hidden>
+            <div className="h-full w-1/3 animate-indeterminate rounded-full bg-rose-500" />
+          </div>
+          <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-rose-600 dark:text-rose-400" aria-label={`기다린 시간 ${elapsed}`}>
+            {elapsed}
+          </span>
+        </div>
+      </div>
       {[0, 1, 2].map((i) => (
         <div key={i} className="animate-pulse space-y-3 rounded-2xl border border-zinc-200 p-5 dark:border-zinc-800">
           <div className="h-2.5 w-20 rounded bg-zinc-200 dark:bg-zinc-800" />
