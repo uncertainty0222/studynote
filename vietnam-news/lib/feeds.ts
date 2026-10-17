@@ -15,6 +15,8 @@ export type FeedRequest = {
   maxAgeDays: number;
   mustMatch?: RegExp; // 제목이 이 정규식에 맞는 것만 남긴다
   excludeLink?: RegExp; // 링크가 이 정규식에 맞으면 버린다
+  fromMs?: number; // 지정 시 이 시각 이후 발행된 기사만
+  toMs?: number; // 지정 시 이 시각 이전 발행된 기사만
 };
 
 type GnEdition = "en" | "ko" | "vi";
@@ -95,6 +97,8 @@ export function parseFeed(xml: string, req: FeedRequest): Headline[] {
     const dateStr = text(it.pubDate) || text(it.published) || text(it.updated);
     const publishedAt = dateStr ? Date.parse(dateStr) : NaN;
     if (Number.isFinite(publishedAt) && now - publishedAt > maxAge) continue;
+    if (req.fromMs != null && !(publishedAt >= req.fromMs)) continue;
+    if (req.toMs != null && !(publishedAt <= req.toMs)) continue;
 
     // Google News 제목은 "제목 - 언론사" 형식이고 <source>에 언론사명이 있다
     const publisher = decodeEntities(text(it.source)).normalize("NFC") || req.publisher || "";

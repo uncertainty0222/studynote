@@ -49,10 +49,12 @@ export default function Top10App({
   initialNational,
   initialLocal,
   model,
+  totals,
 }: {
   initialNational: Ranking;
   initialLocal: Ranking;
   model: string;
+  totals: { runs: number; inputTokens: number; outputTokens: number; costUsd: number; since: number; priced: boolean };
 }) {
   const [period, setPeriod] = useState<PeriodId>("week");
   const [city, setCity] = useState<ScopeId>("nhatrang");
@@ -123,7 +125,17 @@ export default function Top10App({
           순위와 요약은 AI({model})가 Google News에 실린 영어·한국어·베트남어 기사 제목만 보고 만든 편집 판단입니다.
           객관적인 순위가 아니며, 숫자나 세부 내용은 근거 기사 원문에서 확인하세요.
         </p>
-        <p>순위는 누군가 그 탭을 처음 열 때 만들어지고, 오늘 6시간 · 일주일 1일 · 한 달 2일 · 3개월 7일 · 1년 14일마다 갱신됩니다.</p>
+        <p>
+          일주일 순위는 매주 일요일 저녁 8시(베트남 시간)에 그 주 월~일 뉴스로 자동 갱신됩니다. 나머지 탭은 처음 열 때
+          만들어지고 오늘 6시간 · 한 달 2일 · 3개월 7일 · 1년 14일마다 갱신됩니다.
+        </p>
+        {totals.runs > 0 && (
+          <p>
+            서버 시작 후 AI 사용량: 순위 {totals.runs}회 생성 · 입력 {totals.inputTokens.toLocaleString()} · 출력{" "}
+            {totals.outputTokens.toLocaleString()} 토큰
+            {totals.priced && ` · 약 $${totals.costUsd.toFixed(2)}`}
+          </p>
+        )}
       </footer>
     </main>
   );
@@ -164,8 +176,12 @@ function RankingView({ ranking, title, compact }: { ranking?: Ranking; title: st
   return (
     <div>
       <p className="mb-2 text-xs text-gray-400">
+        {ranking.rangeLabel && <span className="font-medium text-gray-600">{ranking.rangeLabel} · 일요일 자동 갱신 · </span>}
         기사 제목 {ranking.poolSize}개 분석
         {ranking.generatedAt && ` · ${new Date(ranking.generatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Ho_Chi_Minh", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} (베트남 시간) 기준`}
+        {ranking.usage &&
+          ` · 생성에 토큰 ${(ranking.usage.inputTokens + ranking.usage.outputTokens).toLocaleString()}개` +
+            (ranking.usage.costUsd != null ? ` (약 $${ranking.usage.costUsd.toFixed(3)})` : "")}
         {ranking.error && ` · 최근 갱신 실패로 이전 결과 표시 중`}
       </p>
 

@@ -1,4 +1,4 @@
-import { getRanking, modelName } from "@/lib/rankings";
+import { getRanking, modelName, usageTotals } from "@/lib/rankings";
 import Top10App from "./_components/Top10App";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +9,7 @@ export default function Page() {
       initialNational={getRanking("national", "week")}
       initialLocal={getRanking("nhatrang", "week")}
       model={modelName()}
+      totals={usageTotals()}
     />
   );
 }

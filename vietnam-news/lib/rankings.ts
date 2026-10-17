@@ -2,8 +2,10 @@
 // ANTHROPIC_API_KEY가 없으면 아무것도 하지 않는다.
 //
 // - 재료: Google News 검색 RSS(영·한·베). 검색당 약 100건이 한계라 긴 기간은 구간을 나눠 검색한다.
-// - 비용: 누군가 그 탭을 열었을 때만 만들고, 기간별 갱신 주기(PERIODS.refreshHours) 동안 저장해 둔다.
-//   여러 순위가 동시에 요청돼도 한 번에 하나씩 만든다.
+// - '일주일'(기본 화면)은 월~일 고정 주간이다. 매주 일요일 20시(베트남 시간)에 서버가 자동으로 만들고
+//   다음 일요일까지 그대로 쓴다 (startWeeklyScheduler, instrumentation.ts에서 시작).
+// - 나머지 기간은 누군가 그 탭을 열었을 때만 만들고, 기간별 갱신 주기(PERIODS.refreshHours) 동안 저장해 둔다.
+// - 여러 순위가 동시에 요청돼도 한 번에 하나씩 만든다.
 // - 요약은 제목만 보고 쓰므로 세부 수치는 원문 링크로 확인해야 한다.
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -14,7 +16,7 @@ export type ScopeId = "national" | "nhatrang" | "dalat";
 
 export const PERIODS: Record<PeriodId, { label: string; days: number; windows: number; perQuery: number; refreshHours: number }> = {
   day: { label: "오늘", days: 1, windows: 1, perQuery: 100, refreshHours: 6 },
-  week: { label: "일주일", days: 7, windows: 1, perQuery: 100, refreshHours: 24 },
+  week: { label: "일주일", days: 7, windows: 1, perQuery: 100, refreshHours: 24 * 7 }, // 실제 갱신은 일요일 스케줄러
   month: { label: "한 달", days: 30, windows: 1, perQuery: 100, refreshHours: 48 },
   quarter: { label: "3개월", days: 91, windows: 3, perQuery: 40, refreshHours: 168 },
   year: { label: "1년", days: 365, windows: 4, perQuery: 30, refreshHours: 336 },
@@ -91,58 +93,92 @@ export type Ranking = {
   generatedAt: number | null;
   poolSize: number;
   stories: RankedStory[];
+  rangeLabel?: string; // 일주일: "10.13(월)~10.19(일)"
+  weekKey?: string; // 일주일: 그 주 월요일 날짜
+  usage?: Usage; // 이 순위를 만들 때 쓴 토큰
   error?: string;
 };
 
 const MODEL = process.env.TOP10_MODEL || "claude-opus-5-5";
 const MAX_STORIES = 30;
+const MAX_LINES_NATIONAL = 350; // 묶은 뒤 AI에게 보낼 최대 줄 수
+const MAX_LINES_LOCAL = 200;
+const MAX_SOURCES = 12; // 한 항목에 보여줄 근거 기사 수
 const RETRY_AFTER_FAILURE_MS = 30 * 60 * 1000;
 
+// 출력 토큰을 아끼려고 키 이름을 짧게 쓴다 (프롬프트에 뜻을 적어 둔다)
 const SCHEMA = {
   type: "object",
   properties: {
-    stories: {
+    s: {
       type: "array",
       items: {
         type: "object",
         properties: {
-          headline: { type: "string" },
-          summary: { type: "string" },
-          talking_point: { type: "string" },
-          category: { type: "string" },
-          status: { type: "string" },
-          figures: {
+          h: { type: "string" },
+          sm: { type: "string" },
+          tp: { type: "string" },
+          c: { type: "string" },
+          st: { type: "string" },
+          f: {
             type: "array",
             items: {
               type: "object",
-              properties: { label: { type: "string" }, value: { type: "string" } },
-              required: ["label", "value"],
+              properties: { l: { type: "string" }, v: { type: "string" } },
+              required: ["l", "v"],
               additionalProperties: false,
             },
           },
-          timeline: {
+          tl: {
             type: "array",
             items: {
               type: "object",
-              properties: { id: { type: "integer" }, event: { type: "string" } },
-              required: ["id", "event"],
+              properties: { i: { type: "integer" }, e: { type: "string" } },
+              required: ["i", "e"],
               additionalProperties: false,
             },
           },
           ids: { type: "array", items: { type: "integer" } },
         },
-        required: ["headline", "summary", "talking_point", "category", "status", "figures", "timeline", "ids"],
+        required: ["h", "sm", "tp", "c", "st", "f", "tl", "ids"],
         additionalProperties: false,
       },
     },
   },
-  required: ["stories"],
+  required: ["s"],
   additionalProperties: false,
 };
 
+// 100만 토큰당 달러 (입력, 출력). 실사용 비용 표시용
+const PRICES: Record<string, [number, number]> = {
+  "claude-opus-5-5": [4, 20],
+  "claude-sonnet-5-5": [2, 10],
+  "claude-haiku-5-5": [0.1, 0.5],
+};
+
+export type Usage = { inputTokens: number; outputTokens: number; costUsd: number | null };
+// instrumentation.ts와 페이지 코드가 따로 번들돼도 같은 저장소를 쓰도록 globalThis에 둔다
+type Shared = {
+  store: Map<string, Entry>;
+  queue: Promise<void>;
+  totals: { runs: number; inputTokens: number; outputTokens: number; costUsd: number; since: number };
+  schedulerStarted: boolean;
+};
+const G = globalThis as unknown as { __vnTop10?: Shared };
+const shared: Shared = (G.__vnTop10 ??= {
+  store: new Map(),
+  queue: Promise.resolve(),
+  totals: { runs: 0, inputTokens: 0, outputTokens: 0, costUsd: 0, since: Date.now() },
+  schedulerStarted: false,
+});
+const totals = shared.totals;
+
+export function usageTotals() {
+  return { ...totals, model: MODEL, priced: MODEL in PRICES };
+}
+
 type Entry = Ranking & { failedAt: number; queued: boolean };
-const store = new Map<string, Entry>();
-let queue: Promise<void> = Promise.resolve();
+const store = shared.store;
 
 export function modelName() {
   return MODEL;
@@ -150,27 +186,85 @@ export function modelName() {
 
 // 저장된 순위를 바로 돌려주고, 없거나 오래됐으면 백그라운드 생성을 예약한다
 export function getRanking(scope: ScopeId, period: PeriodId): Ranking {
-  const key = `${scope}:${period}`;
   const enabled = Boolean(process.env.ANTHROPIC_API_KEY);
-  let entry = store.get(key);
-  if (!entry) {
-    entry = { scope, period, enabled, status: "idle", generatedAt: null, poolSize: 0, stories: [], failedAt: 0, queued: false };
-    store.set(key, entry);
-  }
+  const entry = ensureEntry(scope, period);
   entry.enabled = enabled;
   if (!enabled) return view(entry);
 
-  const stale = !entry.generatedAt || Date.now() - entry.generatedAt > PERIODS[period].refreshHours * 3600_000;
-  const cooling = Date.now() - entry.failedAt < RETRY_AFTER_FAILURE_MS;
-  if (stale && !entry.queued && !cooling) {
-    entry.queued = true;
-    if (entry.stories.length === 0) entry.status = "pending";
-    const e = entry;
-    queue = queue.then(() => generate(e)).finally(() => {
-      e.queued = false;
-    });
+  // 일주일은 일요일 스케줄러만 만든다 (페이지를 연다고 토큰을 쓰지 않는다)
+  if (period === "week") {
+    startWeeklyScheduler(); // instrumentation에서 이미 시작했으면 아무것도 안 한다
+    if (entry.stories.length === 0 && entry.status !== "error") entry.status = "pending";
+    return view(entry);
   }
+
+  const stale = !entry.generatedAt || Date.now() - entry.generatedAt > PERIODS[period].refreshHours * 3600_000;
+  if (stale) enqueue(entry);
   return view(entry);
+}
+
+function enqueue(entry: Entry) {
+  const cooling = Date.now() - entry.failedAt < RETRY_AFTER_FAILURE_MS;
+  if (entry.queued || cooling) return;
+  entry.queued = true;
+  if (entry.stories.length === 0) entry.status = "pending";
+  shared.queue = shared.queue.then(() => generate(entry)).finally(() => {
+    entry.queued = false;
+  });
+}
+
+function ensureEntry(scope: ScopeId, period: PeriodId): Entry {
+  const key = `${scope}:${period}`;
+  let entry = store.get(key);
+  if (!entry) {
+    entry = { scope, period, enabled: Boolean(process.env.ANTHROPIC_API_KEY), status: "idle", generatedAt: null, poolSize: 0, stories: [], failedAt: 0, queued: false };
+    store.set(key, entry);
+  }
+  return entry;
+}
+
+// ── 주간 자동 생성 ──────────────────────────
+const ICT_OFFSET_MS = 7 * 3600_000; // 베트남 시간 UTC+7 (서머타임 없음)
+const PUBLISH_HOUR_ICT = 20; // 일요일 20시에 그 주(월~일) 순위를 만든다
+const SCHEDULER_INTERVAL_MS = 15 * 60_000;
+
+// 지금 기준 '가장 최근에 발행됐어야 할' 주간: 일요일 20시가 지났으면 이번 주, 아니면 지난 주
+export function weekRange(now = new Date()) {
+  const local = now.getTime() + ICT_OFFSET_MS; // UTC 필드로 읽으면 베트남 현지 시각
+  const d = new Date(local);
+  let sunday = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - d.getUTCDay()); // 이번 주 일요일 0시(현지)
+  if (local < sunday + PUBLISH_HOUR_ICT * 3600_000) sunday -= 7 * 86400_000;
+  const monday = sunday - 6 * 86400_000;
+  const md = (t: number) => {
+    const x = new Date(t);
+    return `${x.getUTCMonth() + 1}.${x.getUTCDate()}`;
+  };
+  return {
+    key: new Date(monday).toISOString().slice(0, 10),
+    label: `${md(monday)}(월)~${md(sunday)}(일)`,
+    fromMs: monday - ICT_OFFSET_MS,
+    toMs: sunday + 86400_000 - ICT_OFFSET_MS - 1,
+    // Google 검색은 날짜 단위라 앞뒤로 하루씩 여유를 두고, 정확한 범위는 fromMs/toMs로 거른다
+    after: new Date(monday - 86400_000).toISOString().slice(0, 10),
+    before: new Date(sunday + 2 * 86400_000).toISOString().slice(0, 10),
+  };
+}
+
+// 서버가 켜질 때 한 번 시작. 이번에 발행할 주간 순위가 없으면 만든다 (서버 재시작 직후에도 한 번 만든다)
+export function startWeeklyScheduler() {
+  if (shared.schedulerStarted) return;
+  shared.schedulerStarted = true;
+  const tick = () => {
+    if (!process.env.ANTHROPIC_API_KEY) return;
+    const { key } = weekRange();
+    for (const scope of Object.keys(SCOPES) as ScopeId[]) {
+      const entry = ensureEntry(scope, "week");
+      entry.enabled = true;
+      if (entry.weekKey !== key) enqueue(entry);
+    }
+  };
+  tick();
+  setInterval(tick, SCHEDULER_INTERVAL_MS).unref?.();
 }
 
 function view(e: Entry): Ranking {
@@ -182,6 +276,9 @@ function view(e: Entry): Ranking {
     generatedAt: e.generatedAt,
     poolSize: e.poolSize,
     stories: e.stories,
+    rangeLabel: e.rangeLabel,
+    weekKey: e.weekKey,
+    usage: e.usage,
     error: e.error,
   };
 }
@@ -191,6 +288,17 @@ export function buildRequests(scope: ScopeId, period: PeriodId, now = new Date()
   const p = PERIODS[period];
   const out: FeedRequest[] = [];
   for (const query of SCOPES[scope].queries) {
+    if (period === "week") {
+      const w = weekRange(now);
+      out.push({
+        url: googleNews(`${query.q} after:${w.after} before:${w.before}`, query.lang),
+        maxAgeDays: 16,
+        mustMatch: query.mustMatch,
+        fromMs: w.fromMs,
+        toMs: w.toMs,
+      });
+      continue;
+    }
     if (p.windows === 1) {
       out.push({ url: googleNews(`${query.q} when:${p.days}d`, query.lang), maxAgeDays: p.days + 1, mustMatch: query.mustMatch });
       continue;
@@ -236,25 +344,31 @@ async function generate(entry: Entry) {
     const minPool = scope === "national" ? 30 : 5;
     if (pool.length < minPool) throw new Error(`기사가 너무 적음 (${pool.length}건)`);
 
-    const want = Math.min(MAX_STORIES, Math.max(5, Math.floor(pool.length / 2)));
-    const system = `You are an editor briefing a Korean tour guide who works in Vietnam. From the numbered headlines (${PERIODS[period].label}, ${SCOPES[scope].label}), rank up to ${want} of the most significant stories.
+    // 같은 사건의 비슷한 제목을 미리 묶어 입력을 줄인다. 묶인 수(xN)는 보도량 신호로 쓴다
+    const clusters = clusterHeadlines(pool).slice(0, scope === "national" ? MAX_LINES_NATIONAL : MAX_LINES_LOCAL);
+    const want = Math.min(MAX_STORIES, Math.max(5, Math.floor(clusters.length / 2)));
+    const week = period === "week" ? weekRange() : null;
+    const periodText = week ? `the week ${week.label}` : PERIODS[period].label;
+    const system = `You are an editor briefing a Korean tour guide who works in Vietnam. From the numbered headlines (${periodText}, ${SCOPES[scope].label}), rank up to ${want} of the most significant stories.
 ${SCOPES[scope].focus}
-Prefer stories covered by many outlets.
+Each line is: id, date (YYMMDD), xN = number of similar headlines merged into that line (more = wider coverage), headline. Prefer widely covered stories.
 
+Output keys: h headline, sm summary, tp talking point, c category, st status, f figures (l label, v value), tl timeline (i headline id, e event), ids headline ids.
 Rules:
-- Merge headlines about the same event or the same ongoing development into one story and list all their ids.
-- Write in Korean. headline: one concise line.
-- Ranks 1-10: summary of 2-3 sentences on what happened and why it matters; talking_point: one natural sentence the guide could say to Korean tourists.
-- Ranks 1-10 also get a quick status view so the reader understands the progress without reading the articles:
-  - status: the current state in a few Korean words (e.g. 협상 중, 타결, 발표, 시행 중, 진행 중, 종료, 피해 수습 중).
-  - figures: up to 3 key numbers as label/value, e.g. {"label": "미국 관세율", "value": "46% → 20%"} or {"label": "사망·실종", "value": "40명"}. Every number must appear in one of this story's headlines; copy the digits exactly as written there (keep %, $, units). Show a change as "before → after" only when both numbers appear. If no headline has a number, return an empty list.
-  - timeline: 2-5 key steps in order, each tied to the id of the headline that reports it, with a short Korean description of that step (no dates in the text; the article date is shown separately). Use different headlines for different steps.
-- Ranks 11 and below: summary of one sentence; talking_point and status: empty string; figures and timeline: empty lists.
-- Use only facts present in the headlines. Do not invent numbers, dates or quotes. If a detail is unclear, leave it out.
-- category: one of 국제정세, 국내정책, 경제, 한국 관련, 관광, 사회, 문화, 날씨·재해.
-- Order by significance, most important first. If there are fewer real stories than ${want}, return fewer.`;
+- Merge lines about the same event or ongoing development into one story. ids: up to 8 of its most relevant line ids.
+- Write in Korean. h: one concise line. c: one of 국제정세, 국내정책, 경제, 한국 관련, 관광, 사회, 문화, 날씨·재해.
+- Ranks 1-10:
+  - sm: 2 sentences on what happened and why it matters. tp: one natural sentence the guide could say to Korean tourists.
+  - st: current state in a few words (e.g. 협상 중, 타결, 시행 중, 진행 중, 종료, 피해 수습 중).
+  - f: up to 3 key numbers, e.g. {"l":"미국 관세율","v":"46% → 20%"}. Every number must appear in this story's headlines, digits copied exactly (keep %, $, units). Use "before → after" only when both numbers appear. Empty list if none.
+  - tl: 2-4 key steps in order, each with the id of the line reporting it and a short description without dates.
+- Ranks 11 and below: only h, c and ids; sm, tp, st empty strings; f and tl empty lists.
+- Use only facts present in the headlines. Do not invent numbers, dates or quotes.
+- Order by significance, most important first. Return fewer stories if there are fewer real ones.`;
 
-    const lines = pool.map((h, i) => `${i}\t${ymd(new Date(h.publishedAt))}\t${h.publisher}\t${h.title}`).join("\n");
+    const lines = clusters
+      .map((c, i) => `${i}\t${yymmdd(c.date)}\t${c.members.length > 1 ? `x${c.members.length}` : ""}\t${c.title}`)
+      .join("\n");
     const client = new Anthropic();
     // 출력이 길 수 있어 스트리밍으로 받는다 (HTTP 타임아웃 방지)
     const response = await client.beta.messages
@@ -263,62 +377,74 @@ Rules:
         max_tokens: 32000,
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
-        output_config: { effort: period === "day" ? "low" : "medium", format: { type: "json_schema", schema: SCHEMA } },
+        // AI의 검토(thinking) 토큰도 출력 요금이라, 짧은 기간은 낮은 강도로 충분하다
+        output_config: {
+          effort: period === "quarter" || period === "year" ? "medium" : "low",
+          format: { type: "json_schema", schema: SCHEMA },
+        },
         system,
-        messages: [{ role: "user", content: `id\tdate\tpublisher\theadline\n${lines}` }],
+        messages: [{ role: "user", content: lines }],
       })
       .finalMessage();
     if (response.stop_reason === "refusal") throw new Error("요청이 거절됨");
     if (response.stop_reason === "max_tokens") throw new Error("응답이 잘림 (max_tokens)");
 
+    const usage = recordUsage(response.usage.input_tokens, response.usage.output_tokens);
+
     const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
     const parsed = JSON.parse(text) as {
-      stories: {
-        headline: string;
-        summary: string;
-        talking_point: string;
-        category: string;
-        status: string;
-        figures: { label: string; value: string }[];
-        timeline: { id: number; event: string }[];
+      s: {
+        h: string;
+        sm: string;
+        tp: string;
+        c: string;
+        st: string;
+        f: { l: string; v: string }[];
+        tl: { i: number; e: string }[];
         ids: number[];
       }[];
     };
-    const validId = (id: number) => Number.isInteger(id) && id >= 0 && id < pool.length;
+    const validId = (id: number) => Number.isInteger(id) && id >= 0 && id < clusters.length;
 
-    entry.stories = parsed.stories.slice(0, MAX_STORIES).map((s, i) => {
-      // 모델이 준 id 중 실제로 있는 기사만 근거로 남긴다
-      const articles = [...new Set(s.ids)]
-        .filter(validId)
-        .map((id) => pool[id])
-        .sort((a, b) => a.publishedAt - b.publishedAt);
-      const sourceText = articles.map((a) => a.title).join(" \n ");
+    entry.stories = parsed.s.slice(0, MAX_STORIES).map((s, i) => {
+      // 모델이 준 id 중 실제로 있는 줄만 근거로 남기고, 묶여 있던 기사까지 펼친다
+      const ids = [...new Set(s.ids)].filter(validId);
+      const allArticles = ids.flatMap((id) => clusters[id].members).sort((a, b) => a.publishedAt - b.publishedAt);
+      const sourceText = allArticles.map((a) => a.title).join(" \n ");
 
       // 수치는 근거 기사 제목에 그 숫자가 실제로 있을 때만 남긴다 (지어낸 숫자 차단)
-      const figures = (s.figures ?? []).filter((f) => f.value && numbersAppearIn(f.value, sourceText)).slice(0, 3);
+      const figures = (s.f ?? [])
+        .filter((f) => f.v && numbersAppearIn(f.v, sourceText))
+        .slice(0, 3)
+        .map((f) => ({ label: f.l, value: f.v }));
 
-      // 타임라인 날짜는 모델이 쓴 날짜가 아니라 연결된 기사의 발행일을 쓴다
+      // 타임라인 날짜는 모델이 쓴 날짜가 아니라 그 줄 기사의 발행일을 쓴다
       const seenIds = new Set<number>();
-      const timeline = (s.timeline ?? [])
-        .filter((t) => validId(t.id) && !seenIds.has(t.id) && seenIds.add(t.id))
-        .filter((t) => numbersAppearIn(t.event, pool[t.id].title))
-        .map((t) => ({ date: pool[t.id].publishedAt, event: t.event }))
+      const timeline = (s.tl ?? [])
+        .filter((t) => validId(t.i) && !seenIds.has(t.i) && seenIds.add(t.i))
+        .filter((t) => numbersAppearIn(t.e, clusters[t.i].members.map((m) => m.title).join(" \n ")))
+        .map((t) => ({ date: clusters[t.i].date, event: t.e }))
         .sort((a, b) => a.date - b.date)
         .slice(0, 5);
       return {
         rank: i + 1,
-        headline: s.headline,
-        summary: s.summary,
-        talkingPoint: s.talking_point,
-        category: s.category,
-        period: monthRange(articles.map((a) => a.publishedAt)),
-        status: s.status ?? "",
+        headline: s.h,
+        summary: s.sm,
+        talkingPoint: s.tp,
+        category: s.c,
+        period: monthRange(allArticles.map((a) => a.publishedAt)),
+        status: s.st ?? "",
         figures,
         timeline,
-        articles,
+        articles: allArticles.slice(-MAX_SOURCES), // 화면에는 최근 기사 위주로
       };
     });
     entry.poolSize = pool.length;
+    entry.usage = usage;
+    if (week) {
+      entry.weekKey = week.key;
+      entry.rangeLabel = week.label;
+    }
     entry.generatedAt = Date.now();
     entry.status = "ready";
     entry.error = undefined;
@@ -327,6 +453,64 @@ Rules:
     entry.error = describeError(e);
     entry.status = entry.stories.length ? "ready" : "error";
   }
+}
+
+function recordUsage(inputTokens: number, outputTokens: number): Usage {
+  const price = PRICES[MODEL];
+  const costUsd = price ? (inputTokens * price[0] + outputTokens * price[1]) / 1_000_000 : null;
+  totals.runs++;
+  totals.inputTokens += inputTokens;
+  totals.outputTokens += outputTokens;
+  totals.costUsd += costUsd ?? 0;
+  return { inputTokens, outputTokens, costUsd };
+}
+
+// ── 제목 묶기 ──────────────────────────────
+// 단어 집합의 겹침(Jaccard)이 높으면 같은 사건의 다른 보도로 보고 한 줄로 합친다.
+type Cluster = { title: string; date: number; members: Headline[]; tokens: Set<string> };
+
+const STOPWORDS = new Set(
+  "the a an of to in on for and or with as at by from is are be its it this that after over into amid vs says say said will new than more has have vietnam viet nam việt và của các cho với trong được là có những một này đã sẽ tại từ về theo 베트남 및 등 위해 대한 관련".split(
+    " ",
+  ),
+);
+
+function tokenize(title: string): Set<string> {
+  return new Set(
+    title
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .map((w) => (/[가-힣]{2,}$/.test(w) ? w.replace(KO_PARTICLE, "") : w)) // 한국어 조사 떼기: 중부에 → 중부
+      .filter((w) => w.length > 1 && !STOPWORDS.has(w)),
+  );
+}
+
+const KO_PARTICLE = /(에서|으로|에게|까지|부터|에는|은|는|이|가|을|를|의|에|로|와|과|도)$/;
+
+function jaccard(a: Set<string>, b: Set<string>) {
+  let inter = 0;
+  for (const w of a) if (b.has(w)) inter++;
+  return inter / (a.size + b.size - inter || 1);
+}
+
+export function clusterHeadlines(pool: Headline[], threshold = 0.5): Cluster[] {
+  const clusters: Cluster[] = [];
+  for (const h of pool) {
+    const tokens = tokenize(h.title);
+    const hit = tokens.size >= 3 ? clusters.find((c) => jaccard(c.tokens, tokens) >= threshold) : undefined;
+    if (hit) {
+      hit.members.push(h);
+      hit.date = Math.min(hit.date, h.publishedAt);
+    } else {
+      clusters.push({ title: h.title, date: h.publishedAt, members: [h], tokens });
+    }
+  }
+  // 많이 보도된 묶음을 앞에 둬서 줄 수 제한에 걸려도 큰 사건이 남게 한다
+  return clusters.sort((a, b) => b.members.length - a.members.length);
+}
+
+function yymmdd(t: number) {
+  return new Date(t).toISOString().slice(2, 10).replace(/-/g, "");
 }
 
 // text 안의 숫자가 모두 source에도 있는지 (1,800 / 1.800 / 1800은 같은 숫자로 본다)
