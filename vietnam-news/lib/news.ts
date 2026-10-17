@@ -129,7 +129,8 @@ export function parseFeed(xml: string, source: Source): Article[] {
 
   for (const raw of rawItems) {
     const it = raw as Record<string, unknown>;
-    let title = text(it.title);
+    // 베트남어 성조가 분리형(NFD)으로 오면 'ngày'에서 'nga' 같은 오매칭이 생기므로 결합형으로 통일한다
+    let title = text(it.title).normalize("NFC");
     const link = extractLink(it.link);
     if (!title || !link) continue;
 
@@ -139,14 +140,18 @@ export function parseFeed(xml: string, source: Source): Article[] {
     if (Number.isFinite(publishedAt) && now - publishedAt > maxAge) continue;
 
     // Google News는 "제목 - 언론사" 형식이며 <source>에 언론사명이 들어 있다
-    let publisher = text(it.source);
+    let publisher = text(it.source).normalize("NFC");
     if (publisher && title.endsWith(` - ${publisher}`)) {
       title = title.slice(0, -(publisher.length + 3));
     }
     if (!publisher) publisher = source.name;
 
     const isGoogle = link.includes("news.google.com");
-    const summary = isGoogle ? "" : stripHtml(text(it.description) || text(it.summary) || text(it.content)).slice(0, 280);
+    const summary = isGoogle
+      ? ""
+      : stripHtml(text(it.description) || text(it.summary) || text(it.content))
+          .normalize("NFC")
+          .slice(0, 280);
 
     const haystack = `${title} ${summary}`;
     if (source.mustMatch && !source.mustMatch.test(haystack)) continue;
