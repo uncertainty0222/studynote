@@ -32,6 +32,7 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [showAllFb, setShowAllFb] = useState(false);
 
   const now = bundle.fetchedAt;
 
@@ -127,6 +128,14 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
           </ul>
         )}
       </section>
+
+      {/* 페이스북 화제 게시글 */}
+      <FacebookSection
+        fb={bundle.facebook}
+        now={now}
+        showAll={showAllFb}
+        onToggle={() => setShowAllFb(!showAllFb)}
+      />
 
       {/* 한눈에 보기 */}
       <section className="mb-6 grid gap-4 md:grid-cols-3">
@@ -265,6 +274,74 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
       </footer>
     </main>
   );
+}
+
+function FacebookSection({
+  fb,
+  now,
+  showAll,
+  onToggle,
+}: {
+  fb: NewsBundle["facebook"];
+  now: number;
+  showAll: boolean;
+  onToggle: () => void;
+}) {
+  const { posts, status } = fb;
+  const shown = showAll ? posts : posts.slice(0, 6);
+  return (
+    <section className="mb-4 rounded-xl bg-white p-4 shadow-sm">
+      <h2 className="mb-1 text-sm font-semibold text-gray-500">💬 페이스북 인기 페이지 화제 게시글</h2>
+      <p className="mb-3 text-xs text-gray-400">
+        반응·댓글·공유가 많은 순 · {status.pages.length}개 페이지
+        {status.fetchedAt && ` · 수집 ${relTime(status.fetchedAt, now)}`}
+      </p>
+      {!status.enabled ? (
+        <p className="text-sm text-gray-400">
+          APIFY_TOKEN 환경변수를 설정하면 여기에 페이스북 게시글이 표시됩니다.
+        </p>
+      ) : posts.length === 0 ? (
+        <p className="text-sm text-gray-400">
+          {status.error
+            ? `수집 실패: ${status.error}`
+            : "게시글을 수집하고 있습니다. 처음에는 몇 분 걸리니 잠시 후 새로고침하세요."}
+        </p>
+      ) : (
+        <>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {shown.map((p) => (
+              <li key={p.id} className="min-w-0 rounded-lg border border-gray-200 p-3">
+                <div className="mb-1 flex items-center justify-between gap-2 text-xs text-gray-500">
+                  <span className="truncate font-medium text-blue-700">{p.page}</span>
+                  <span className="shrink-0">{relTime(p.publishedAt, now)}</span>
+                </div>
+                <a href={p.url} target="_blank" rel="noopener noreferrer" className="block hover:underline">
+                  <p className="line-clamp-4 text-sm whitespace-pre-line">{p.text}</p>
+                </a>
+                <p className="mt-2 font-mono text-xs text-gray-500">
+                  👍 {fmtCount(p.reactions)} · 💬 {fmtCount(p.comments)} · ↗ {fmtCount(p.shares)}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {posts.length > 6 && (
+            <button onClick={onToggle} className="mt-3 text-sm text-gray-500 underline">
+              {showAll ? "접기" : `${posts.length - 6}개 더 보기`}
+            </button>
+          )}
+        </>
+      )}
+      {status.enabled && status.error && posts.length > 0 && (
+        <p className="mt-2 text-xs text-amber-700">최근 수집 실패로 이전 결과를 보여주고 있습니다: {status.error}</p>
+      )}
+    </section>
+  );
+}
+
+function fmtCount(n: number) {
+  if (n >= 10000) return `${Math.round(n / 1000)}k`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
 }
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {

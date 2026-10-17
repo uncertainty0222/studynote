@@ -1,6 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import { SOURCES, type Region, type Source } from "./sources";
 import { classify, type TopicId } from "./topics";
+import { getFacebookPosts, type FbPost, type FbStatus } from "./facebook";
 
 export type Article = {
   id: string;
@@ -39,6 +40,7 @@ export type NewsBundle = {
   articles: Article[];
   trends: Trend[];
   sources: SourceStatus[];
+  facebook: { posts: FbPost[]; status: FbStatus };
 };
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
@@ -52,10 +54,17 @@ const parser = new XMLParser({
 });
 
 // Railway 같은 단일 프로세스 서버 기준 인메모리 캐시
-let cache: NewsBundle | null = null;
-let inflight: Promise<NewsBundle> | null = null;
+let cache: Omit<NewsBundle, "facebook"> | null = null;
+let inflight: Promise<Omit<NewsBundle, "facebook">> | null = null;
 
+// 페이스북 게시글은 별도 주기로 갱신되므로 응답할 때마다 최신 저장본을 붙인다.
+// force(새로고침 버튼)는 뉴스만 다시 받고 페이스북 수집은 다시 돌리지 않는다 (비용).
 export async function getNews(force = false): Promise<NewsBundle> {
+  const bundle = await getNewsOnly(force);
+  return { ...bundle, facebook: getFacebookPosts() };
+}
+
+async function getNewsOnly(force: boolean): Promise<Omit<NewsBundle, "facebook">> {
   if (!force && cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) return cache;
   if (inflight) return inflight;
   inflight = fetchAll()
@@ -69,7 +78,7 @@ export async function getNews(force = false): Promise<NewsBundle> {
   return inflight;
 }
 
-async function fetchAll(): Promise<NewsBundle> {
+async function fetchAll(): Promise<Omit<NewsBundle, "facebook">> {
   const results = await Promise.all(SOURCES.map(fetchSource));
   const sources: SourceStatus[] = [];
   const all: Article[] = [];
