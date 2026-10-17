@@ -1,9 +1,14 @@
-import { getNews } from "@/lib/news";
-import NewsBoard from "./_components/NewsBoard";
+import { getRanking, modelName } from "@/lib/rankings";
+import Top10App from "./_components/Top10App";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
-  const bundle = await getNews();
-  return <NewsBoard initial={bundle} />;
+export default function Page() {
+  return (
+    <Top10App
+      initialNational={getRanking("national", "week")}
+      initialLocal={getRanking("nhatrang", "week")}
+      model={modelName()}
+    />
+  );
 }
