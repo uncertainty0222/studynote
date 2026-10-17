@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { PeriodId, Ranking, RankedStory, ScopeId } from "@/lib/rankings";
 import type { Access } from "@/lib/premium";
-import { issueNumber, PERIOD_TABS, SECTIONS, SITE_NAME } from "@/lib/labels";
+import { issueNumber, PERIOD_TABS, SECTIONS, SITE_NAME, weekTitle } from "@/lib/labels";
 
 const POLL_MS = 8000;
 const MAX_POLLS = 45; // 약 6분
@@ -81,8 +81,8 @@ export default function WeeklyVietnam({
   // 호수·날짜는 항상 주간인 교민정보 순위에서 가져온다 (주간 순위가 나중에 도착해도 갱신된다)
   const weekly = expat?.weekKey ? expat : initial.find((r) => r.scope === "national");
   const issue = issueNumber(weekly?.weekKey);
+  const week = weekTitle(weekly?.weekKey);
   const periodTab = PERIOD_TABS.find((p) => p.id === period)!;
-  const cityLabel = city === "dalat" ? "달랏" : "나트랑";
 
   function choosePeriod(id: PeriodId) {
     const tab = PERIOD_TABS.find((p) => p.id === id)!;
@@ -117,12 +117,17 @@ export default function WeeklyVietnam({
 
       <main className="mx-auto max-w-2xl px-5 pb-24">
         {/* 이번 호 */}
-        <section className="pt-10">
-          <p className="text-[13px] font-semibold text-rose-600">Weekly Vietnam Brief</p>
-          <h1 className="mt-2 text-[28px] font-bold leading-tight tracking-tight">
-            {weekly?.rangeLabel ? weekly.rangeLabel.replace(/\((월|일)\)/g, "") : "이번 주"}
+        <section className="pt-12">
+          <h1 className="text-[40px] font-extrabold leading-[1.02] tracking-[-0.035em] sm:text-[52px]">
+            Weekly
+            <br />
+            Vietnam <span className="text-rose-600">Brief</span>
           </h1>
-          <p className="mt-1.5 text-sm text-zinc-500">베트남 · 나트랑/달랏 · 교민정보 · 매주 월요일 06:00 발행</p>
+          <p className="mt-5 flex flex-wrap items-baseline gap-x-2 text-xl font-bold tracking-tight">
+            {week ? week.title : "이번 주"}
+            {week && <span className="text-base font-medium tabular-nums text-zinc-400">({week.range})</span>}
+          </p>
+          <p className="mt-1 text-[13px] text-zinc-500">베트남 · 나트랑/달랏 · 교민정보 · 매주 월요일 06:00 발행</p>
         </section>
 
         {/* 기간 */}
@@ -149,8 +154,6 @@ export default function WeeklyVietnam({
           })}
         </div>
 
-        {/* 30초 요약 */}
-        {period === "week" && <Glance rankings={[national, local, expat]} cityLabel={cityLabel} />}
 
         {/* 섹션 바로가기 */}
         <nav className="sticky top-14 z-10 -mx-5 mt-10 border-b border-zinc-200 bg-white/90 px-5 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90" aria-label="섹션">
@@ -242,35 +245,6 @@ function Section({
         {right}
       </div>
       {children}
-    </section>
-  );
-}
-
-// 30초 요약: 섹션별 1~3위 제목
-function Glance({ rankings, cityLabel }: { rankings: (Ranking | undefined)[]; cityLabel: string }) {
-  const titles = ["베트남", cityLabel, "교민정보"];
-  const rows = rankings.map((r, i) => ({ title: titles[i], stories: r?.stories.slice(0, 3) ?? [] }));
-  if (rows.every((r) => r.stories.length === 0)) return null;
-  return (
-    <section className="mt-8 rounded-2xl border border-zinc-200 p-5 dark:border-zinc-800">
-      <h2 className="text-sm font-bold">30초 요약</h2>
-      <div className="mt-4 grid gap-5">
-        {rows.map((r) =>
-          r.stories.length ? (
-            <div key={r.title}>
-              <p className="text-xs font-semibold text-zinc-400">{r.title}</p>
-              <ol className="mt-2 space-y-1.5">
-                {r.stories.map((s) => (
-                  <li key={s.rank} className="flex gap-3 text-[15px] leading-snug">
-                    <span className="w-4 shrink-0 font-semibold tabular-nums text-rose-600">{s.rank}</span>
-                    <span className="text-zinc-800 dark:text-zinc-200">{s.headline}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          ) : null,
-        )}
-      </div>
     </section>
   );
 }
