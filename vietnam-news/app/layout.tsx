@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "베트남 뉴스 TOP 10",
-  description: "기간별 베트남 핵심 뉴스 TOP 10과 나트랑·달랏 지역 뉴스",
+  title: "주간베트남",
+  description: "나트랑 교민을 위한 한 주 베트남 뉴스 — 베트남 · 나트랑/달랏 · 교민정보 TOP 10",
 };
 
 export const viewport: Viewport = {
@@ -19,7 +19,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body className="min-h-screen bg-stone-50 text-gray-900">{children}</body>
+      <body className="min-h-screen bg-stone-50 text-stone-900">{children}</body>
     </html>
   );
 }

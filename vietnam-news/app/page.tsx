@@ -1,14 +1,24 @@
+import { cookies } from "next/headers";
+import { accessFromCookie, PREMIUM_COOKIE } from "@/lib/premium";
 import { getRanking, modelName, usageTotals } from "@/lib/rankings";
-import Top10App from "./_components/Top10App";
+import WeeklyVietnam from "./_components/WeeklyVietnam";
 
 export const dynamic = "force-dynamic";
 
-export default function Page() {
+export default async function Page() {
+  const access = accessFromCookie((await cookies()).get(PREMIUM_COOKIE)?.value);
   return (
-    <Top10App
-      initialNational={getRanking("national", "week")}
-      initialLocal={getRanking("nhatrang", "week")}
-      initialExpat={getRanking("expat", "week")}
+    <WeeklyVietnam
+      access={access}
+      initial={[
+        getRanking("national", "week", access.premium),
+        getRanking("nhatrang", "week", access.premium),
+        getRanking("expat", "week", access.premium),
+      ]}
+      purchase={{
+        price: process.env.PREMIUM_PRICE_TEXT ?? "",
+        contact: process.env.PREMIUM_CONTACT ?? "",
+      }}
       model={modelName()}
       totals={usageTotals()}
     />

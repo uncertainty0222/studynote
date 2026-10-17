@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+html {
+  font-size: 18px; /* 40~50대 독자 기준 기본 글자 크기. '글자 크게'를 누르면 21px */
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", "Segoe UI", sans-serif;
+  font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid #b91c1c;
+  outline-offset: 2px;
 }

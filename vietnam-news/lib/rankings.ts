@@ -11,16 +11,20 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { fetchFeed, googleNews, VIETNAM_RE, type FeedRequest, type Headline } from "./feeds";
 
-export type PeriodId = "day" | "week" | "month" | "quarter" | "year";
+export type PeriodId = "day" | "week" | "month" | "year" | "threeYear";
 export type ScopeId = "national" | "nhatrang" | "dalat" | "expat";
 
 export const PERIODS: Record<PeriodId, { label: string; days: number; windows: number; perQuery: number; refreshHours: number }> = {
-  day: { label: "오늘", days: 1, windows: 1, perQuery: 100, refreshHours: 6 },
-  week: { label: "일주일", days: 7, windows: 1, perQuery: 100, refreshHours: 24 * 7 }, // 실제 갱신은 일요일 스케줄러
-  month: { label: "한 달", days: 30, windows: 1, perQuery: 100, refreshHours: 48 },
-  quarter: { label: "3개월", days: 91, windows: 3, perQuery: 40, refreshHours: 168 },
+  day: { label: "일간", days: 1, windows: 1, perQuery: 100, refreshHours: 6 },
+  week: { label: "주간", days: 7, windows: 1, perQuery: 100, refreshHours: 24 * 7 }, // 실제 갱신은 월요일 스케줄러
+  month: { label: "월간", days: 30, windows: 1, perQuery: 100, refreshHours: 48 },
   year: { label: "1년", days: 365, windows: 4, perQuery: 30, refreshHours: 336 },
+  threeYear: { label: "3년", days: 1095, windows: 6, perQuery: 25, refreshHours: 720 },
 };
+
+// 무료로 보는 범위: 주간 순위의 1~10위. 나머지 기간과 11위 이하는 이용권이 있어야 서버가 보내 준다
+export const FREE_PERIOD: PeriodId = "week";
+export const FREE_RANKS = 10;
 export const PERIOD_IDS = Object.keys(PERIODS) as PeriodId[];
 
 type Query = { lang: "en" | "ko" | "vi"; q: string; mustMatch?: RegExp };
@@ -132,13 +136,14 @@ export type Ranking = {
   scope: ScopeId;
   period: PeriodId;
   enabled: boolean;
-  status: "idle" | "pending" | "ready" | "error";
+  status: "idle" | "pending" | "ready" | "error" | "locked"; // locked: 이용권이 필요한 기간
   generatedAt: number | null;
   poolSize: number;
   stories: RankedStory[];
   rangeLabel?: string; // 일주일: "10.13(월)~10.19(일)"
   weekKey?: string; // 일주일: 그 주 월요일 날짜
   usage?: Usage; // 이 순위를 만들 때 쓴 토큰
+  lockedCount?: number; // 무료 독자에게 보내지 않은 11위 이하 개수
   error?: string;
 };
 
@@ -228,23 +233,27 @@ export function modelName() {
 }
 
 // 저장된 순위를 바로 돌려주고, 없거나 오래됐으면 백그라운드 생성을 예약한다
-export function getRanking(scope: ScopeId, requested: PeriodId): Ranking {
-  const period: PeriodId = SCOPES[scope].weeklyOnly ? "week" : requested; // 교민 정보는 일주일만 있다
+export function getRanking(scope: ScopeId, requested: PeriodId, premium = false): Ranking {
+  const period: PeriodId = SCOPES[scope].weeklyOnly ? "week" : requested; // 교민 정보는 주간만 있다
+  // 유료 기간은 이용권이 없으면 만들지도 않는다 (토큰은 결제한 독자가 쓸 때만 든다)
+  if (period !== FREE_PERIOD && !premium) {
+    return { scope, period, enabled: Boolean(process.env.ANTHROPIC_API_KEY), status: "locked", generatedAt: null, poolSize: 0, stories: [] };
+  }
   const enabled = Boolean(process.env.ANTHROPIC_API_KEY);
   const entry = ensureEntry(scope, period);
   entry.enabled = enabled;
-  if (!enabled) return view(entry);
+  if (!enabled) return view(entry, premium);
 
   // 일주일은 일요일 스케줄러만 만든다 (페이지를 연다고 토큰을 쓰지 않는다)
   if (period === "week") {
     startWeeklyScheduler(); // instrumentation에서 이미 시작했으면 아무것도 안 한다
     if (entry.stories.length === 0 && entry.status !== "error") entry.status = "pending";
-    return view(entry);
+    return view(entry, premium);
   }
 
   const stale = !entry.generatedAt || Date.now() - entry.generatedAt > PERIODS[period].refreshHours * 3600_000;
   if (stale) enqueue(entry);
-  return view(entry);
+  return view(entry, premium);
 }
 
 function enqueue(entry: Entry) {
@@ -313,7 +322,9 @@ export function startWeeklyScheduler() {
   setInterval(tick, SCHEDULER_INTERVAL_MS).unref?.();
 }
 
-function view(e: Entry): Ranking {
+// 무료 독자에게는 10위까지만 보낸다 (화면에서 가리는 게 아니라 데이터를 안 보낸다)
+function view(e: Entry, premium: boolean): Ranking {
+  const stories = premium ? e.stories : e.stories.slice(0, FREE_RANKS);
   return {
     scope: e.scope,
     period: e.period,
@@ -321,7 +332,8 @@ function view(e: Entry): Ranking {
     status: e.status,
     generatedAt: e.generatedAt,
     poolSize: e.poolSize,
-    stories: e.stories,
+    stories,
+    lockedCount: e.stories.length - stories.length,
     rangeLabel: e.rangeLabel,
     weekKey: e.weekKey,
     usage: e.usage,
@@ -396,7 +408,7 @@ async function generate(entry: Entry) {
     const want = Math.min(MAX_STORIES, Math.max(5, Math.floor(clusters.length / 2)));
     const week = period === "week" ? weekRange() : null;
     const periodText = week ? `the week ${week.label}` : PERIODS[period].label;
-    const system = `You are an editor briefing a Korean tour guide who works in Vietnam. From the numbered headlines (${periodText}, ${SCOPES[scope].label}), rank up to ${want} of the most significant stories.
+    const system = `You are the editor of a Korean weekly newsletter about Vietnam, read by Korean residents in Vietnam (many in Nha Trang, aged 40-60) and people in the tourism business. From the numbered headlines (${periodText}, ${SCOPES[scope].label}), rank up to ${want} of the most significant stories.
 ${SCOPES[scope].focus}
 Each line is: id, date (YYMMDD), xN = number of similar headlines merged into that line (more = wider coverage), headline. Prefer widely covered stories.
 
@@ -405,7 +417,7 @@ Rules:
 - Merge lines about the same event or ongoing development into one story. ids: up to 8 of its most relevant line ids.
 - Write in Korean. h: one concise line. c: one of ${SCOPES[scope].categories ?? DEFAULT_CATEGORIES}.
 - Ranks 1-10:
-  - sm: 2 sentences on what happened and why it matters. tp: one natural sentence the guide could say to Korean tourists.
+  - sm: 2 short, plain sentences on what happened and why it matters. tp: one plain sentence on what it means for Korean residents or visitors in Vietnam (or what to keep in mind).
   - st: current state in a few words (e.g. 협상 중, 타결, 시행 중, 진행 중, 종료, 피해 수습 중).
   - f: up to 3 key numbers, e.g. {"l":"미국 관세율","v":"46% → 20%"}. Every number must appear in this story's headlines, digits copied exactly (keep %, $, units). Use "before → after" only when both numbers appear. Empty list if none.
   - tl: 2-4 key steps in order, each with the id of the line reporting it and a short description without dates.
@@ -426,7 +438,7 @@ Rules:
         fallbacks: "default",
         // AI의 검토(thinking) 토큰도 출력 요금이라, 짧은 기간은 낮은 강도로 충분하다
         output_config: {
-          effort: period === "day" || period === "month" ? "low" : "medium",
+          effort: period === "day" || period === "month" ? "low" : "medium", // 주간·1년·3년은 중간
           format: { type: "json_schema", schema: SCHEMA },
         },
         system,
