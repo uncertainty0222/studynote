@@ -2,6 +2,7 @@
 // 키워드 매칭이므로 오분류가 있을 수 있다.
 
 export type TopicId =
+  | "world"
   | "politics"
   | "economy"
   | "travel"
@@ -14,6 +15,11 @@ export type TopicId =
   | "realestate";
 
 export const TOPICS: { id: TopicId; label: string; re: RegExp }[] = [
+  {
+    id: "world",
+    label: "국제정세",
+    re: /미국|중국|트럼프|시진핑|러시아|일본|아세안|ASEAN|남중국해|유럽연합|무역협정|상호관세|united states|\bu\.s\.|\bus-|washington|china|chinese|beijing|trump|xi jinping|russia|japan|\beu\b|european union|south china sea|east sea|trade deal|trade war|reciprocal tariff|geopolit|apec|g20|hoa kỳ|nước mỹ|tổng thống mỹ|với mỹ|của mỹ|trung quốc|\bnga\b|nhật bản|biển đông|liên minh châu âu/i,
+  },
   {
     id: "politics",
     label: "정치·외교",
@@ -37,7 +43,7 @@ export const TOPICS: { id: TopicId; label: string; re: RegExp }[] = [
   {
     id: "culture",
     label: "문화·연예·음식",
-    re: /문화|축제|공연|콘서트|영화|드라마|가수|배우|연예|한류|K팝|케이팝|음식|맛집|쌀국수|반미|커피|아시안게임|축구|festival|culture|concert|movie|film|singer|actor|actress|showbiz|k-pop|food|cuisine|culinary|\bpho\b|banh mi|coffee|football|lễ hội|văn hóa|ca sĩ|diễn viên|phim|showbiz|ẩm thực|món ăn|bóng đá|hoa hậu/i,
+    re: /문화|축제|공연|콘서트|영화|드라마|가수|배우|연예|한류|K팝|케이팝|음식|맛집|쌀국수|반미|커피|아시안게임|축구|festival|culture|concert|\bmovie|\bfilms?\b|\bsinger|\bactors?\b|\bactress|showbiz|k-pop|food|cuisine|culinary|\bpho\b|banh mi|coffee|football|lễ hội|văn hóa|ca sĩ|diễn viên|phim|showbiz|ẩm thực|món ăn|bóng đá|hoa hậu/i,
   },
   {
     id: "disaster",
@@ -74,8 +80,27 @@ export const MONEY_TOPICS: TopicId[] = ["crypto", "finance", "realestate"];
 export const KOREA_RE =
   /korea|korean|seoul|samsung|hyundai|\bLG\b|\bkia\b|lotte|\bCJ\b|posco|k-pop|hàn quốc|người hàn|한국|한-베|한베|韓|삼성|현대차|현대자동차|현대건설|HD현대|엘지|롯데|서울|교민|한국인|코트라|KOTRA/i;
 
-// 가이드가 손님에게 꺼낼 만한 이야깃거리 (문화·관광·사회 또는 한국 관련)
-export const TALK_TOPICS: TopicId[] = ["culture", "travel", "society"];
+// 한국인 관광객이 관심 가질 만한 곳·일 (주요 관광지, 입국·항공, 관광객 안전·물가)
+export const KOREAN_INTEREST_RE =
+  /다낭|나트랑|냐짱|푸꾸옥|하롱|호이안|달랏|사파|무이네|비자|입국|무비자|항공|관광객|da nang|danang|nha trang|phu quoc|ha long|hoi an|dalat|da lat|sapa|sa pa|mui ne|visa|entry|airport|flight|tourist|foreign visitors|đà nẵng|phú quốc|hạ long|hội an|đà lạt|sa pa|thị thực|miễn thị thực|du khách|khách quốc tế|sân bay/i;
+
+// 가이드가 손님에게 꺼낼 만한 이야깃거리 (국제정세·문화·관광 또는 한국 관련)
+export const TALK_TOPICS: TopicId[] = ["world", "culture", "travel"];
+
+// AI 점수가 없을 때 쓰는 키워드 기반 흥미도 (1~10).
+// 가중치: 한국 관련 > 국제정세 속 베트남 > 한국인 관심사(관광지·입국·안전) > 그 외. 한국과 무관한 지역 사건사고는 낮춘다.
+export function keywordInterest(text: string, topics: TopicId[], korea: boolean, foreignPress: boolean): number {
+  const koreanInterest = KOREAN_INTEREST_RE.test(text);
+  let score = 2;
+  if (korea) score += 4;
+  if (topics.includes("world")) score += 3;
+  if (koreanInterest) score += 2;
+  if (topics.includes("disaster")) score += 2;
+  if (topics.some((t) => t === "politics" || t === "economy" || t === "culture")) score += 1;
+  if (foreignPress) score += 1; // 해외 언론이 다룰 정도면 국제적 의미가 있다
+  if (topics.includes("society") && !korea && !koreanInterest) score -= 1;
+  return Math.min(10, Math.max(1, score));
+}
 
 export function classify(text: string): { topics: TopicId[]; korea: boolean } {
   const topics = TOPICS.filter((t) => t.re.test(text)).map((t) => t.id);

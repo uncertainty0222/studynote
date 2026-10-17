@@ -18,12 +18,11 @@ const REGION_COLOR: Record<Region, string> = {
   vn: "bg-red-100 text-red-800",
   intl: "bg-blue-100 text-blue-800",
   kr: "bg-emerald-100 text-emerald-800",
-  buzz: "bg-pink-100 text-pink-800",
 };
 
-// 가이드가 손님에게 꺼낼 만한 이야깃거리: 문화·관광·사회 주제, 한국 관련, 또는 SNS 화제
+// 가이드가 손님에게 꺼낼 만한 이야깃거리: 국제정세·문화·관광 주제 또는 한국 관련
 function isTalk(a: Article) {
-  return a.korea || a.region === "buzz" || a.topics.some((t) => TALK_TOPICS.includes(t));
+  return a.korea || a.topics.some((t) => TALK_TOPICS.includes(t));
 }
 const TOPIC_LABEL = Object.fromEntries(TOPICS.map((t) => [t.id, t.label])) as Record<TopicId, string>;
 
@@ -39,7 +38,6 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [showSources, setShowSources] = useState(false);
-  const [showAllFb, setShowAllFb] = useState(false);
 
   const now = bundle.fetchedAt;
 
@@ -93,9 +91,8 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
     [last24, viewTopics],
   );
   const koreaHighlights = useMemo(() => inRange.filter((a) => a.korea).slice(0, 6), [inRange]);
-  const trends = useMemo(() => bundle.trends.slice(0, 15), [bundle]);
   const regionCounts = useMemo(() => {
-    const c: Record<Region, number> = { vn: 0, intl: 0, kr: 0, buzz: 0 };
+    const c: Record<Region, number> = { vn: 0, intl: 0, kr: 0 };
     for (const a of inRange) c[a.region]++;
     return c;
   }, [inRange]);
@@ -159,43 +156,6 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
 
       {view === "news" && <Top10Section top10={bundle.top10} now={now} />}
 
-      {/* 실시간 검색어 */}
-      {view === "news" && (
-      <section className="mb-4 rounded-xl bg-white p-4 shadow-sm">
-        <h2 className="mb-2 text-sm font-semibold text-gray-500">🔥 지금 베트남에서 많이 찾는 검색어 (Google Trends)</h2>
-        {trends.length === 0 ? (
-          <p className="text-sm text-gray-400">검색어를 불러오지 못했습니다.</p>
-        ) : (
-          <ul className="flex flex-wrap gap-2">
-            {trends.map((t) => (
-              <li key={t.term}>
-                <a
-                  href={t.newsUrl ?? `https://www.google.com/search?q=${encodeURIComponent(t.term)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={t.newsTitle}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-pink-200 bg-pink-50 px-3 py-1 text-sm text-pink-900 hover:bg-pink-100"
-                >
-                  {t.term}
-                  {t.traffic && <span className="font-mono text-xs text-pink-600">{t.traffic}</span>}
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-      )}
-
-      {/* 페이스북 화제 게시글 */}
-      {view === "news" && (
-        <FacebookSection
-          fb={bundle.facebook}
-          now={now}
-          showAll={showAllFb}
-          onToggle={() => setShowAllFb(!showAllFb)}
-        />
-      )}
-
       {/* 한눈에 보기 */}
       <section className="mb-6 grid gap-4 md:grid-cols-3">
         <div className="rounded-xl bg-white p-4 shadow-sm">
@@ -218,8 +178,7 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
             ))}
           </ul>
           <p className="mt-3 text-xs text-gray-400">
-            언론별: 베트남 {regionCounts.vn} · 해외 {regionCounts.intl} · 한국 {regionCounts.kr} · 화제{" "}
-            {regionCounts.buzz} (선택 기간)
+            언론별: 베트남 {regionCounts.vn} · 해외 {regionCounts.intl} · 한국 {regionCounts.kr} (선택 기간)
           </p>
         </div>
 
@@ -247,7 +206,7 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
       {/* 필터 */}
       <section className="sticky top-0 z-10 mb-4 space-y-3 bg-gray-50/95 py-2 backdrop-blur">
         <div className="flex flex-wrap gap-2">
-          {(["all", "vn", "intl", "kr", "buzz"] as RegionFilter[]).map((r) => (
+          {(["all", "vn", "intl", "kr"] as RegionFilter[]).map((r) => (
             <Chip key={r} active={region === r} onClick={() => setRegion(r)}>
               {r === "all" ? "전체" : REGION_LABEL[r]}
             </Chip>
@@ -410,74 +369,6 @@ function Top10Section({ top10, now }: { top10: NewsBundle["top10"]; now: number 
       )}
     </section>
   );
-}
-
-function FacebookSection({
-  fb,
-  now,
-  showAll,
-  onToggle,
-}: {
-  fb: NewsBundle["facebook"];
-  now: number;
-  showAll: boolean;
-  onToggle: () => void;
-}) {
-  const { posts, status } = fb;
-  const shown = showAll ? posts : posts.slice(0, 6);
-  return (
-    <section className="mb-4 rounded-xl bg-white p-4 shadow-sm">
-      <h2 className="mb-1 text-sm font-semibold text-gray-500">💬 페이스북 인기 페이지 화제 게시글</h2>
-      <p className="mb-3 text-xs text-gray-400">
-        반응·댓글·공유가 많은 순 · {status.pages.length}개 페이지
-        {status.fetchedAt && ` · 수집 ${relTime(status.fetchedAt, now)}`}
-      </p>
-      {!status.enabled ? (
-        <p className="text-sm text-gray-400">
-          APIFY_TOKEN 환경변수를 설정하면 여기에 페이스북 게시글이 표시됩니다.
-        </p>
-      ) : posts.length === 0 ? (
-        <p className="text-sm text-gray-400">
-          {status.error
-            ? `수집 실패: ${status.error}`
-            : "게시글을 수집하고 있습니다. 처음에는 몇 분 걸리니 잠시 후 새로고침하세요."}
-        </p>
-      ) : (
-        <>
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {shown.map((p) => (
-              <li key={p.id} className="min-w-0 rounded-lg border border-gray-200 p-3">
-                <div className="mb-1 flex items-center justify-between gap-2 text-xs text-gray-500">
-                  <span className="truncate font-medium text-blue-700">{p.page}</span>
-                  <span className="shrink-0">{relTime(p.publishedAt, now)}</span>
-                </div>
-                <a href={p.url} target="_blank" rel="noopener noreferrer" className="block hover:underline">
-                  <p className="line-clamp-4 text-sm whitespace-pre-line">{p.text}</p>
-                </a>
-                <p className="mt-2 font-mono text-xs text-gray-500">
-                  👍 {fmtCount(p.reactions)} · 💬 {fmtCount(p.comments)} · ↗ {fmtCount(p.shares)}
-                </p>
-              </li>
-            ))}
-          </ul>
-          {posts.length > 6 && (
-            <button onClick={onToggle} className="mt-3 text-sm text-gray-500 underline">
-              {showAll ? "접기" : `${posts.length - 6}개 더 보기`}
-            </button>
-          )}
-        </>
-      )}
-      {status.enabled && status.error && posts.length > 0 && (
-        <p className="mt-2 text-xs text-amber-700">최근 수집 실패로 이전 결과를 보여주고 있습니다: {status.error}</p>
-      )}
-    </section>
-  );
-}
-
-function fmtCount(n: number) {
-  if (n >= 10000) return `${Math.round(n / 1000)}k`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
 }
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {

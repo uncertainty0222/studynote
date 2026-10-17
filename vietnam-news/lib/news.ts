@@ -1,7 +1,6 @@
 import { XMLParser } from "fast-xml-parser";
 import { SOURCES, type Region, type Source } from "./sources";
-import { classify, type TopicId } from "./topics";
-import { getFacebookPosts, type FbPost, type FbStatus } from "./facebook";
+import { classify, keywordInterest, type TopicId } from "./topics";
 import { getTranslation, queueTranslations, translationStatus } from "./translate";
 import { getTop10, type Top10 } from "./top10";
 
@@ -23,15 +22,6 @@ export type Article = {
   section?: "money";
 };
 
-export type Trend = {
-  term: string;
-  traffic: string; // 예: "2000+" (Google이 제공하는 대략값)
-  publishedAt: number;
-  newsTitle?: string;
-  newsUrl?: string;
-  newsSource?: string;
-};
-
 export type SourceStatus = {
   id: string;
   name: string;
@@ -44,9 +34,7 @@ export type SourceStatus = {
 export type NewsBundle = {
   fetchedAt: number;
   articles: Article[];
-  trends: Trend[];
   sources: SourceStatus[];
-  facebook: { posts: FbPost[]; status: FbStatus };
   translation: ReturnType<typeof translationStatus>;
   top10: Top10;
 };
@@ -62,8 +50,8 @@ const parser = new XMLParser({
 });
 
 // Railway 같은 단일 프로세스 서버 기준 인메모리 캐시
-let cache: Omit<NewsBundle, "facebook" | "translation" | "top10"> | null = null;
-let inflight: Promise<Omit<NewsBundle, "facebook" | "translation" | "top10">> | null = null;
+let cache: Omit<NewsBundle, "translation" | "top10"> | null = null;
+let inflight: Promise<Omit<NewsBundle, "translation" | "top10">> | null = null;
 
 // 페이스북 게시글은 별도 주기로 갱신되므로 응답할 때마다 최신 저장본을 붙인다.
 // force(새로고침 버튼)는 뉴스만 다시 받고 페이스북 수집은 다시 돌리지 않는다 (비용).
@@ -78,13 +66,12 @@ export async function getNews(force = false): Promise<NewsBundle> {
   return {
     ...bundle,
     articles,
-    facebook: getFacebookPosts(),
     translation: translationStatus(),
     top10: getTop10(bundle.articles),
   };
 }
 
-type BaseBundle = Omit<NewsBundle, "facebook" | "translation" | "top10">;
+type BaseBundle = Omit<NewsBundle, "translation" | "top10">;
 
 async function getNewsOnly(force: boolean): Promise<BaseBundle> {
   if (!force && cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) return cache;
@@ -104,18 +91,15 @@ async function fetchAll(): Promise<BaseBundle> {
   const results = await Promise.all(SOURCES.map(fetchSource));
   const sources: SourceStatus[] = [];
   const all: Article[] = [];
-  const trends: Trend[] = [];
   results.forEach((r, i) => {
     const s = SOURCES[i];
-    const count = r.articles.length + r.trends.length;
-    sources.push({ id: s.id, name: s.name, region: s.region, ok: r.ok, count, error: r.error });
+    sources.push({ id: s.id, name: s.name, region: s.region, ok: r.ok, count: r.articles.length, error: r.error });
     all.push(...r.articles);
-    trends.push(...r.trends);
   });
-  return { fetchedAt: Date.now(), articles: dedupe(all), trends, sources };
+  return { fetchedAt: Date.now(), articles: dedupe(all), sources };
 }
 
-type SourceResult = { ok: boolean; articles: Article[]; trends: Trend[]; error?: string };
+type SourceResult = { ok: boolean; articles: Article[]; error?: string };
 
 export async function fetchSource(source: Source): Promise<SourceResult> {
   try {
@@ -127,12 +111,11 @@ export async function fetchSource(source: Source): Promise<SourceResult> {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       cache: "no-store",
     });
-    if (!res.ok) return { ok: false, articles: [], trends: [], error: `HTTP ${res.status}` };
+    if (!res.ok) return { ok: false, articles: [], error: `HTTP ${res.status}` };
     const xml = await res.text();
-    if (source.kind === "trends") return { ok: true, articles: [], trends: parseTrends(xml) };
-    return { ok: true, articles: parseFeed(xml, source), trends: [] };
+    return { ok: true, articles: parseFeed(xml, source) };
   } catch (e) {
-    return { ok: false, articles: [], trends: [], error: e instanceof Error ? e.message : String(e) };
+    return { ok: false, articles: [], error: e instanceof Error ? e.message : String(e) };
   }
 }
 
@@ -186,43 +169,11 @@ export function parseFeed(xml: string, source: Source): Article[] {
       topics,
       korea,
       section: source.section,
-      interest: heuristicInterest(region, topics, korea),
+      interest: keywordInterest(haystack, topics, korea, region === "intl"),
       interestByAi: false,
     });
   }
   return out;
-}
-
-// Google Trends "Trending now" RSS: <item><title>검색어</title><ht:approx_traffic>…</ht:approx_traffic><ht:news_item>…</ht:news_item></item>
-export function parseTrends(xml: string): Trend[] {
-  const doc = parser.parse(xml);
-  const out: Trend[] = [];
-  for (const raw of toArray(doc?.rss?.channel?.item)) {
-    const it = raw as Record<string, unknown>;
-    const term = decodeEntities(text(it.title));
-    if (!term) continue;
-    const news = toArray(it["ht:news_item"])[0] as Record<string, unknown> | undefined;
-    const date = Date.parse(text(it.pubDate));
-    out.push({
-      term,
-      traffic: text(it["ht:approx_traffic"]),
-      publishedAt: Number.isFinite(date) ? date : Date.now(),
-      newsTitle: news ? decodeEntities(text(news["ht:news_item_title"])) || undefined : undefined,
-      newsUrl: news ? text(news["ht:news_item_url"]) || undefined : undefined,
-      newsSource: news ? text(news["ht:news_item_source"]) || undefined : undefined,
-    });
-  }
-  return out;
-}
-
-// AI 점수가 없을 때 쓰는 키워드 기반 흥미도 (1~10)
-function heuristicInterest(region: Region, topics: TopicId[], korea: boolean): number {
-  let score = 3;
-  if (korea) score += 3;
-  if (region === "buzz") score += 2;
-  if (topics.some((t) => t === "culture" || t === "travel" || t === "disaster")) score += 2;
-  if (topics.some((t) => t === "society" || t === "politics")) score += 1;
-  return Math.min(10, score);
 }
 
 function dedupe(articles: Article[]): Article[] {

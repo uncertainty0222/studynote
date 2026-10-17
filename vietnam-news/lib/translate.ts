@@ -16,10 +16,11 @@ const SYSTEM = `You help a Korean tour guide working in Vietnam skim the news. F
    - Natural Korean headline style, concise, no trailing period.
    - Use the Korean spellings Korean media commonly use for Vietnamese places and people (e.g. 호찌민, 다낭, 하노이, 또 럼).
    - Keep brand and person names recognizable; do not add information that is not in the headline.
-2. interest: an integer 1-10 for how worth knowing it is for this guide.
-   High (8-10): big national news, things Korean tourists may ask about or would find surprising, Korea-Vietnam stories, events affecting travel (weather, visas, flights, safety, prices), viral stories everyone in Vietnam is talking about.
-   Middle (4-7): notable but narrower economy, society, culture or local news.
-   Low (1-3): routine announcements, minor local items, press releases, stories not really about Vietnam.
+2. interest: an integer 1-10 for how worth knowing it is for this guide. Weight these three kinds of story most:
+   (a) Vietnam in international affairs: relations and trade with the US, China, Japan, Russia, the EU and ASEAN; tariffs and trade deals; the South China Sea; Vietnam's role in global supply chains.
+   (b) Korea-related Vietnam news: Korean companies (Samsung, LG, Hyundai, Lotte, CJ...), Korean residents and tourists, Korea-Vietnam diplomacy, K-culture in Vietnam.
+   (c) Vietnam news Korean tourists would care about: popular destinations (Da Nang, Nha Trang, Phu Quoc, Ha Long, Hoi An, Dalat), visas and entry, flights and airports, safety and scams aimed at tourists, weather and disasters affecting travel, prices and exchange rates.
+   Scale: 8-10 = a major story in one of (a)-(c); 5-7 = a smaller story in (a)-(c), or major national news outside them; 2-4 = ordinary domestic economy, politics or culture; 1 = local crime and accidents unrelated to tourists, celebrity gossip, viral social-media clips, routine announcements, press releases, stories not about Vietnam.
 
 Return one entry for every input id.`;
 

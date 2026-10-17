@@ -39,13 +39,17 @@ const MONTHLY_SOURCES: Source[] = [
   { id: "m-vi", name: "Google News 30일 (베트남어)", region: "vn", lang: "vi", url: googleNews("Việt Nam when:30d", "vi"), maxAgeDays: 31 },
 ];
 
-const SYSTEM = `You are an editor briefing a Korean tour guide who works in Vietnam. From the numbered headlines (last 30 days), pick the 10 Vietnam news stories with the greatest impact: on Vietnam's society, economy and politics, on daily life, and on Korean visitors or Korea-Vietnam relations. Prefer stories covered by many outlets. Ignore stories that are not about Vietnam.
+const SYSTEM = `You are an editor briefing a Korean tour guide who works in Vietnam. From the numbered headlines (last 30 days), pick the 10 Vietnam news stories most worth knowing. Give the most weight to:
+(a) Vietnam in international affairs (relations and trade with the US, China, Japan, Russia, the EU and ASEAN; tariffs and trade deals; the South China Sea; supply chains),
+(b) Korea-related Vietnam news (Korean companies, Korean residents and tourists, Korea-Vietnam diplomacy, K-culture),
+(c) Vietnam news Korean tourists would care about (popular destinations, visas and entry, flights and airports, tourist safety, weather and disasters affecting travel, prices and exchange rates).
+Then consider overall impact on Vietnam's economy and society. Prefer stories covered by many outlets. Skip celebrity gossip, viral social-media clips, local crime unrelated to tourists, and stories not about Vietnam.
 
 Rules:
 - Merge headlines about the same event into one story and list all their ids.
 - Write in Korean. headline: one concise line. summary: 2-3 sentences explaining what happened and why it matters. talking_point: one natural sentence the guide could say to Korean tourists.
 - Use only facts present in the headlines. Do not invent numbers, dates or quotes. If a detail is unclear, leave it out.
-- category: one of 정치·외교, 경제, 금융·부동산, 사회, 관광, 문화·연예, 날씨·재해, 한국 관련.
+- category: one of 국제정세, 한국 관련, 관광, 정치·외교, 경제, 금융·부동산, 사회, 문화, 날씨·재해.
 - Order by impact, most important first.`;
 
 const SCHEMA = {
