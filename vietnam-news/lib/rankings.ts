@@ -2,7 +2,7 @@
 // ANTHROPIC_API_KEY가 없으면 아무것도 하지 않는다.
 //
 // - 재료: Google News 검색 RSS(영·한·베). 검색당 약 100건이 한계라 긴 기간은 구간을 나눠 검색한다.
-// - '일주일'(기본 화면)은 월~일 고정 주간이다. 매주 일요일 20시(베트남 시간)에 서버가 자동으로 만들고
+// - '일주일'(기본 화면)은 월~일 고정 주간이다. 매주 월요일 06시(베트남 시간)에 서버가 지난주 순위를 자동으로 만들고
 //   다음 일요일까지 그대로 쓴다 (startWeeklyScheduler, instrumentation.ts에서 시작).
 // - 나머지 기간은 누군가 그 탭을 열었을 때만 만들고, 기간별 갱신 주기(PERIODS.refreshHours) 동안 저장해 둔다.
 // - 여러 순위가 동시에 요청돼도 한 번에 하나씩 만든다.
@@ -12,7 +12,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { fetchFeed, googleNews, VIETNAM_RE, type FeedRequest, type Headline } from "./feeds";
 
 export type PeriodId = "day" | "week" | "month" | "quarter" | "year";
-export type ScopeId = "national" | "nhatrang" | "dalat";
+export type ScopeId = "national" | "nhatrang" | "dalat" | "expat";
 
 export const PERIODS: Record<PeriodId, { label: string; days: number; windows: number; perQuery: number; refreshHours: number }> = {
   day: { label: "오늘", days: 1, windows: 1, perQuery: 100, refreshHours: 6 },
@@ -28,7 +28,12 @@ type Query = { lang: "en" | "ko" | "vi"; q: string; mustMatch?: RegExp };
 const NHATRANG_RE = /nha trang|khanh hoa|khánh hòa|cam ranh|나트랑|냐짱|카인호아|깜라인/i;
 const DALAT_RE = /da lat|dalat|đà lạt|달랏|lang biang|langbiang/i;
 
-export const SCOPES: Record<ScopeId, { label: string; queries: Query[]; focus: string; extraFeeds?: FeedRequest[] }> = {
+const DEFAULT_CATEGORIES = "국제정세, 국내정책, 경제, 한국 관련, 관광, 사회, 문화, 날씨·재해";
+
+export const SCOPES: Record<
+  ScopeId,
+  { label: string; queries: Query[]; focus: string; categories?: string; weeklyOnly?: boolean }
+> = {
   national: {
     label: "베트남 전국",
     queries: [
@@ -69,6 +74,44 @@ Then consider large economic, social or disaster events with national impact. Sk
       { lang: "ko", q: "달랏", mustMatch: DALAT_RE },
     ],
     focus: `Only stories about Da Lat and its immediate area. Rank first what a tour guide working there must know: tourism policy and visitor numbers (especially Korean tourists), flights and Lien Khuong airport, roads and mountain passes, landslides and weather, attractions opening or closing, incidents involving tourists, local regulations, festivals and events, prices.`,
+  },
+  // 교민·관광업 생활정보: 일주일 전용 (일요일 밤이 지난 월요일 아침에 자동 생성)
+  expat: {
+    label: "교민·관광업 생활정보",
+    weeklyOnly: true,
+    queries: [
+      {
+        lang: "vi",
+        q: '"người nước ngoài" ("thị thực" OR visa OR "thẻ tạm trú" OR "giấy phép lao động" OR "hướng dẫn viên" OR thuế OR "nhà ở" OR "bất động sản")',
+      },
+      {
+        lang: "vi",
+        q: '("du lịch" OR "lữ hành" OR "hướng dẫn viên" OR "khách sạn") ("quy định" OR "nghị định" OR "xử phạt" OR "thông tư")',
+      },
+      {
+        lang: "vi",
+        q: '("tỷ giá" OR "ngoại tệ" OR "chuyển tiền" OR "hóa đơn điện tử" OR "hộ kinh doanh" OR "thuế") ("quy định" OR "nghị định" OR "từ ngày")',
+      },
+      {
+        lang: "en",
+        q: 'Vietnam (foreigners OR expats OR "foreign residents" OR "work permit" OR "residence card" OR "tour guide" OR "foreign ownership" OR "e-visa")',
+        mustMatch: VIETNAM_RE,
+      },
+      {
+        lang: "ko",
+        q: "베트남 (교민 OR 한인 OR 체류 OR 비자 OR 워크퍼밋 OR 거주증 OR 여행사 OR 가이드 OR 환전 OR 송금 OR 세금)",
+        mustMatch: VIETNAM_RE,
+      },
+      { lang: "vi", q: '"Nha Trang" OR "Khánh Hòa"', mustMatch: NHATRANG_RE },
+    ],
+    focus: `Pick only practical news that affects foreigners living in Vietnam (especially Korean residents in Nha Trang) and people who run or work in tourism businesses (tour guides, travel agencies, hotels, restaurants serving tourists). Rank first:
+- policies on foreigners: visas and e-visas, temporary residence cards, work permits, rules on foreign tour guides and guide licensing, taxes for foreigners;
+- finance: exchange rates, foreign currency and remittance rules, bank account or payment rules, gold prices when they move sharply;
+- real estate: foreign ownership, rents, housing rules;
+- commerce: business licensing, e-invoices, household-business tax, tourism and travel-agency regulations, inspections and fines;
+- incidents and crackdowns involving foreigners, Korean residents or tourists (scams, arrests of illegal guides, accidents), and big events in Nha Trang / Khanh Hoa that change daily life or business.
+Skip general politics, diplomacy, macroeconomics and entertainment unless they directly change rules for foreigners or tourism businesses. When a new rule has an effective date or a fine amount in the headline, put it in f.`,
+    categories: "비자·체류, 금융·환율, 부동산, 사업·세금, 관광업 규정, 사건사고, 나트랑 생활",
   },
 };
 
@@ -185,7 +228,8 @@ export function modelName() {
 }
 
 // 저장된 순위를 바로 돌려주고, 없거나 오래됐으면 백그라운드 생성을 예약한다
-export function getRanking(scope: ScopeId, period: PeriodId): Ranking {
+export function getRanking(scope: ScopeId, requested: PeriodId): Ranking {
+  const period: PeriodId = SCOPES[scope].weeklyOnly ? "week" : requested; // 교민 정보는 일주일만 있다
   const enabled = Boolean(process.env.ANTHROPIC_API_KEY);
   const entry = ensureEntry(scope, period);
   entry.enabled = enabled;
@@ -225,16 +269,18 @@ function ensureEntry(scope: ScopeId, period: PeriodId): Entry {
 
 // ── 주간 자동 생성 ──────────────────────────
 const ICT_OFFSET_MS = 7 * 3600_000; // 베트남 시간 UTC+7 (서머타임 없음)
-const PUBLISH_HOUR_ICT = 20; // 일요일 20시에 그 주(월~일) 순위를 만든다
+// 월요일 06시에 지난주(월~일) 순위를 만든다. 일요일 밤 뉴스와 Google 색인 지연까지 담기 위해서다
+const PUBLISH_HOUR_ICT = 6;
 const SCHEDULER_INTERVAL_MS = 15 * 60_000;
 
-// 지금 기준 '가장 최근에 발행됐어야 할' 주간: 일요일 20시가 지났으면 이번 주, 아니면 지난 주
+// 지금 기준 가장 최근에 발행된 주간: 이번 주 월요일 06시가 지났으면 지난주, 아니면 지지난주
 export function weekRange(now = new Date()) {
   const local = now.getTime() + ICT_OFFSET_MS; // UTC 필드로 읽으면 베트남 현지 시각
   const d = new Date(local);
-  let sunday = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - d.getUTCDay()); // 이번 주 일요일 0시(현지)
-  if (local < sunday + PUBLISH_HOUR_ICT * 3600_000) sunday -= 7 * 86400_000;
-  const monday = sunday - 6 * 86400_000;
+  let publishMonday = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); // 이번 주 월요일 0시(현지)
+  if (local < publishMonday + PUBLISH_HOUR_ICT * 3600_000) publishMonday -= 7 * 86400_000;
+  const monday = publishMonday - 7 * 86400_000;
+  const sunday = publishMonday - 86400_000;
   const md = (t: number) => {
     const x = new Date(t);
     return `${x.getUTCMonth() + 1}.${x.getUTCDate()}`;
@@ -341,11 +387,12 @@ async function generate(entry: Entry) {
   const { scope, period } = entry;
   try {
     const pool = await collect(scope, period);
-    const minPool = scope === "national" ? 30 : 5;
+    const wide = scope === "national" || scope === "expat";
+    const minPool = wide ? 30 : 5;
     if (pool.length < minPool) throw new Error(`기사가 너무 적음 (${pool.length}건)`);
 
     // 같은 사건의 비슷한 제목을 미리 묶어 입력을 줄인다. 묶인 수(xN)는 보도량 신호로 쓴다
-    const clusters = clusterHeadlines(pool).slice(0, scope === "national" ? MAX_LINES_NATIONAL : MAX_LINES_LOCAL);
+    const clusters = clusterHeadlines(pool).slice(0, wide ? MAX_LINES_NATIONAL : MAX_LINES_LOCAL);
     const want = Math.min(MAX_STORIES, Math.max(5, Math.floor(clusters.length / 2)));
     const week = period === "week" ? weekRange() : null;
     const periodText = week ? `the week ${week.label}` : PERIODS[period].label;
@@ -356,7 +403,7 @@ Each line is: id, date (YYMMDD), xN = number of similar headlines merged into th
 Output keys: h headline, sm summary, tp talking point, c category, st status, f figures (l label, v value), tl timeline (i headline id, e event), ids headline ids.
 Rules:
 - Merge lines about the same event or ongoing development into one story. ids: up to 8 of its most relevant line ids.
-- Write in Korean. h: one concise line. c: one of 국제정세, 국내정책, 경제, 한국 관련, 관광, 사회, 문화, 날씨·재해.
+- Write in Korean. h: one concise line. c: one of ${SCOPES[scope].categories ?? DEFAULT_CATEGORIES}.
 - Ranks 1-10:
   - sm: 2 sentences on what happened and why it matters. tp: one natural sentence the guide could say to Korean tourists.
   - st: current state in a few words (e.g. 협상 중, 타결, 시행 중, 진행 중, 종료, 피해 수습 중).
@@ -379,7 +426,7 @@ Rules:
         fallbacks: "default",
         // AI의 검토(thinking) 토큰도 출력 요금이라, 짧은 기간은 낮은 강도로 충분하다
         output_config: {
-          effort: period === "quarter" || period === "year" ? "medium" : "low",
+          effort: period === "day" || period === "month" ? "low" : "medium",
           format: { type: "json_schema", schema: SCHEMA },
         },
         system,

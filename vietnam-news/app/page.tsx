@@ -8,6 +8,7 @@ export default function Page() {
     <Top10App
       initialNational={getRanking("national", "week")}
       initialLocal={getRanking("nhatrang", "week")}
+      initialExpat={getRanking("expat", "week")}
       model={modelName()}
       totals={usageTotals()}
     />

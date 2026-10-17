@@ -48,11 +48,13 @@ function useRanking(scope: ScopeId, period: PeriodId, initial: Ranking[]) {
 export default function Top10App({
   initialNational,
   initialLocal,
+  initialExpat,
   model,
   totals,
 }: {
   initialNational: Ranking;
   initialLocal: Ranking;
+  initialExpat: Ranking;
   model: string;
   totals: { runs: number; inputTokens: number; outputTokens: number; costUsd: number; since: number; priced: boolean };
 }) {
@@ -60,6 +62,7 @@ export default function Top10App({
   const [city, setCity] = useState<ScopeId>("nhatrang");
   const national = useRanking("national", period, [initialNational]);
   const local = useRanking(city, period, [initialLocal]);
+  const expat = useRanking("expat", "week", [initialExpat]);
   const periodLabel = PERIOD_TABS.find((p) => p.id === period)!.label;
 
   return (
@@ -95,6 +98,15 @@ export default function Top10App({
       <RankingView key={`national:${period}`} ranking={national} title={`${periodLabel} 베트남 TOP 10`} />
 
       <section className="mt-12">
+        <h2 className="text-xl font-bold">교민·관광업 생활정보</h2>
+        <p className="mb-3 mt-1 text-sm text-gray-500">
+          외국인 정책(비자·체류·취업허가·가이드 자격), 환율·송금, 부동산, 사업·세금, 관광업 규정, 외국인 관련 사건사고.
+          나트랑 소식 우선 · 주간 전용 (기간 탭과 상관없이 지난주 기준)
+        </p>
+        <RankingView key="expat" ranking={expat} title="이번 주 교민·관광업 생활정보" compact />
+      </section>
+
+      <section className="mt-12">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <h2 className="text-xl font-bold">나트랑 · 달랏 TOP 10</h2>
           <div className="flex gap-1 rounded-lg bg-white p-1 shadow-sm">
@@ -126,7 +138,7 @@ export default function Top10App({
           객관적인 순위가 아니며, 숫자나 세부 내용은 근거 기사 원문에서 확인하세요.
         </p>
         <p>
-          일주일 순위는 매주 일요일 저녁 8시(베트남 시간)에 그 주 월~일 뉴스로 자동 갱신됩니다. 나머지 탭은 처음 열 때
+          일주일 순위와 교민·관광업 생활정보는 매주 월요일 오전 6시(베트남 시간)에 지난주 월~일 뉴스로 자동 갱신됩니다. 나머지 탭은 처음 열 때
           만들어지고 오늘 6시간 · 한 달 2일 · 3개월 7일 · 1년 14일마다 갱신됩니다.
         </p>
         {totals.runs > 0 && (
@@ -176,7 +188,7 @@ function RankingView({ ranking, title, compact }: { ranking?: Ranking; title: st
   return (
     <div>
       <p className="mb-2 text-xs text-gray-400">
-        {ranking.rangeLabel && <span className="font-medium text-gray-600">{ranking.rangeLabel} · 일요일 자동 갱신 · </span>}
+        {ranking.rangeLabel && <span className="font-medium text-gray-600">{ranking.rangeLabel} · 매주 월요일 아침 자동 갱신 · </span>}
         기사 제목 {ranking.poolSize}개 분석
         {ranking.generatedAt && ` · ${new Date(ranking.generatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Ho_Chi_Minh", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })} (베트남 시간) 기준`}
         {ranking.usage &&
