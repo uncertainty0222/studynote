@@ -255,8 +255,8 @@ function RankingView({ ranking, onPaywall }: { ranking?: Ranking; onPaywall: () 
   if (ranking?.status === "locked") {
     return (
       <Locked
-        title="PRO 이용권 전용"
-        body="주간 순위는 무료입니다. 일간·월간·1년·3년 순위는 PRO 이용권으로 볼 수 있어요."
+        title="PRO 전용 메뉴"
+        body="주간은 무료예요. 일간부터 3년까지는 쌀국수 한 그릇 가격으로 열립니다."
         onPaywall={onPaywall}
       />
     );
@@ -286,7 +286,7 @@ function RankingView({ ranking, onPaywall }: { ranking?: Ranking; onPaywall: () 
       {lockedCount > 0 && (
         <Locked
           title={`11–${10 + lockedCount}위`}
-          body={`이번 순위에 ${lockedCount}건이 더 있습니다.`}
+          body={`나머지 ${lockedCount}건은 쌀국수 한 그릇 가격이면 다 보여요.`}
           onPaywall={onPaywall}
           className="mt-3"
         />
@@ -437,7 +437,7 @@ function Locked({ title, body, onPaywall, className = "" }: { title: string; bod
         </p>
         <p className="mt-1 text-[13px] text-zinc-500">{body}</p>
         <button onClick={onPaywall} className="mt-3 h-9 rounded-full bg-zinc-900 px-4 text-[13px] font-semibold text-white dark:bg-white dark:text-zinc-900">
-          PRO로 전체 보기
+          🍜 한 그릇 값으로 열기
         </button>
       </div>
     </div>
@@ -511,9 +511,14 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
       >
         <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700 sm:hidden" />
         <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">{SITE_NAME} PRO</p>
-        <h2 id="paywall-title" className="mt-1 text-xl font-bold tracking-tight">
-          {access.premium ? "PRO 이용 중" : "더 길게, 더 깊게"}
+        <h2 id="paywall-title" className="mt-1 whitespace-pre-line text-xl font-bold leading-snug tracking-tight">
+          {access.premium ? "PRO 이용 중" : "쌀국수 한 그릇 가격으로,\n베트남 한 달을 통째로"}
         </h2>
+        {!access.premium && (
+          <p className="mt-2 text-sm leading-relaxed text-zinc-500">
+            고수는 빼도 뉴스는 빼지 마세요. 한 달에 쌀국수 한 그릇이면 일간부터 3년까지, 11위 아래 이야기까지 전부 열립니다.
+          </p>
+        )}
 
         {access.premium ? (
           <>
@@ -527,14 +532,17 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
         ) : (
           <>
             <ul className="mt-4 space-y-2.5 text-sm text-zinc-700 dark:text-zinc-300">
-              {["일간 · 월간 · 1년 · 3년 순위", "모든 섹션 11–30위", "주간 1–10위는 계속 무료"].map((t) => (
+              {["일간 · 월간 · 1년 · 3년 순위", "모든 섹션 11–30위까지", "주간 TOP 10은 지금처럼 무료"].map((t) => (
                 <li key={t} className="flex items-center gap-2.5">
                   <CheckIcon />
                   {t}
                 </li>
               ))}
             </ul>
-            {purchase.price && <p className="mt-5 text-lg font-bold">{purchase.price}</p>}
+            <div className="mt-5 flex items-baseline justify-between gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+              <span className="text-sm text-zinc-500">🍜 한 달, 쌀국수 한 그릇</span>
+              {purchase.price && <span className="text-lg font-bold tabular-nums">{purchase.price}</span>}
+            </div>
 
             <div className="mt-5 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800/60">
               <p className="text-xs font-semibold text-zinc-500">구매 문의</p>
@@ -543,7 +551,7 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
               ) : (
                 <p className="mt-1 text-xs text-zinc-400">(운영자: PREMIUM_CONTACT 설정 필요)</p>
               )}
-              <p className="mt-1 text-xs text-zinc-500">결제 후 이용권 코드를 보내 드립니다.</p>
+              <p className="mt-1 text-xs text-zinc-500">결제 확인 후 이용권 코드를 보내 드려요.</p>
             </div>
 
             <form onSubmit={submit} className="mt-5">
