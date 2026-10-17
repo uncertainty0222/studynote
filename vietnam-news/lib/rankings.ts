@@ -9,10 +9,10 @@
 // - 요약은 제목만 보고 쓰므로 세부 수치는 원문 링크로 확인해야 한다.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { fetchFeed, googleNews, VIETNAM_RE, type FeedRequest, type Headline } from "./feeds";
+import { fetchFeed, googleNews, pubmedSearch, VIETNAM_RE, type FeedRequest, type Headline } from "./feeds";
 
 export type PeriodId = "day" | "week" | "month" | "year" | "threeYear";
-export type ScopeId = "national" | "nhatrang" | "dalat" | "expat";
+export type ScopeId = "national" | "nhatrang" | "dalat" | "expat" | "specialty";
 
 export const PERIODS: Record<PeriodId, { label: string; days: number; windows: number; perQuery: number; refreshHours: number }> = {
   day: { label: "일간", days: 1, windows: 1, perQuery: 100, refreshHours: 6 },
@@ -27,10 +27,23 @@ export const FREE_PERIOD: PeriodId = "week";
 export const FREE_RANKS = 10;
 export const PERIOD_IDS = Object.keys(PERIODS) as PeriodId[];
 
-type Query = { lang: "en" | "ko" | "vi"; q: string; mustMatch?: RegExp };
+type Query = {
+  lang: "en" | "ko" | "vi";
+  q: string;
+  mustMatch?: RegExp | RegExp[];
+  excludeTitle?: RegExp;
+  source?: "pubmed"; // 기본은 Google News. pubmed는 논문 검색 (q는 PubMed 검색식)
+};
 
 const NHATRANG_RE = /nha trang|khanh hoa|khánh hòa|cam ranh|나트랑|냐짱|카인호아|깜라인/i;
 const DALAT_RE = /da lat|dalat|đà lạt|달랏|lang biang|langbiang/i;
+
+// 특산품: 침향, 커피, 상황버섯, 아티소, 보석·진주·옥, 제비집, 동충하초 (한·베·영, 논문 학명 포함)
+// pearl은 단어 경계를 둬서 Vinpearl은 걸리지 않는다. '옥'은 한 글자 단어로만 (옥상·옥수수 제외)
+const SPECIALTY_RE =
+  /trầm hương|kỳ nam|agarwood|aquilaria|\boud\b|침향|cà phê|coffee|robusta|arabica|커피|thượng hoàng|phellinus|상황버섯|atiso|actiso|artichoke|cynara|아티소|아티초크|đá quý|gemstones?|\bgems?\b|ruby|sapphire|보석|ngọc trai|\bpearls?\b|pinctada|진주|ngọc bích|cẩm thạch|\bjade\b|비취|(?<![가-힣])옥(?![가-힣])|yến sào|tổ yến|chim yến|bird'?s nest|swiftlet|aerodramus|제비집|đông trùng hạ thảo|cordyceps|동충하초/i;
+// 매일 나오는 시세 기사(예: "Giá cà phê hôm nay 14/10")는 사건이 아니므로 뺀다
+const DAILY_PRICE_RE = /giá (cà phê|tiêu|yến)[^,:]*(hôm nay|ngày \d)|coffee prices? today/i;
 
 const DEFAULT_CATEGORIES = "국제정세, 국내정책, 경제, 한국 관련, 관광, 사회, 문화, 날씨·재해";
 
@@ -133,6 +146,68 @@ Then consider large economic, social or disaster events with national impact. Sk
 - incidents and crackdowns that affect foreigners or Korean residents.
 Give extra weight to policies and rules from Nha Trang / Khanh Hoa. Rank by how widely discussed the story is (xN) and how much it changes daily life. Skip general politics, diplomacy, macroeconomics, tourism marketing and entertainment unless they directly change rules for foreign residents. When a rule has an effective date, fine or threshold in the headline, put it in f.`,
     categories: "비자·거주, 부동산, 은행·환율, 사업·상업, 세금, 암호화폐, 외국인 제도, 사건사고, 나트랑 정책",
+  },
+  // 특산품: 나트랑·달랏 쇼핑 품목 뉴스. 기사가 적은 분야라 연구·논문도 넣는다. 주간 전용
+  specialty: {
+    label: "나트랑·달랏 특산품",
+    weeklyOnly: true,
+    queries: [
+      {
+        lang: "vi",
+        q: '"trầm hương" OR "kỳ nam" OR "yến sào" OR "tổ yến" OR "đông trùng hạ thảo" OR "nấm thượng hoàng"',
+        mustMatch: SPECIALTY_RE,
+        excludeTitle: DAILY_PRICE_RE,
+      },
+      {
+        lang: "vi",
+        q: '"cà phê" ("Lâm Đồng" OR "Đà Lạt" OR "xuất khẩu" OR Arabica OR Robusta OR "chỉ dẫn địa lý") -"giá cà phê hôm nay"',
+        mustMatch: SPECIALTY_RE,
+        excludeTitle: DAILY_PRICE_RE,
+      },
+      {
+        lang: "vi",
+        q: '"atiso" OR "actiso" OR "ngọc trai" OR "đá quý" OR "ngọc bích" OR "cẩm thạch"',
+        mustMatch: SPECIALTY_RE,
+        excludeTitle: DAILY_PRICE_RE,
+      },
+      // 국내 언론의 연구 소식
+      {
+        lang: "vi",
+        q: '("trầm hương" OR "yến sào" OR "đông trùng hạ thảo" OR "atiso" OR "nấm thượng hoàng" OR "ngọc trai" OR "cà phê") ("nghiên cứu" OR "nhà khoa học" OR "công bố" OR "đề tài" OR "bằng sáng chế")',
+        mustMatch: SPECIALTY_RE,
+        excludeTitle: DAILY_PRICE_RE,
+      },
+      {
+        lang: "en",
+        q: 'Vietnam (agarwood OR "bird\'s nest" OR swiftlet OR cordyceps OR artichoke OR pearl OR jade OR gemstone OR "Phellinus")',
+        mustMatch: [SPECIALTY_RE, VIETNAM_RE],
+        excludeTitle: DAILY_PRICE_RE,
+      },
+      {
+        lang: "en",
+        q: 'Vietnam coffee (export OR robusta OR arabica OR "Lam Dong" OR "Da Lat" OR harvest)',
+        mustMatch: [SPECIALTY_RE, VIETNAM_RE],
+        excludeTitle: DAILY_PRICE_RE,
+      },
+      {
+        lang: "ko",
+        q: "베트남 (침향 OR 제비집 OR 상황버섯 OR 동충하초 OR 아티소 OR 아티초크 OR 커피 OR 진주 OR 보석 OR 침향환)",
+        mustMatch: [SPECIALTY_RE, VIETNAM_RE],
+        excludeTitle: DAILY_PRICE_RE,
+      },
+      // 논문 (PubMed): 품목 학명·영문명. 커피는 논문이 너무 많아 베트남 관련만
+      {
+        lang: "en",
+        source: "pubmed",
+        q: '(agarwood OR Aquilaria OR "edible bird\'s nest" OR swiftlet OR "Cordyceps militaris" OR "Phellinus linteus" OR "Cynara scolymus" OR Pinctada) OR (coffee AND (Vietnam OR Vietnamese))',
+      },
+    ],
+    focus: `Pick news about the regional specialty products sold to visitors in Nha Trang and Da Lat: agarwood (trầm hương, kỳ nam), coffee (especially Lam Dong / Da Lat), Phellinus linteus mushroom (nấm thượng hoàng, 상황버섯), artichoke (atiso), gemstones, pearls, jade, edible bird's nest (yến sào), cordyceps (đông trùng hạ thảo).
+Rank first by how widely discussed the story is (xN) and its impact: export deals and prices moving sharply, new rules and certification (geographical indications, food safety, quarantine, customs limits for travellers), counterfeit or fraud cases and crackdowns, harvest failures, big investments, anything involving Korean buyers or tourists, Khanh Hoa and Lam Dong stories.
+News on these products is scarce, so also include research: Vietnamese press reports on studies, and lines from PubMed (journal articles, usually English titles). For research use only what the title states; do not claim health benefits beyond it. Prefer research done in Vietnam or with practical meaning (quality, authenticity testing, cultivation, safety). Keep at most 3 research items in the top 10, and no product more than 3 times in the top 10 unless there is little else.
+Skip routine daily price bulletins, advertisements and product promotions, and stories that only mention a product in passing.
+For research items, set st to "연구 발표". When a headline has a price, export value, volume or percentage, put it in f.`,
+    categories: "침향, 커피, 상황버섯, 아티소, 보석·진주·옥, 제비집, 동충하초, 기타 특산품",
   },
 };
 
@@ -251,7 +326,7 @@ export function modelName() {
 
 // 저장된 순위를 바로 돌려주고, 없거나 오래됐으면 백그라운드 생성을 예약한다
 export function getRanking(scope: ScopeId, requested: PeriodId, premium = false): Ranking {
-  const period: PeriodId = SCOPES[scope].weeklyOnly ? "week" : requested; // 교민 정보는 주간만 있다
+  const period: PeriodId = SCOPES[scope].weeklyOnly ? "week" : requested; // 교민생활·특산품은 주간만 있다
   // 유료 기간은 이용권이 없으면 만들지도 않는다 (토큰은 결제한 독자가 쓸 때만 든다)
   if (period !== FREE_PERIOD && !premium) {
     return { scope, period, enabled: Boolean(process.env.ANTHROPIC_API_KEY), status: "locked", generatedAt: null, poolSize: 0, stories: [] };
@@ -363,19 +438,40 @@ export function buildRequests(scope: ScopeId, period: PeriodId, now = new Date()
   const p = PERIODS[period];
   const out: FeedRequest[] = [];
   for (const query of SCOPES[scope].queries) {
-    if (period === "week") {
+    if (query.source === "pubmed") {
+      // 논문은 주간 전용 섹션에서만 쓴다. 그 주 월~일에 PubMed에 등록된 것
+      if (period !== "week") continue;
       const w = weekRange(now);
+      const sunday = new Date(Date.parse(`${w.key}T00:00:00Z`) + 6 * 86400_000);
       out.push({
-        url: googleNews(`${query.q} after:${w.after} before:${w.before}`, query.lang),
-        maxAgeDays: 16,
+        url: pubmedSearch(query.q, w.key, ymd(sunday)),
+        kind: "pubmed",
+        maxAgeDays: 3650,
         mustMatch: query.mustMatch,
         fromMs: w.fromMs,
         toMs: w.toMs,
       });
       continue;
     }
+    if (period === "week") {
+      const w = weekRange(now);
+      out.push({
+        url: googleNews(`${query.q} after:${w.after} before:${w.before}`, query.lang),
+        maxAgeDays: 16,
+        mustMatch: query.mustMatch,
+        excludeTitle: query.excludeTitle,
+        fromMs: w.fromMs,
+        toMs: w.toMs,
+      });
+      continue;
+    }
     if (p.windows === 1) {
-      out.push({ url: googleNews(`${query.q} when:${p.days}d`, query.lang), maxAgeDays: p.days + 1, mustMatch: query.mustMatch });
+      out.push({
+        url: googleNews(`${query.q} when:${p.days}d`, query.lang),
+        maxAgeDays: p.days + 1,
+        mustMatch: query.mustMatch,
+        excludeTitle: query.excludeTitle,
+      });
       continue;
     }
     const span = p.days / p.windows;
@@ -386,6 +482,7 @@ export function buildRequests(scope: ScopeId, period: PeriodId, now = new Date()
         url: googleNews(`${query.q} after:${ymd(after)} before:${ymd(before)}`, query.lang),
         maxAgeDays: p.days + 2,
         mustMatch: query.mustMatch,
+        excludeTitle: query.excludeTitle,
       });
     }
   }

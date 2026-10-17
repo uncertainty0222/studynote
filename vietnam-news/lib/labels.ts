@@ -34,6 +34,12 @@ export const SECTIONS: { id: string; title: string; desc: string; scopes: { id: 
     desc: "비자·거주 · 부동산 · 은행·환율 · 사업·세금 · 암호화폐 · 외국인 제도 · 나트랑 정책",
     scopes: [{ id: "expat", label: "교민생활" }],
   },
+  {
+    id: "specialty",
+    title: "특산품",
+    desc: "침향 · 커피 · 상황버섯 · 아티소 · 보석·진주·옥 · 제비집 · 동충하초 · 연구 소식",
+    scopes: [{ id: "specialty", label: "특산품" }],
+  },
 ];
 
 // 제1호 = 2026.10.5(월)~10.11(일) 주

@@ -13,8 +13,10 @@ export type FeedRequest = {
   url: string;
   publisher?: string; // RSS에 언론사 정보가 없을 때 쓸 이름
   maxAgeDays: number;
-  mustMatch?: RegExp; // 제목이 이 정규식에 맞는 것만 남긴다
+  mustMatch?: RegExp | RegExp[]; // 제목이 이 정규식(여러 개면 전부)에 맞는 것만 남긴다
+  excludeTitle?: RegExp; // 제목이 이 정규식에 맞으면 버린다
   excludeLink?: RegExp; // 링크가 이 정규식에 맞으면 버린다
+  kind?: "rss" | "pubmed"; // pubmed: url은 PubMed esearch 주소 (논문 제목을 기사처럼 쓴다)
   fromMs?: number; // 지정 시 이 시각 이후 발행된 기사만
   toMs?: number; // 지정 시 이 시각 이전 발행된 기사만
 };
@@ -64,6 +66,7 @@ const parser = new XMLParser({
 // 실패하면 빈 배열을 돌려준다 (한 피드 실패가 전체를 막지 않게)
 export async function fetchFeed(req: FeedRequest): Promise<{ ok: boolean; items: Headline[]; error?: string }> {
   try {
+    if (req.kind === "pubmed") return { ok: true, items: await fetchPubmed(req) };
     const res = await fetch(req.url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; VietnamNewsTop10/1.0)",
@@ -103,9 +106,59 @@ export function parseFeed(xml: string, req: FeedRequest): Headline[] {
     // Google News 제목은 "제목 - 언론사" 형식이고 <source>에 언론사명이 있다
     const publisher = decodeEntities(text(it.source)).normalize("NFC") || req.publisher || "";
     if (publisher && title.endsWith(` - ${publisher}`)) title = title.slice(0, -(publisher.length + 3));
-    if (req.mustMatch && !req.mustMatch.test(title)) continue;
+    if (!passesTitle(title, req)) continue;
 
     out.push({ title, link, publisher, publishedAt: Number.isFinite(publishedAt) ? publishedAt : now });
+  }
+  return out;
+}
+
+function passesTitle(title: string, req: FeedRequest) {
+  if (req.excludeTitle?.test(title)) return false;
+  return [req.mustMatch ?? []].flat().every((re) => re.test(title));
+}
+
+// PubMed 검색 주소 (NCBI E-utilities). 날짜는 PubMed 등록일(edat) 기준, 양끝 포함
+export function pubmedSearch(term: string, from: string, to: string, max = 30) {
+  const d = (s: string) => s.replace(/-/g, "/");
+  return `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmode=json&sort=pub_date&datetype=edat&mindate=${d(from)}&maxdate=${d(to)}&retmax=${max}&term=${encodeURIComponent(term)}`;
+}
+
+type PubmedDoc = {
+  title?: string;
+  source?: string;
+  sortpubdate?: string;
+  history?: { pubstatus?: string; date?: string }[];
+};
+
+// esearch로 PMID를 받고 esummary로 제목·학술지·등록일을 받는다 (요청 2번)
+async function fetchPubmed(req: FeedRequest): Promise<Headline[]> {
+  const get = async (url: string) => {
+    const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), cache: "no-store" });
+    if (!res.ok) throw new Error(`PubMed HTTP ${res.status}`);
+    return res.json();
+  };
+  const ids: string[] = (await get(req.url))?.esearchresult?.idlist ?? [];
+  if (ids.length === 0) return [];
+  const result = (await get(`https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&retmode=json&id=${ids.join(",")}`))?.result ?? {};
+  const out: Headline[] = [];
+  for (const id of ids) {
+    const doc = result[id] as PubmedDoc | undefined;
+    // 논문 제목의 <i>학명</i> 같은 태그와 끝 마침표를 지운다
+    const title = decodeEntities(doc?.title ?? "").replace(/<[^>]+>/g, "").normalize("NFC").replace(/\.$/, "").trim();
+    if (!title || !passesTitle(title, req)) continue;
+    // 등록일(entrez)을 날짜로 쓴다. 인쇄 발행일은 몇 달 뒤일 수 있어서
+    const entrez = doc?.history?.find((h) => h.pubstatus === "entrez")?.date ?? doc?.sortpubdate ?? "";
+    let publishedAt = Date.parse(entrez.slice(0, 10).replace(/\//g, "-") + "T00:00:00+07:00");
+    // 검색 조건상 등록일은 요청 구간 안이다. 등록일이 없어 발행일로 대신했을 때만 구간 밖일 수 있어 구간 끝에 맞춘다
+    if (req.fromMs != null && publishedAt < req.fromMs) publishedAt = req.fromMs;
+    if (req.toMs != null && publishedAt > req.toMs) publishedAt = req.toMs;
+    out.push({
+      title,
+      link: `https://pubmed.ncbi.nlm.nih.gov/${id}/`,
+      publisher: doc?.source ? `PubMed · ${doc.source}` : "PubMed",
+      publishedAt: Number.isFinite(publishedAt) ? publishedAt : Date.now(),
+    });
   }
   return out;
 }
