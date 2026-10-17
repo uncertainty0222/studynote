@@ -1,7 +1,17 @@
 // 제목·요약 키워드 기반 분류. 한국어/영어/베트남어 키워드를 함께 본다.
 // 키워드 매칭이므로 오분류가 있을 수 있다.
 
-export type TopicId = "politics" | "economy" | "travel" | "society" | "culture" | "disaster" | "transport";
+export type TopicId =
+  | "politics"
+  | "economy"
+  | "travel"
+  | "society"
+  | "culture"
+  | "disaster"
+  | "transport"
+  | "crypto"
+  | "finance"
+  | "realestate";
 
 export const TOPICS: { id: TopicId; label: string; re: RegExp }[] = [
   {
@@ -39,7 +49,26 @@ export const TOPICS: { id: TopicId; label: string; re: RegExp }[] = [
     label: "교통·인프라",
     re: /고속도로|철도|지하철|메트로|공항 건설|교통|도로|highway|expressway|railway|metro|high-speed|infrastructure|traffic|bridge|cao tốc|đường sắt|giao thông|tàu điện/i,
   },
+  // ── 돈 이야기 (별도 탭) ──
+  {
+    id: "crypto",
+    label: "암호화폐",
+    re: /암호화폐|가상자산|가상화폐|코인|비트코인|이더리움|스테이블코인|블록체인|crypto|bitcoin|\bbtc\b|ethereum|stablecoin|blockchain|digital asset|virtual asset|binance|tiền mã hóa|tiền số|tiền ảo|tài sản số|tài sản mã hóa|chuỗi khối/i,
+  },
+  {
+    id: "finance",
+    label: "금융·증시",
+    re: /증시|주식|주가|VN지수|금리|환율|은행|채권|금값|금 가격|중앙은행|증권|stock market|vn-index|vnindex|securities|interest rate|exchange rate|central bank|state bank|\bbank|bond|gold price|inflation|ipo|chứng khoán|lãi suất|tỷ giá|ngân hàng|trái phiếu|giá vàng|cổ phiếu|lạm phát/i,
+  },
+  {
+    id: "realestate",
+    label: "부동산",
+    re: /부동산|아파트|집값|분양|토지|real estate|property|apartment|condo|housing|land price|home price|bất động sản|chung cư|nhà ở|giá nhà|đất nền|căn hộ|sốt đất/i,
+  },
 ];
+
+// 금융·코인·부동산 탭에 모을 주제
+export const MONEY_TOPICS: TopicId[] = ["crypto", "finance", "realestate"];
 
 // 한국 관련 여부
 export const KOREA_RE =

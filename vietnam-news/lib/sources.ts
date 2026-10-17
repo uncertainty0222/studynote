@@ -16,6 +16,10 @@ export type Source = {
   mustMatch?: RegExp;
   // 지정 시 링크가 이 정규식에 맞는 기사는 버린다 (베트남과 무관한 섹션 제외용)
   excludeLink?: RegExp;
+  // money: 금융·코인·부동산 전용 소스. 이 소스의 기사는 일반 목록에 섞지 않고 '돈 이야기' 탭에만 보인다
+  section?: "money";
+  // 기본 7일보다 오래된 기사까지 받을 때 (월간 탑10용)
+  maxAgeDays?: number;
 };
 
 type GnEdition = "en" | "ko" | "vi";
@@ -26,7 +30,7 @@ const GN_EDITION: Record<GnEdition, string> = {
   vi: "hl=vi&gl=VN&ceid=VN:vi",
 };
 
-function googleNews(query: string, edition: GnEdition) {
+export function googleNews(query: string, edition: GnEdition) {
   return `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&${GN_EDITION[edition]}`;
 }
 
@@ -133,6 +137,48 @@ export const SOURCES: Source[] = [
     region: "kr",
     lang: "ko",
     url: googleNews("site:insidevina.com when:7d", "ko"),
+  },
+
+  // ── 금융·코인·부동산 (돈 이야기 탭 전용) ────────────
+  {
+    id: "money-crypto-vi",
+    name: "베트남 암호화폐 (베트남어)",
+    region: "vn",
+    lang: "vi",
+    url: googleNews("(\"tiền mã hóa\" OR \"tiền số\" OR \"tài sản số\" OR \"tài sản mã hóa\" OR bitcoin) when:7d", "vi"),
+    section: "money",
+  },
+  {
+    id: "money-crypto-en",
+    name: "Vietnam crypto (영문)",
+    region: "intl",
+    lang: "en",
+    url: googleNews("Vietnam (crypto OR bitcoin OR stablecoin OR \"digital assets\" OR \"virtual assets\") when:7d", "en"),
+    section: "money",
+  },
+  {
+    id: "money-finance-vi",
+    name: "베트남 금융·증시 (베트남어)",
+    region: "vn",
+    lang: "vi",
+    url: googleNews("(\"chứng khoán\" OR VN-Index OR \"lãi suất\" OR \"tỷ giá\" OR \"giá vàng\") when:2d", "vi"),
+    section: "money",
+  },
+  {
+    id: "money-realestate-vi",
+    name: "베트남 부동산 (베트남어)",
+    region: "vn",
+    lang: "vi",
+    url: googleNews("(\"bất động sản\" OR \"chung cư\" OR \"giá nhà\" OR \"căn hộ\") when:3d", "vi"),
+    section: "money",
+  },
+  {
+    id: "money-kr",
+    name: "한국 언론 (베트남 돈 이야기)",
+    region: "kr",
+    lang: "ko",
+    url: googleNews("베트남 (부동산 OR 증시 OR 코인 OR 가상자산 OR 금리 OR 환율 OR 아파트) when:7d", "ko"),
+    section: "money",
   },
 
   // ── 화제·SNS ─────────────────────────────

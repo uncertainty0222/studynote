@@ -3,6 +3,7 @@ import { SOURCES, type Region, type Source } from "./sources";
 import { classify, type TopicId } from "./topics";
 import { getFacebookPosts, type FbPost, type FbStatus } from "./facebook";
 import { getTranslation, queueTranslations, translationStatus } from "./translate";
+import { getTop10, type Top10 } from "./top10";
 
 export type Article = {
   id: string;
@@ -17,6 +18,7 @@ export type Article = {
   summary: string;
   topics: TopicId[];
   korea: boolean;
+  section?: "money";
 };
 
 export type Trend = {
@@ -44,6 +46,7 @@ export type NewsBundle = {
   sources: SourceStatus[];
   facebook: { posts: FbPost[]; status: FbStatus };
   translation: ReturnType<typeof translationStatus>;
+  top10: Top10;
 };
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
@@ -57,8 +60,8 @@ const parser = new XMLParser({
 });
 
 // Railway 같은 단일 프로세스 서버 기준 인메모리 캐시
-let cache: Omit<NewsBundle, "facebook" | "translation"> | null = null;
-let inflight: Promise<Omit<NewsBundle, "facebook" | "translation">> | null = null;
+let cache: Omit<NewsBundle, "facebook" | "translation" | "top10"> | null = null;
+let inflight: Promise<Omit<NewsBundle, "facebook" | "translation" | "top10">> | null = null;
 
 // 페이스북 게시글은 별도 주기로 갱신되므로 응답할 때마다 최신 저장본을 붙인다.
 // force(새로고침 버튼)는 뉴스만 다시 받고 페이스북 수집은 다시 돌리지 않는다 (비용).
@@ -67,10 +70,16 @@ export async function getNews(force = false): Promise<NewsBundle> {
   const foreign = bundle.articles.filter((a) => a.lang !== "ko");
   queueTranslations(foreign.map((a) => a.title));
   const articles = bundle.articles.map((a) => (a.lang === "ko" ? a : { ...a, titleKo: getTranslation(a.title) }));
-  return { ...bundle, articles, facebook: getFacebookPosts(), translation: translationStatus() };
+  return {
+    ...bundle,
+    articles,
+    facebook: getFacebookPosts(),
+    translation: translationStatus(),
+    top10: getTop10(bundle.articles),
+  };
 }
 
-type BaseBundle = Omit<NewsBundle, "facebook" | "translation">;
+type BaseBundle = Omit<NewsBundle, "facebook" | "translation" | "top10">;
 
 async function getNewsOnly(force: boolean): Promise<BaseBundle> {
   if (!force && cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) return cache;
@@ -103,7 +112,7 @@ async function fetchAll(): Promise<BaseBundle> {
 
 type SourceResult = { ok: boolean; articles: Article[]; trends: Trend[]; error?: string };
 
-async function fetchSource(source: Source): Promise<SourceResult> {
+export async function fetchSource(source: Source): Promise<SourceResult> {
   try {
     const res = await fetch(source.url, {
       headers: {
@@ -138,7 +147,8 @@ export function parseFeed(xml: string, source: Source): Article[] {
 
     const dateStr = text(it.pubDate) || text(it.published) || text(it.updated) || text(it["dc:date"]);
     const publishedAt = dateStr ? Date.parse(dateStr) : NaN;
-    if (Number.isFinite(publishedAt) && now - publishedAt > MAX_AGE_MS) continue;
+    const maxAge = source.maxAgeDays ? source.maxAgeDays * 86400_000 : MAX_AGE_MS;
+    if (Number.isFinite(publishedAt) && now - publishedAt > maxAge) continue;
 
     // Google News는 "제목 - 언론사" 형식이며 <source>에 언론사명이 들어 있다
     let publisher = text(it.source);
@@ -170,6 +180,7 @@ export function parseFeed(xml: string, source: Source): Article[] {
       summary: decodeEntities(summary),
       topics,
       korea,
+      section: source.section,
     });
   }
   return out;
@@ -198,13 +209,18 @@ export function parseTrends(xml: string): Trend[] {
 }
 
 function dedupe(articles: Article[]): Article[] {
-  const seen = new Set<string>();
+  const seen = new Map<string, Article>();
   const out: Article[] = [];
   for (const a of articles.sort((x, y) => y.publishedAt - x.publishedAt)) {
     const key = a.title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
-    if (seen.has(key) || seen.has(a.link)) continue;
-    seen.add(key);
-    seen.add(a.link);
+    const kept = seen.get(key) ?? seen.get(a.link);
+    if (kept) {
+      // 일반 소스에도 잡힌 기사면 일반 목록에도 보이게 한다
+      if (!a.section) kept.section = undefined;
+      continue;
+    }
+    seen.set(key, a);
+    seen.set(a.link, a);
     out.push(a);
   }
   return out;

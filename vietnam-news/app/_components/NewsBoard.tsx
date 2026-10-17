@@ -3,10 +3,15 @@
 import { useMemo, useState } from "react";
 import type { Article, NewsBundle } from "@/lib/news";
 import { REGION_LABEL, type Region } from "@/lib/sources";
-import { TALK_TOPICS, TOPICS, type TopicId } from "@/lib/topics";
+import { MONEY_TOPICS, TALK_TOPICS, TOPICS, type TopicId } from "@/lib/topics";
 
 type RegionFilter = "all" | Region;
 type RangeFilter = 24 | 72 | 168;
+type View = "news" | "money";
+
+function isMoney(a: Article) {
+  return a.section === "money" || a.topics.some((t) => MONEY_TOPICS.includes(t));
+}
 
 const LANG_BADGE: Record<Article["lang"], string> = { ko: "KO", en: "EN", vi: "VI" };
 const REGION_COLOR: Record<Region, string> = {
@@ -24,6 +29,7 @@ const TOPIC_LABEL = Object.fromEntries(TOPICS.map((t) => [t.id, t.label])) as Re
 
 export default function NewsBoard({ initial }: { initial: NewsBundle }) {
   const [bundle, setBundle] = useState(initial);
+  const [view, setView] = useState<View>("news");
   const [region, setRegion] = useState<RegionFilter>("all");
   const [koreaOnly, setKoreaOnly] = useState(false);
   const [talkOnly, setTalkOnly] = useState(false);
@@ -36,9 +42,19 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
 
   const now = bundle.fetchedAt;
 
+  // 뉴스 탭: 금융 전용 소스 기사를 뺀 전체 / 돈 이야기 탭: 금융·코인·부동산 기사만
+  const viewArticles = useMemo(
+    () => bundle.articles.filter((a) => (view === "money" ? isMoney(a) : !a.section)),
+    [bundle, view],
+  );
+  const viewTopics = useMemo(
+    () => TOPICS.filter((t) => (view === "money" ? MONEY_TOPICS.includes(t.id) : !MONEY_TOPICS.includes(t.id))),
+    [view],
+  );
+
   const inRange = useMemo(
-    () => bundle.articles.filter((a) => now - a.publishedAt <= range * 3600_000),
-    [bundle, now, range],
+    () => viewArticles.filter((a) => now - a.publishedAt <= range * 3600_000),
+    [viewArticles, now, range],
   );
 
   const filtered = useMemo(() => {
@@ -53,13 +69,13 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
     );
   }, [inRange, region, koreaOnly, talkOnly, topic, query]);
 
-  const last24 = useMemo(() => bundle.articles.filter((a) => now - a.publishedAt <= 24 * 3600_000), [bundle, now]);
+  const last24 = useMemo(() => viewArticles.filter((a) => now - a.publishedAt <= 24 * 3600_000), [viewArticles, now]);
   const topicCounts = useMemo(
     () =>
-      TOPICS.map((t) => ({ ...t, count: last24.filter((a) => a.topics.includes(t.id)).length })).sort(
-        (a, b) => b.count - a.count,
-      ),
-    [last24],
+      viewTopics
+        .map((t) => ({ ...t, count: last24.filter((a) => a.topics.includes(t.id)).length }))
+        .sort((a, b) => b.count - a.count),
+    [last24, viewTopics],
   );
   const koreaHighlights = useMemo(() => inRange.filter((a) => a.korea).slice(0, 6), [inRange]);
   const trends = useMemo(() => bundle.trends.slice(0, 15), [bundle]);
@@ -98,13 +114,38 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
         </button>
       </header>
 
+      <nav className="mb-4 flex gap-2" aria-label="보기 선택">
+        {(
+          [
+            ["news", "📰 베트남 뉴스"],
+            ["money", "💰 금융·코인·부동산"],
+          ] as [View, string][]
+        ).map(([v, label]) => (
+          <button
+            key={v}
+            onClick={() => {
+              setView(v);
+              setTopic(null);
+            }}
+            className={`rounded-lg px-4 py-2 text-sm font-medium ${
+              view === v ? "bg-gray-900 text-white" : "bg-white text-gray-700 shadow-sm hover:bg-gray-100"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
       {failed.length > 0 && (
         <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900">
           {failed.length}개 피드를 불러오지 못했습니다: {failed.map((s) => s.name).join(", ")}
         </div>
       )}
 
+      {view === "news" && <Top10Section top10={bundle.top10} now={now} />}
+
       {/* 실시간 검색어 */}
+      {view === "news" && (
       <section className="mb-4 rounded-xl bg-white p-4 shadow-sm">
         <h2 className="mb-2 text-sm font-semibold text-gray-500">🔥 지금 베트남에서 많이 찾는 검색어 (Google Trends)</h2>
         {trends.length === 0 ? (
@@ -128,19 +169,24 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
           </ul>
         )}
       </section>
+      )}
 
       {/* 페이스북 화제 게시글 */}
-      <FacebookSection
-        fb={bundle.facebook}
-        now={now}
-        showAll={showAllFb}
-        onToggle={() => setShowAllFb(!showAllFb)}
-      />
+      {view === "news" && (
+        <FacebookSection
+          fb={bundle.facebook}
+          now={now}
+          showAll={showAllFb}
+          onToggle={() => setShowAllFb(!showAllFb)}
+        />
+      )}
 
       {/* 한눈에 보기 */}
       <section className="mb-6 grid gap-4 md:grid-cols-3">
         <div className="rounded-xl bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold text-gray-500">최근 24시간 주제별 기사 수</h2>
+          <h2 className="mb-3 text-sm font-semibold text-gray-500">
+            최근 24시간 {view === "money" ? "분야별" : "주제별"} 기사 수
+          </h2>
           <ul className="space-y-1.5">
             {topicCounts.map((t) => (
               <li key={t.id}>
@@ -281,6 +327,64 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
         </p>
       </footer>
     </main>
+  );
+}
+
+function Top10Section({ top10, now }: { top10: NewsBundle["top10"]; now: number }) {
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <section className="mb-4 rounded-xl border-2 border-red-200 bg-white p-4 shadow-sm">
+      <h2 className="text-base font-bold">🏆 최근 30일 베트남 뉴스 TOP 10</h2>
+      <p className="mb-3 text-xs text-gray-400">
+        AI가 보도량과 파급력을 기준으로 고른 목록입니다 (편집 판단이며 객관적 순위가 아님)
+        {top10.generatedAt && ` · ${top10.poolSize}개 제목 분석 · ${relTime(top10.generatedAt, now)} 생성`}
+      </p>
+      {!top10.enabled ? (
+        <p className="text-sm text-gray-400">ANTHROPIC_API_KEY 환경변수를 설정하면 여기에 TOP 10이 표시됩니다.</p>
+      ) : top10.stories.length === 0 ? (
+        <p className="text-sm text-gray-400">
+          {top10.error ? `생성 실패: ${top10.error}` : "TOP 10을 만들고 있습니다. 1~2분 뒤 새로고침하세요."}
+        </p>
+      ) : (
+        <ol className="space-y-2">
+          {top10.stories.map((s) => (
+            <li key={s.rank} className="rounded-lg border border-gray-100 p-3">
+              <button
+                onClick={() => setOpen(open === s.rank ? null : s.rank)}
+                className="flex w-full items-start gap-3 text-left"
+                aria-expanded={open === s.rank}
+              >
+                <span className="w-6 shrink-0 font-mono text-lg font-bold text-red-700">{s.rank}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="mr-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">{s.category}</span>
+                  <span className="font-semibold">{s.headline}</span>
+                  <span className="mt-1 block text-sm text-gray-600">{s.summary}</span>
+                  <span className="mt-1 block text-sm text-red-800">💬 {s.talkingPoint}</span>
+                </span>
+                <span className="shrink-0 text-xs text-gray-400">관련 {s.articles.length}건</span>
+              </button>
+              {open === s.rank && s.articles.length > 0 && (
+                <ul className="mt-2 ml-9 space-y-1 border-t border-gray-100 pt-2">
+                  {s.articles.map((a) => (
+                    <li key={a.link} className="text-xs">
+                      <a href={a.link} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">
+                        {a.title}
+                      </a>
+                      <span className="ml-1 text-gray-400">
+                        {a.publisher} · {new Date(a.publishedAt).toLocaleDateString("ko-KR")}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+      {top10.error && top10.stories.length > 0 && (
+        <p className="mt-2 text-xs text-amber-700">최근 갱신 실패로 이전 결과를 보여주고 있습니다: {top10.error}</p>
+      )}
+    </section>
   );
 }
 
