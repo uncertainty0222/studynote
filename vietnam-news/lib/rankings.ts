@@ -77,6 +77,9 @@ export type RankedStory = {
   talkingPoint: string;
   category: string;
   period: string; // 근거 기사 날짜 범위 (예: "2025.04" 또는 "2025.04~2025.06")
+  status: string; // 현재 상태 한 줄 (예: "협상 중", "시행 중")
+  figures: { label: string; value: string }[]; // 핵심 수치 (근거 기사 제목에 있는 숫자만)
+  timeline: { date: number; event: string }[]; // 진행 경과 (날짜는 근거 기사 발행일)
   articles: Headline[];
 };
 
@@ -107,9 +110,28 @@ const SCHEMA = {
           summary: { type: "string" },
           talking_point: { type: "string" },
           category: { type: "string" },
+          status: { type: "string" },
+          figures: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { label: { type: "string" }, value: { type: "string" } },
+              required: ["label", "value"],
+              additionalProperties: false,
+            },
+          },
+          timeline: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { id: { type: "integer" }, event: { type: "string" } },
+              required: ["id", "event"],
+              additionalProperties: false,
+            },
+          },
           ids: { type: "array", items: { type: "integer" } },
         },
-        required: ["headline", "summary", "talking_point", "category", "ids"],
+        required: ["headline", "summary", "talking_point", "category", "status", "figures", "timeline", "ids"],
         additionalProperties: false,
       },
     },
@@ -223,7 +245,11 @@ Rules:
 - Merge headlines about the same event or the same ongoing development into one story and list all their ids.
 - Write in Korean. headline: one concise line.
 - Ranks 1-10: summary of 2-3 sentences on what happened and why it matters; talking_point: one natural sentence the guide could say to Korean tourists.
-- Ranks 11 and below: summary of one sentence; talking_point: empty string.
+- Ranks 1-10 also get a quick status view so the reader understands the progress without reading the articles:
+  - status: the current state in a few Korean words (e.g. 협상 중, 타결, 발표, 시행 중, 진행 중, 종료, 피해 수습 중).
+  - figures: up to 3 key numbers as label/value, e.g. {"label": "미국 관세율", "value": "46% → 20%"} or {"label": "사망·실종", "value": "40명"}. Every number must appear in one of this story's headlines; copy the digits exactly as written there (keep %, $, units). Show a change as "before → after" only when both numbers appear. If no headline has a number, return an empty list.
+  - timeline: 2-5 key steps in order, each tied to the id of the headline that reports it, with a short Korean description of that step (no dates in the text; the article date is shown separately). Use different headlines for different steps.
+- Ranks 11 and below: summary of one sentence; talking_point and status: empty string; figures and timeline: empty lists.
 - Use only facts present in the headlines. Do not invent numbers, dates or quotes. If a detail is unclear, leave it out.
 - category: one of 국제정세, 국내정책, 경제, 한국 관련, 관광, 사회, 문화, 날씨·재해.
 - Order by significance, most important first. If there are fewer real stories than ${want}, return fewer.`;
@@ -247,15 +273,38 @@ Rules:
 
     const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
     const parsed = JSON.parse(text) as {
-      stories: { headline: string; summary: string; talking_point: string; category: string; ids: number[] }[];
+      stories: {
+        headline: string;
+        summary: string;
+        talking_point: string;
+        category: string;
+        status: string;
+        figures: { label: string; value: string }[];
+        timeline: { id: number; event: string }[];
+        ids: number[];
+      }[];
     };
+    const validId = (id: number) => Number.isInteger(id) && id >= 0 && id < pool.length;
 
     entry.stories = parsed.stories.slice(0, MAX_STORIES).map((s, i) => {
       // 모델이 준 id 중 실제로 있는 기사만 근거로 남긴다
       const articles = [...new Set(s.ids)]
-        .filter((id) => Number.isInteger(id) && id >= 0 && id < pool.length)
+        .filter(validId)
         .map((id) => pool[id])
         .sort((a, b) => a.publishedAt - b.publishedAt);
+      const sourceText = articles.map((a) => a.title).join(" \n ");
+
+      // 수치는 근거 기사 제목에 그 숫자가 실제로 있을 때만 남긴다 (지어낸 숫자 차단)
+      const figures = (s.figures ?? []).filter((f) => f.value && numbersAppearIn(f.value, sourceText)).slice(0, 3);
+
+      // 타임라인 날짜는 모델이 쓴 날짜가 아니라 연결된 기사의 발행일을 쓴다
+      const seenIds = new Set<number>();
+      const timeline = (s.timeline ?? [])
+        .filter((t) => validId(t.id) && !seenIds.has(t.id) && seenIds.add(t.id))
+        .filter((t) => numbersAppearIn(t.event, pool[t.id].title))
+        .map((t) => ({ date: pool[t.id].publishedAt, event: t.event }))
+        .sort((a, b) => a.date - b.date)
+        .slice(0, 5);
       return {
         rank: i + 1,
         headline: s.headline,
@@ -263,6 +312,9 @@ Rules:
         talkingPoint: s.talking_point,
         category: s.category,
         period: monthRange(articles.map((a) => a.publishedAt)),
+        status: s.status ?? "",
+        figures,
+        timeline,
         articles,
       };
     });
@@ -275,6 +327,17 @@ Rules:
     entry.error = describeError(e);
     entry.status = entry.stories.length ? "ready" : "error";
   }
+}
+
+// text 안의 숫자가 모두 source에도 있는지 (1,800 / 1.800 / 1800은 같은 숫자로 본다)
+export function numbersAppearIn(text: string, source: string): boolean {
+  const norm = (t: string) => t.replace(/(\d)[.,](?=\d{3}\b)/g, "$1");
+  const nums = norm(text).match(/\d+(?:[.,]\d+)?/g) ?? [];
+  const src = norm(source).replace(/(\d),(\d)/g, "$1.$2");
+  return nums.every((n) => {
+    const escaped = n.replace(",", ".").replace(".", "[.,]");
+    return new RegExp(`(?<![\\d.,])${escaped}(?![\\d])`).test(src);
+  });
 }
 
 function monthRange(times: number[]): string {

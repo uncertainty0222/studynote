@@ -187,7 +187,9 @@ function RankingView({ ranking, title, compact }: { ranking?: Ranking; title: st
               <span className="min-w-0 flex-1">
                 <Meta story={s} />
                 <span className="mt-1 block text-base font-semibold leading-snug">{s.headline}</span>
+                <Figures story={s} />
                 {s.summary && <span className="mt-1.5 block text-sm leading-relaxed text-gray-600">{s.summary}</span>}
+                <Timeline story={s} />
                 {s.talkingPoint && (
                   <span className="mt-2 block rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900">
                     💬 {s.talkingPoint}
@@ -250,9 +252,47 @@ function Meta({ story }: { story: RankedStory }) {
   return (
     <span className="flex flex-wrap items-center gap-1.5 text-xs">
       <span className="rounded bg-stone-100 px-1.5 py-0.5 text-gray-600">{story.category}</span>
+      {story.status && (
+        <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-900">● {story.status}</span>
+      )}
       {story.period && <span className="font-mono text-gray-400">{story.period}</span>}
     </span>
   );
+}
+
+// 핵심 수치: 근거 기사 제목에 있는 숫자만 서버에서 걸러져 온다
+function Figures({ story }: { story: RankedStory }) {
+  if (!story.figures?.length) return null;
+  return (
+    <span className="mt-2 flex flex-wrap gap-2">
+      {story.figures.map((f) => (
+        <span key={f.label + f.value} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1">
+          <span className="block text-[11px] leading-tight text-gray-500">{f.label}</span>
+          <span className="block font-mono text-sm font-bold tabular-nums text-gray-900">{f.value}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// 진행 경과: 날짜는 연결된 기사의 발행일
+function Timeline({ story }: { story: RankedStory }) {
+  if (!story.timeline?.length) return null;
+  return (
+    <span className="mt-2 block border-l-2 border-stone-200 pl-3">
+      {story.timeline.map((t, i) => (
+        <span key={i} className="block text-xs leading-relaxed text-gray-600">
+          <span className="mr-2 font-mono text-gray-400">{fmtDay(t.date)}</span>
+          {t.event}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function fmtDay(t: number) {
+  const d = new Date(t);
+  return `${String(d.getFullYear()).slice(2)}.${String(d.getMonth() + 1).padStart(2, "0")}.${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function Sources({ story }: { story: RankedStory }) {
