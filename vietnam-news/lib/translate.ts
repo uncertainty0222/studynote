@@ -1,8 +1,8 @@
-// 영어·베트남어 기사 제목을 한국어로 번역한다 (Claude API).
-// ANTHROPIC_API_KEY가 없으면 아무것도 하지 않는다.
+// 기사 제목을 한국어로 번역하고 흥미도(1~10)를 매긴다 (Claude API, 한 번의 호출로 둘 다).
+// 한국어 제목은 번역 없이 흥미도만 받는다. ANTHROPIC_API_KEY가 없으면 아무것도 하지 않는다.
 //
-// 같은 제목은 한 번만 번역하도록 메모리에 저장하고, 새 제목만 묶어서 보낸다.
-// 번역은 백그라운드에서 돌고, 끝나기 전에는 원문 제목이 그대로 보인다.
+// 같은 제목은 한 번만 보내도록 메모리에 저장하고, 새 제목만 묶어서 보낸다.
+// 백그라운드에서 돌고, 끝나기 전에는 원문 제목과 키워드 기반 흥미도가 쓰인다.
 
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -10,11 +10,18 @@ const MODEL = process.env.TRANSLATE_MODEL || "claude-opus-5-5";
 const BATCH_SIZE = 60;
 const MAX_CACHE = 5000;
 
-const SYSTEM = `You translate Vietnamese and English news headlines into Korean for a Korean tour guide working in Vietnam.
-- Write natural Korean headline style (concise, no trailing period).
-- Use the Korean spellings Korean media commonly use for Vietnamese places and people (e.g. 호찌민, 다낭, 하노이, 또 럼).
-- Keep brand and person names recognizable; do not add information that is not in the headline.
-- Return one translation for every input id.`;
+const SYSTEM = `You help a Korean tour guide working in Vietnam skim the news. For every headline:
+
+1. ko: translate it into Korean (Vietnamese or English input). If the headline is already Korean, return it unchanged.
+   - Natural Korean headline style, concise, no trailing period.
+   - Use the Korean spellings Korean media commonly use for Vietnamese places and people (e.g. 호찌민, 다낭, 하노이, 또 럼).
+   - Keep brand and person names recognizable; do not add information that is not in the headline.
+2. interest: an integer 1-10 for how worth knowing it is for this guide.
+   High (8-10): big national news, things Korean tourists may ask about or would find surprising, Korea-Vietnam stories, events affecting travel (weather, visas, flights, safety, prices), viral stories everyone in Vietnam is talking about.
+   Middle (4-7): notable but narrower economy, society, culture or local news.
+   Low (1-3): routine announcements, minor local items, press releases, stories not really about Vietnam.
+
+Return one entry for every input id.`;
 
 const SCHEMA = {
   type: "object",
@@ -23,8 +30,8 @@ const SCHEMA = {
       type: "array",
       items: {
         type: "object",
-        properties: { id: { type: "string" }, ko: { type: "string" } },
-        required: ["id", "ko"],
+        properties: { id: { type: "string" }, ko: { type: "string" }, interest: { type: "integer" } },
+        required: ["id", "ko", "interest"],
         additionalProperties: false,
       },
     },
@@ -33,7 +40,8 @@ const SCHEMA = {
   additionalProperties: false,
 };
 
-const cache = new Map<string, string>();
+type Entry = { ko: string; interest: number };
+const cache = new Map<string, Entry>();
 let running: Promise<void> | null = null;
 let lastError: string | undefined;
 let lastFailureAt = 0;
@@ -43,7 +51,7 @@ export function translationStatus() {
   return { enabled: Boolean(process.env.ANTHROPIC_API_KEY), model: MODEL, cached: cache.size, error: lastError };
 }
 
-export function getTranslation(title: string): string | undefined {
+export function getTranslation(title: string): Entry | undefined {
   return cache.get(title);
 }
 
@@ -65,8 +73,8 @@ async function translateAll(titles: string[]) {
     const batch = titles.slice(i, i + BATCH_SIZE);
     try {
       const result = await translateBatch(client, batch);
-      result.forEach((ko, idx) => {
-        if (ko) cache.set(batch[idx], ko);
+      result.forEach((entry, idx) => {
+        if (entry) cache.set(batch[idx], entry);
       });
       lastError = undefined;
     } catch (e) {
@@ -82,7 +90,7 @@ async function translateAll(titles: string[]) {
   }
 }
 
-async function translateBatch(client: Anthropic, titles: string[]): Promise<(string | undefined)[]> {
+async function translateBatch(client: Anthropic, titles: string[]): Promise<(Entry | undefined)[]> {
   const input = titles.map((text, i) => ({ id: String(i), text }));
   const response = await client.beta.messages.create({
     model: MODEL,
@@ -98,9 +106,14 @@ async function translateBatch(client: Anthropic, titles: string[]): Promise<(str
   if (response.stop_reason === "max_tokens") throw new Error("번역 응답이 잘림 (max_tokens)");
 
   const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-  const parsed = JSON.parse(text) as { translations: { id: string; ko: string }[] };
-  const byId = new Map(parsed.translations.map((t) => [t.id, t.ko.trim()]));
-  return input.map((x) => byId.get(x.id) || undefined);
+  const parsed = JSON.parse(text) as { translations: { id: string; ko: string; interest: number }[] };
+  const byId = new Map(
+    parsed.translations.map((t) => [t.id, { ko: t.ko.trim(), interest: Math.min(10, Math.max(1, Math.round(t.interest))) }]),
+  );
+  return input.map((x) => {
+    const e = byId.get(x.id);
+    return e && e.ko ? e : undefined;
+  });
 }
 
 function describeError(e: unknown): string {

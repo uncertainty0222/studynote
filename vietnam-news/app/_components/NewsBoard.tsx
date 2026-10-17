@@ -33,6 +33,7 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
   const [region, setRegion] = useState<RegionFilter>("all");
   const [koreaOnly, setKoreaOnly] = useState(false);
   const [talkOnly, setTalkOnly] = useState(false);
+  const [picksOnly, setPicksOnly] = useState(true);
   const [topic, setTopic] = useState<TopicId | null>(null);
   const [range, setRange] = useState<RangeFilter>(72);
   const [query, setQuery] = useState("");
@@ -68,6 +69,20 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
         (!q || `${a.title} ${a.titleKo ?? ""} ${a.summary}`.toLowerCase().includes(q)),
     );
   }, [inRange, region, koreaOnly, talkOnly, topic, query]);
+
+  // 흥미도 상위 1/3만 남긴다 (동점이면 최신 기사 우선). 표시 순서는 최신순 그대로
+  const shown = useMemo(() => {
+    if (!picksOnly) return filtered;
+    const keep = Math.ceil(filtered.length / 3);
+    const picked = new Set(
+      [...filtered]
+        .sort((a, b) => b.interest - a.interest || b.publishedAt - a.publishedAt)
+        .slice(0, keep)
+        .map((a) => a.id),
+    );
+    return filtered.filter((a) => picked.has(a.id));
+  }, [filtered, picksOnly]);
+  const aiScored = useMemo(() => filtered.some((a) => a.interestByAi), [filtered]);
 
   const last24 = useMemo(() => viewArticles.filter((a) => now - a.publishedAt <= 24 * 3600_000), [viewArticles, now]);
   const topicCounts = useMemo(
@@ -244,6 +259,9 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
           <Chip active={talkOnly} onClick={() => setTalkOnly(!talkOnly)}>
             💬 이야깃거리
           </Chip>
+          <Chip active={picksOnly} onClick={() => setPicksOnly(!picksOnly)}>
+            ⭐ 흥미 상위 1/3
+          </Chip>
           <span className="mx-1 w-px bg-gray-300" />
           {([24, 72, 168] as RangeFilter[]).map((h) => (
             <Chip key={h} active={range === h} onClick={() => setRange(h)}>
@@ -263,19 +281,25 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
               {TOPIC_LABEL[topic]} ✕
             </Chip>
           )}
-          <span className="text-sm text-gray-500">{filtered.length}건</span>
+          <span className="text-sm text-gray-500">
+            {picksOnly ? `${shown.length}건 (전체 ${filtered.length}건 중 흥미도 상위)` : `${filtered.length}건`}
+            {picksOnly && !aiScored && " · AI 점수 준비 전이라 키워드 기준"}
+          </span>
         </div>
       </section>
 
       {/* 기사 목록 */}
       <ul className="space-y-2">
-        {filtered.map((a) => (
+        {shown.map((a) => (
           <li key={a.id} className="rounded-xl bg-white p-4 shadow-sm">
             <div className="mb-1 flex flex-wrap items-center gap-1.5 text-xs">
               <span className={`rounded px-1.5 py-0.5 font-medium ${REGION_COLOR[a.region]}`}>
                 {REGION_LABEL[a.region]}
               </span>
               <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-600">{LANG_BADGE[a.lang]}</span>
+              {a.interestByAi && a.interest >= 8 && (
+                <span className="rounded bg-orange-100 px-1.5 py-0.5 font-medium text-orange-800">🔥 흥미 {a.interest}</span>
+              )}
               {a.korea && <span className="rounded bg-yellow-100 px-1.5 py-0.5 text-yellow-800">한국 관련</span>}
               {a.topics.map((t) => (
                 <span key={t} className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">
@@ -298,7 +322,7 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
             </p>
           </li>
         ))}
-        {filtered.length === 0 && <li className="py-10 text-center text-gray-400">조건에 맞는 기사가 없습니다.</li>}
+        {shown.length === 0 && <li className="py-10 text-center text-gray-400">조건에 맞는 기사가 없습니다.</li>}
       </ul>
 
       <footer className="mt-8 text-xs text-gray-400">

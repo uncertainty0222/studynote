@@ -9,6 +9,8 @@ export type Article = {
   id: string;
   title: string;
   titleKo?: string; // 영어·베트남어 제목의 한국어 번역 (번역 기능이 켜져 있고 번역이 끝난 경우)
+  interest: number; // 흥미도 1~10. AI 점수가 있으면 그것, 없으면 키워드 기반 추정
+  interestByAi: boolean;
   link: string;
   publisher: string;
   sourceId: string;
@@ -67,9 +69,12 @@ let inflight: Promise<Omit<NewsBundle, "facebook" | "translation" | "top10">> | 
 // force(새로고침 버튼)는 뉴스만 다시 받고 페이스북 수집은 다시 돌리지 않는다 (비용).
 export async function getNews(force = false): Promise<NewsBundle> {
   const bundle = await getNewsOnly(force);
-  const foreign = bundle.articles.filter((a) => a.lang !== "ko");
-  queueTranslations(foreign.map((a) => a.title));
-  const articles = bundle.articles.map((a) => (a.lang === "ko" ? a : { ...a, titleKo: getTranslation(a.title) }));
+  queueTranslations(bundle.articles.map((a) => a.title));
+  const articles = bundle.articles.map((a) => {
+    const t = getTranslation(a.title);
+    if (!t) return a;
+    return { ...a, titleKo: a.lang === "ko" ? undefined : t.ko, interest: t.interest, interestByAi: true };
+  });
   return {
     ...bundle,
     articles,
@@ -181,6 +186,8 @@ export function parseFeed(xml: string, source: Source): Article[] {
       topics,
       korea,
       section: source.section,
+      interest: heuristicInterest(region, topics, korea),
+      interestByAi: false,
     });
   }
   return out;
@@ -206,6 +213,16 @@ export function parseTrends(xml: string): Trend[] {
     });
   }
   return out;
+}
+
+// AI 점수가 없을 때 쓰는 키워드 기반 흥미도 (1~10)
+function heuristicInterest(region: Region, topics: TopicId[], korea: boolean): number {
+  let score = 3;
+  if (korea) score += 3;
+  if (region === "buzz") score += 2;
+  if (topics.some((t) => t === "culture" || t === "travel" || t === "disaster")) score += 2;
+  if (topics.some((t) => t === "society" || t === "politics")) score += 1;
+  return Math.min(10, score);
 }
 
 function dedupe(articles: Article[]): Article[] {
