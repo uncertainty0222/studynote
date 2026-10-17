@@ -202,12 +202,20 @@ export default function WeeklyVietnam({
           <h1 className="text-[40px] font-extrabold leading-[1.02] tracking-[-0.035em] sm:text-[52px]">
             Weekly
             <br />
-            Vietnam <span className="text-rose-600">Brief</span>
-            <span className="ml-2 inline-block -translate-y-[0.55em] rounded-full border border-zinc-300 px-2 py-0.5 align-middle font-mono text-[11px] font-semibold tracking-normal text-zinc-500 sm:text-xs dark:border-zinc-700 dark:text-zinc-400">
-              by AI
+            {/* 좁은 화면에서 배지가 다음 줄로 넘어가도 왼쪽에 붙도록 flex-wrap */}
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span>
+                Vietnam <span className="text-rose-600">Brief</span>
+              </span>
+              <span className="relative inline-flex items-center gap-1 overflow-hidden rounded-full bg-gradient-to-r from-rose-600 to-fuchsia-600 px-3 py-1 text-[17px] font-bold leading-none tracking-normal text-white shadow-md shadow-rose-600/25 sm:px-3.5 sm:text-[22px]">
+                <SparkleIcon />
+                by AI
+                {/* 은은하게 지나가는 빛 */}
+                <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 animate-shine bg-gradient-to-r from-transparent via-white/35 to-transparent" />
+              </span>
             </span>
           </h1>
-          <p className="mt-3 text-[15px] font-medium text-zinc-600 dark:text-zinc-400">
+          <p className="mt-3 break-keep text-[15px] font-medium text-zinc-600 dark:text-zinc-400">
             AI가 화제성과 중요성을 기준으로 고른 이번 주 뉴스
           </p>
           <p className="mt-5 flex flex-wrap items-baseline gap-x-2 text-xl font-bold tracking-tight">
@@ -249,7 +257,7 @@ export default function WeeklyVietnam({
           className="sticky top-14 z-10 -mx-5 border-b border-zinc-200 bg-white/90 px-5 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90"
           aria-label="섹션"
         >
-          <div className="flex items-center gap-5 sm:gap-6" role="tablist">
+          <div className="flex items-center gap-4 whitespace-nowrap min-[380px]:gap-5 sm:gap-6" role="tablist">
             {SECTIONS.map((s, i) => (
               <button
                 key={s.id}
@@ -557,6 +565,15 @@ function CompactRow({ story: s }: { story: RankedStory }) {
 }
 
 // 이번 주 순위가 30위를 못 채워 지난 주 순위에서 가져온 항목 표시
+function SparkleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className="h-[0.9em] w-[0.9em]" fill="currentColor">
+      <path d="M12 2l2.2 6.3L20.5 10.5 14.2 12.7 12 19l-2.2-6.3L3.5 10.5l6.3-2.2z" />
+      <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z" opacity=".7" />
+    </svg>
+  );
+}
+
 function PastBadge({ weeksAgo }: { weeksAgo: number }) {
   return (
     <span className="rounded-md border border-zinc-200 px-1.5 py-0.5 text-[11px] font-medium text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
