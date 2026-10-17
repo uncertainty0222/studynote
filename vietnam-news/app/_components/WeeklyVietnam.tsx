@@ -56,9 +56,11 @@ export default function WeeklyVietnam({
   purchase,
   model,
   totals,
+  currentWeek,
 }: {
   access: Access;
   initial: Ranking[];
+  currentWeek: string; // 지금 발행돼 있는 주간의 월요일 (순위가 아직 없어도 호수·날짜를 보여 주려고)
   purchase: Purchase;
   model: string;
   totals: Totals;
@@ -161,8 +163,9 @@ export default function WeeklyVietnam({
 
   // 호수·날짜는 항상 주간인 교민생활 순위에서 가져온다 (주간 순위가 나중에 도착해도 갱신된다)
   const weekly = expat?.weekKey ? expat : initial.find((r) => r.scope === "national");
-  const issue = issueNumber(weekly?.weekKey);
-  const week = weekTitle(weekly?.weekKey);
+  const weekKey = weekly?.weekKey ?? currentWeek;
+  const issue = issueNumber(weekKey);
+  const week = weekTitle(weekKey);
   const periodTab = PERIOD_TABS.find((p) => p.id === period)!;
 
   function choosePeriod(id: PeriodId) {
@@ -179,8 +182,9 @@ export default function WeeklyVietnam({
       {/* 상단 바 */}
       <header className="sticky top-0 z-20 border-b border-zinc-200/80 bg-white/85 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/85">
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-5">
-          <div className="flex items-baseline gap-2">
+          <div className="flex items-center gap-2">
             <span className="text-[17px] font-extrabold tracking-tight">{SITE_NAME}</span>
+            <AiBadge size="sm" />
             {issue && <span className="text-xs font-medium text-zinc-400">No.{issue}</span>}
           </div>
           <button
@@ -207,12 +211,7 @@ export default function WeeklyVietnam({
               <span>
                 Vietnam <span className="text-rose-600">Brief</span>
               </span>
-              <span className="relative inline-flex items-center gap-1 overflow-hidden rounded-full bg-gradient-to-r from-rose-600 to-fuchsia-600 px-3 py-1 text-[17px] font-bold leading-none tracking-normal text-white shadow-md shadow-rose-600/25 sm:px-3.5 sm:text-[22px]">
-                <SparkleIcon />
-                by AI
-                {/* 은은하게 지나가는 빛 */}
-                <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 animate-shine bg-gradient-to-r from-transparent via-white/35 to-transparent" />
-              </span>
+              <AiBadge size="lg" />
             </span>
           </h1>
           <p className="mt-3 break-keep text-[15px] font-medium text-zinc-600 dark:text-zinc-400">
@@ -565,6 +564,21 @@ function CompactRow({ story: s }: { story: RankedStory }) {
 }
 
 // 이번 주 순위가 30위를 못 채워 지난 주 순위에서 가져온 항목 표시
+// "by AI" 배지: 상단 바(sm)와 제목 옆(lg)에 같은 모양으로 쓴다
+function AiBadge({ size }: { size: "sm" | "lg" }) {
+  const sizing = size === "lg" ? "gap-1 px-3 py-1 text-[17px] shadow-md sm:px-3.5 sm:text-[22px]" : "gap-0.5 px-2 py-0.5 text-[11px] shadow-sm";
+  return (
+    <span
+      className={`relative inline-flex items-center overflow-hidden rounded-full bg-gradient-to-r from-rose-600 to-fuchsia-600 font-bold leading-none tracking-normal text-white shadow-rose-600/25 ${sizing}`}
+    >
+      <SparkleIcon />
+      by AI
+      {/* 은은하게 지나가는 빛 */}
+      <span aria-hidden className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 animate-shine bg-gradient-to-r from-transparent via-white/35 to-transparent" />
+    </span>
+  );
+}
+
 function SparkleIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden className="h-[0.9em] w-[0.9em]" fill="currentColor">

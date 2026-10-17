@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { accessFromCookie, PREMIUM_COOKIE } from "@/lib/premium";
-import { getRanking, modelName, usageTotals } from "@/lib/rankings";
+import { getRanking, modelName, usageTotals, weekRange } from "@/lib/rankings";
 import WeeklyVietnam from "./_components/WeeklyVietnam";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +22,7 @@ export default async function Page() {
       }}
       model={modelName()}
       totals={usageTotals()}
+      currentWeek={weekRange().key}
     />
   );
 }
