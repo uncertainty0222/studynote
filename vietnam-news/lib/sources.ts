@@ -32,7 +32,27 @@ export function googleNews(query: string, edition: GnEdition) {
   return `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&${GN_EDITION[edition]}`;
 }
 
-const VIETNAM_RE = /vietnam|viet nam|hanoi|ha noi|ho chi minh|saigon|da nang|danang|nha trang|phu quoc|베트남|하노이|호찌민|호치민|다낭|나트랑|푸꾸옥/i;
+// 제목·요약에 베트남(나라·주요 도시·성·대표 기업·지도자)이 등장하는지.
+// 교민 매체나 '한국' 검색처럼 베트남과 무관한 기사가 섞이는 소스에 mustMatch로 건다.
+export const VIETNAM_RE = new RegExp(
+  [
+    "vietnam", "viet nam", "việt nam", "người việt", "베트남", "越南",
+    "hanoi", "ha noi", "hà nội", "하노이",
+    "ho chi minh", "hồ chí minh", "hcmc", "tp\\.hcm", "saigon", "sài gòn", "호찌민", "호치민", "사이공",
+    "da nang", "danang", "đà nẵng", "다낭",
+    "nha trang", "나트랑", "냐짱", "khanh hoa", "khánh hòa", "카인호아",
+    "phu quoc", "phú quốc", "푸꾸옥",
+    "hai phong", "hải phòng", "하이퐁",
+    "ha long", "hạ long", "하롱", "quang ninh", "quảng ninh", "꽝닌",
+    "hoi an", "hội an", "호이안", "da lat", "dalat", "đà lạt", "달랏", "huế", "후에",
+    "can tho", "cần thơ", "껀터", "mekong", "메콩",
+    "bac ninh", "bắc ninh", "박닌", "binh duong", "bình dương", "빈증", "dong nai", "đồng nai", "동나이",
+    "vung tau", "vũng tàu", "붕따우", "long thanh", "long thành", "롱탄", "sapa", "sa pa", "사파",
+    "vinfast", "vingroup", "viettel", "vietjet", "vietnam airlines", "petrovietnam",
+    "to lam", "tô lâm", "또 럼", "또럼", "pham minh chinh", "phạm minh chính", "팜 민 찐", "팜민찐",
+  ].join("|"),
+  "i",
+);
 
 const INTL_SITES = [
   "reuters.com",
@@ -81,6 +101,7 @@ export const SOURCES: Source[] = [
     region: "vn",
     lang: "vi",
     url: googleNews("\"Hàn Quốc\" when:7d", "vi"),
+    mustMatch: VIETNAM_RE,
   },
 
   // ── 해외 언론 ─────────────────────────────
@@ -90,6 +111,7 @@ export const SOURCES: Source[] = [
     region: "intl",
     lang: "en",
     url: googleNews(`Vietnam (${INTL_SITES}) when:7d`, "en"),
+    mustMatch: VIETNAM_RE,
   },
   {
     id: "intl-vietnam-world",
@@ -100,6 +122,7 @@ export const SOURCES: Source[] = [
       'Vietnam (China OR "United States" OR Trump OR ASEAN OR "South China Sea" OR tariff OR Russia OR Japan) when:7d',
       "en",
     ),
+    mustMatch: VIETNAM_RE,
   },
   {
     id: "intl-vietnam-korea",
@@ -107,6 +130,7 @@ export const SOURCES: Source[] = [
     region: "intl",
     lang: "en",
     url: googleNews("Vietnam \"South Korea\" OR Korean when:7d", "en"),
+    mustMatch: VIETNAM_RE,
   },
   {
     id: "bbc-asia",
@@ -124,6 +148,7 @@ export const SOURCES: Source[] = [
     region: "kr",
     lang: "ko",
     url: googleNews("베트남 when:3d", "ko"),
+    mustMatch: VIETNAM_RE,
   },
   {
     id: "kr-vietnam-travel",
@@ -131,6 +156,7 @@ export const SOURCES: Source[] = [
     region: "kr",
     lang: "ko",
     url: googleNews("베트남 (관광객 OR 한국인 OR 교민 OR 다낭 OR 나트랑 OR 푸꾸옥 OR 하노이 OR 호찌민) when:7d", "ko"),
+    mustMatch: VIETNAM_RE,
   },
   {
     id: "chaovietnam",
@@ -138,6 +164,7 @@ export const SOURCES: Source[] = [
     region: "kr",
     lang: "ko",
     url: googleNews("site:chaovietnam.co.kr when:7d", "ko"),
+    mustMatch: VIETNAM_RE,
   },
   {
     id: "insidevina",
@@ -145,6 +172,7 @@ export const SOURCES: Source[] = [
     region: "kr",
     lang: "ko",
     url: googleNews("site:insidevina.com when:7d", "ko"),
+    mustMatch: VIETNAM_RE,
   },
 
   // ── 금융·코인·부동산 (돈 이야기 탭 전용) ────────────
@@ -163,6 +191,7 @@ export const SOURCES: Source[] = [
     lang: "en",
     url: googleNews("Vietnam (crypto OR bitcoin OR stablecoin OR \"digital assets\" OR \"virtual assets\") when:7d", "en"),
     section: "money",
+    mustMatch: VIETNAM_RE,
   },
   {
     id: "money-finance-vi",
@@ -187,6 +216,7 @@ export const SOURCES: Source[] = [
     lang: "ko",
     url: googleNews("베트남 (부동산 OR 증시 OR 코인 OR 가상자산 OR 금리 OR 환율 OR 아파트) when:7d", "ko"),
     section: "money",
+    mustMatch: VIETNAM_RE,
   },
 ];
 

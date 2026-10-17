@@ -9,7 +9,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Article } from "./news";
 import { fetchSource } from "./news";
-import { googleNews, type Source } from "./sources";
+import { googleNews, VIETNAM_RE, type Source } from "./sources";
 
 export type TopStory = {
   rank: number;
@@ -34,8 +34,8 @@ const RETRY_AFTER_FAILURE_MS = 30 * 60 * 1000;
 const MAX_POOL = 400;
 
 const MONTHLY_SOURCES: Source[] = [
-  { id: "m-en", name: "Google News 30일 (영문)", region: "intl", lang: "en", url: googleNews("Vietnam when:30d", "en"), maxAgeDays: 31 },
-  { id: "m-ko", name: "Google News 30일 (한국어)", region: "kr", lang: "ko", url: googleNews("베트남 when:30d", "ko"), maxAgeDays: 31 },
+  { id: "m-en", name: "Google News 30일 (영문)", region: "intl", lang: "en", url: googleNews("Vietnam when:30d", "en"), maxAgeDays: 31, mustMatch: VIETNAM_RE },
+  { id: "m-ko", name: "Google News 30일 (한국어)", region: "kr", lang: "ko", url: googleNews("베트남 when:30d", "ko"), maxAgeDays: 31, mustMatch: VIETNAM_RE },
   { id: "m-vi", name: "Google News 30일 (베트남어)", region: "vn", lang: "vi", url: googleNews("Việt Nam when:30d", "vi"), maxAgeDays: 31 },
 ];
 
