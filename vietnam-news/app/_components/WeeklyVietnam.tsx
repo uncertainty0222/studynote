@@ -78,7 +78,7 @@ export default function WeeklyVietnam({
   const local = useRanking(city, period, initial);
   const expat = useRanking("expat", "week", initial);
 
-  // 호수·날짜는 항상 주간인 교민정보 순위에서 가져온다 (주간 순위가 나중에 도착해도 갱신된다)
+  // 호수·날짜는 항상 주간인 교민생활 순위에서 가져온다 (주간 순위가 나중에 도착해도 갱신된다)
   const weekly = expat?.weekKey ? expat : initial.find((r) => r.scope === "national");
   const issue = issueNumber(weekly?.weekKey);
   const week = weekTitle(weekly?.weekKey);
@@ -127,7 +127,7 @@ export default function WeeklyVietnam({
             {week ? week.title : "이번 주"}
             {week && <span className="text-base font-medium tabular-nums text-zinc-400">({week.range})</span>}
           </p>
-          <p className="mt-1 text-[13px] text-zinc-500">베트남 · 나트랑/달랏 · 교민정보 · 매주 월요일 06:00 발행</p>
+          <p className="mt-1 text-[13px] text-zinc-500">베트남 · 나트랑/달랏 · 교민생활 · 매주 월요일 06:00 발행</p>
         </section>
 
         {/* 기간 */}
@@ -195,7 +195,7 @@ export default function WeeklyVietnam({
           <RankingView key={`${city}:${period}`} ranking={local} onPaywall={() => setPaywall(true)} />
         </Section>
 
-        <Section id="expat" title="교민정보" desc={SECTIONS[2].desc} badge="주간">
+        <Section id="expat" title="교민생활" desc={SECTIONS[2].desc} badge="주간">
           <RankingView key="expat" ranking={expat} onPaywall={() => setPaywall(true)} />
         </Section>
 
@@ -204,7 +204,7 @@ export default function WeeklyVietnam({
             순위와 요약은 AI가 영어·한국어·베트남어 기사 제목을 읽고 정리한 편집 판단입니다. 금액·날짜·시행 규정은 근거
             기사 원문에서 확인하세요.
           </p>
-          <p>주간·교민정보는 매주 월요일 06:00(베트남 시간)에 지난주 월~일 기준으로 발행됩니다.</p>
+          <p>주간·교민생활은 매주 월요일 06:00(베트남 시간)에 지난주 월~일 기준으로 발행됩니다.</p>
           {showUsage && (
             <p className="font-mono text-xs">
               [운영자] {model} · 순위 {totals.runs}회 · 입력 {totals.inputTokens.toLocaleString()} · 출력{" "}

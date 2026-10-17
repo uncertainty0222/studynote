@@ -30,9 +30,9 @@ export const SECTIONS: { id: string; title: string; desc: string; scopes: { id: 
   },
   {
     id: "expat",
-    title: "교민정보",
-    desc: "비자·체류 · 환율·송금 · 부동산 · 사업·세금 · 관광업 규정 · 사건사고",
-    scopes: [{ id: "expat", label: "교민정보" }],
+    title: "교민생활",
+    desc: "비자·거주 · 부동산 · 은행·환율 · 사업·세금 · 암호화폐 · 외국인 제도 · 나트랑 정책",
+    scopes: [{ id: "expat", label: "교민생활" }],
   },
 ];
 

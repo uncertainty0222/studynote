@@ -80,42 +80,59 @@ Then consider large economic, social or disaster events with national impact. Sk
     focus: `Only stories about Da Lat and its immediate area. Rank first what a tour guide working there must know: tourism policy and visitor numbers (especially Korean tourists), flights and Lien Khuong airport, roads and mountain passes, landslides and weather, attractions opening or closing, incidents involving tourists, local regulations, festivals and events, prices.`,
   },
   // 교민·관광업 생활정보: 일주일 전용 (일요일 밤이 지난 월요일 아침에 자동 생성)
+  // 교민생활: 외국인으로서 베트남(특히 나트랑)에서 사는 데 필요한 정책·제도 뉴스. 주간 전용
   expat: {
-    label: "교민·관광업 생활정보",
+    label: "교민생활",
     weeklyOnly: true,
     queries: [
+      // 비자·거주·외국인 제도
       {
         lang: "vi",
-        q: '"người nước ngoài" ("thị thực" OR visa OR "thẻ tạm trú" OR "giấy phép lao động" OR "hướng dẫn viên" OR thuế OR "nhà ở" OR "bất động sản")',
+        q: '"người nước ngoài" ("thị thực" OR visa OR "thẻ tạm trú" OR "cư trú" OR "giấy phép lao động" OR "giấy phép lái xe" OR "bảo hiểm" OR "kết hôn")',
       },
+      // 부동산·은행
       {
         lang: "vi",
-        q: '("du lịch" OR "lữ hành" OR "hướng dẫn viên" OR "khách sạn") ("quy định" OR "nghị định" OR "xử phạt" OR "thông tư")',
+        q: '"người nước ngoài" ("nhà ở" OR "bất động sản" OR "sở hữu" OR "ngân hàng" OR "tài khoản" OR "sinh trắc học" OR "chuyển tiền")',
       },
+      // 세금·상업
       {
         lang: "vi",
-        q: '("tỷ giá" OR "ngoại tệ" OR "chuyển tiền" OR "hóa đơn điện tử" OR "hộ kinh doanh" OR "thuế") ("quy định" OR "nghị định" OR "từ ngày")',
+        q: '("thuế" OR "hóa đơn điện tử" OR "hộ kinh doanh" OR "đăng ký kinh doanh" OR "tỷ giá" OR "ngoại tệ") ("quy định" OR "nghị định" OR "thông tư" OR "từ ngày")',
+      },
+      // 암호화폐
+      {
+        lang: "vi",
+        q: '("tiền mã hóa" OR "tài sản số" OR "tài sản mã hóa" OR "sàn giao dịch") ("quy định" OR "nghị quyết" OR "thí điểm" OR "pháp lý")',
+      },
+      // 나트랑·카인호아 정책 (가중치)
+      {
+        lang: "vi",
+        q: '("Nha Trang" OR "Khánh Hòa") ("quy định" OR "chính sách" OR "UBND" OR "người nước ngoài" OR "xử phạt" OR "cấm")',
+        mustMatch: NHATRANG_RE,
       },
       {
         lang: "en",
-        q: 'Vietnam (foreigners OR expats OR "foreign residents" OR "work permit" OR "residence card" OR "tour guide" OR "foreign ownership" OR "e-visa")',
+        q: 'Vietnam (foreigners OR expats OR "foreign residents" OR "work permit" OR "residence card" OR "foreign ownership" OR "e-visa" OR "digital assets" OR "crypto")',
         mustMatch: VIETNAM_RE,
       },
       {
         lang: "ko",
-        q: "베트남 (교민 OR 한인 OR 체류 OR 비자 OR 워크퍼밋 OR 거주증 OR 여행사 OR 가이드 OR 환전 OR 송금 OR 세금)",
+        q: "베트남 (교민 OR 한인 OR 체류 OR 비자 OR 워크퍼밋 OR 거주증 OR 부동산 OR 은행 OR 송금 OR 세금 OR 가상자산 OR 코인)",
         mustMatch: VIETNAM_RE,
       },
-      { lang: "vi", q: '"Nha Trang" OR "Khánh Hòa"', mustMatch: NHATRANG_RE },
     ],
-    focus: `Pick only practical news that affects foreigners living in Vietnam (especially Korean residents in Nha Trang) and people who run or work in tourism businesses (tour guides, travel agencies, hotels, restaurants serving tourists). Rank first:
-- policies on foreigners: visas and e-visas, temporary residence cards, work permits, rules on foreign tour guides and guide licensing, taxes for foreigners;
-- finance: exchange rates, foreign currency and remittance rules, bank account or payment rules, gold prices when they move sharply;
-- real estate: foreign ownership, rents, housing rules;
-- commerce: business licensing, e-invoices, household-business tax, tourism and travel-agency regulations, inspections and fines;
-- incidents and crackdowns involving foreigners, Korean residents or tourists (scams, arrests of illegal guides, accidents), and big events in Nha Trang / Khanh Hoa that change daily life or business.
-Skip general politics, diplomacy, macroeconomics and entertainment unless they directly change rules for foreigners or tourism businesses. When a new rule has an effective date or a fine amount in the headline, put it in f.`,
-    categories: "비자·체류, 금융·환율, 부동산, 사업·세금, 관광업 규정, 사건사고, 나트랑 생활",
+    focus: `Pick only news a foreigner living in Vietnam needs for daily life, especially Korean residents in Nha Trang. Topics:
+- visas and residence: e-visas, visa exemptions, temporary residence cards, work permits, overstay rules;
+- real estate: foreign ownership, buying or renting housing, property rules;
+- banking and money: bank accounts and biometric checks for foreigners, payments, remittance, exchange rates, foreign currency;
+- business and commerce: business registration, household businesses, e-invoices, licensing, inspections and fines;
+- taxes: personal income tax, business tax, tax debts and exit bans;
+- crypto and digital assets: legal status, exchanges, pilot programmes;
+- rules for foreigners: driving licences, health insurance, schools, marriage, police registration;
+- incidents and crackdowns that affect foreigners or Korean residents.
+Give extra weight to policies and rules from Nha Trang / Khanh Hoa. Rank by how widely discussed the story is (xN) and how much it changes daily life. Skip general politics, diplomacy, macroeconomics, tourism marketing and entertainment unless they directly change rules for foreign residents. When a rule has an effective date, fine or threshold in the headline, put it in f.`,
+    categories: "비자·거주, 부동산, 은행·환율, 사업·상업, 세금, 암호화폐, 외국인 제도, 사건사고, 나트랑 정책",
   },
 };
 
