@@ -718,13 +718,8 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
         <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700 sm:hidden" />
         <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">{SITE_NAME} PRO</p>
         <h2 id="paywall-title" className="mt-1 whitespace-pre-line text-xl font-bold leading-snug tracking-tight">
-          {access.premium ? "PRO 이용 중" : "정성껏 우린 쌀국수 한 그릇처럼,\n더 깊게, 더 자세히"}
+          {access.premium ? "PRO 이용 중" : "더 깊게, 더 자세히"}
         </h2>
-        {!access.premium && (
-          <p className="mt-2 break-keep text-sm leading-relaxed text-zinc-500">
-            한 달에 쌀국수 한 그릇 가격이면 일간부터 3년까지, 11위 아래 이야기까지 진하게 우려 드려요.
-          </p>
-        )}
 
         {access.premium ? (
           <>
