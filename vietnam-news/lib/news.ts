@@ -2,10 +2,12 @@ import { XMLParser } from "fast-xml-parser";
 import { SOURCES, type Region, type Source } from "./sources";
 import { classify, type TopicId } from "./topics";
 import { getFacebookPosts, type FbPost, type FbStatus } from "./facebook";
+import { getTranslation, queueTranslations, translationStatus } from "./translate";
 
 export type Article = {
   id: string;
   title: string;
+  titleKo?: string; // 영어·베트남어 제목의 한국어 번역 (번역 기능이 켜져 있고 번역이 끝난 경우)
   link: string;
   publisher: string;
   sourceId: string;
@@ -41,6 +43,7 @@ export type NewsBundle = {
   trends: Trend[];
   sources: SourceStatus[];
   facebook: { posts: FbPost[]; status: FbStatus };
+  translation: ReturnType<typeof translationStatus>;
 };
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
@@ -54,17 +57,22 @@ const parser = new XMLParser({
 });
 
 // Railway 같은 단일 프로세스 서버 기준 인메모리 캐시
-let cache: Omit<NewsBundle, "facebook"> | null = null;
-let inflight: Promise<Omit<NewsBundle, "facebook">> | null = null;
+let cache: Omit<NewsBundle, "facebook" | "translation"> | null = null;
+let inflight: Promise<Omit<NewsBundle, "facebook" | "translation">> | null = null;
 
 // 페이스북 게시글은 별도 주기로 갱신되므로 응답할 때마다 최신 저장본을 붙인다.
 // force(새로고침 버튼)는 뉴스만 다시 받고 페이스북 수집은 다시 돌리지 않는다 (비용).
 export async function getNews(force = false): Promise<NewsBundle> {
   const bundle = await getNewsOnly(force);
-  return { ...bundle, facebook: getFacebookPosts() };
+  const foreign = bundle.articles.filter((a) => a.lang !== "ko");
+  queueTranslations(foreign.map((a) => a.title));
+  const articles = bundle.articles.map((a) => (a.lang === "ko" ? a : { ...a, titleKo: getTranslation(a.title) }));
+  return { ...bundle, articles, facebook: getFacebookPosts(), translation: translationStatus() };
 }
 
-async function getNewsOnly(force: boolean): Promise<Omit<NewsBundle, "facebook">> {
+type BaseBundle = Omit<NewsBundle, "facebook" | "translation">;
+
+async function getNewsOnly(force: boolean): Promise<BaseBundle> {
   if (!force && cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) return cache;
   if (inflight) return inflight;
   inflight = fetchAll()
@@ -78,7 +86,7 @@ async function getNewsOnly(force: boolean): Promise<Omit<NewsBundle, "facebook">
   return inflight;
 }
 
-async function fetchAll(): Promise<Omit<NewsBundle, "facebook">> {
+async function fetchAll(): Promise<BaseBundle> {
   const results = await Promise.all(SOURCES.map(fetchSource));
   const sources: SourceStatus[] = [];
   const all: Article[] = [];
@@ -114,6 +122,8 @@ async function fetchSource(source: Source): Promise<SourceResult> {
   }
 }
 
+const VN_MEDIA_RE = /vietnam\.vn|vietnamplus|\bvov\b|nhân dân|nhan dan|nhandan|vnanet|ttxvn|vietnam news agency|báo|thông tấn|베트남통신|베트남·신시대/i;
+
 export function parseFeed(xml: string, source: Source): Article[] {
   const doc = parser.parse(xml);
   const rawItems: unknown[] = toArray(doc?.rss?.channel?.item ?? doc?.feed?.entry);
@@ -142,6 +152,10 @@ export function parseFeed(xml: string, source: Source): Article[] {
 
     const haystack = `${title} ${summary}`;
     if (source.mustMatch && !source.mustMatch.test(haystack)) continue;
+    if (source.excludeLink && source.excludeLink.test(link)) continue;
+
+    // 한국어 검색에 섞여 나오는 베트남 국영·관영 매체의 한국어판은 '베트남 언론'으로 분류한다
+    const region = source.region === "kr" && VN_MEDIA_RE.test(publisher) ? "vn" : source.region;
 
     const { topics, korea } = classify(haystack);
     out.push({
@@ -150,7 +164,7 @@ export function parseFeed(xml: string, source: Source): Article[] {
       link,
       publisher,
       sourceId: source.id,
-      region: source.region,
+      region,
       lang: source.lang,
       publishedAt: Number.isFinite(publishedAt) ? publishedAt : now,
       summary: decodeEntities(summary),

@@ -49,7 +49,7 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
         (!koreaOnly || a.korea) &&
         (!talkOnly || isTalk(a)) &&
         (!topic || a.topics.includes(topic)) &&
-        (!q || a.title.toLowerCase().includes(q) || a.summary.toLowerCase().includes(q)),
+        (!q || `${a.title} ${a.titleKo ?? ""} ${a.summary}`.toLowerCase().includes(q)),
     );
   }, [inRange, region, koreaOnly, talkOnly, topic, query]);
 
@@ -171,7 +171,7 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
               {koreaHighlights.map((a) => (
                 <li key={a.id} className="text-sm">
                   <a href={a.link} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                    {a.title}
+                    {a.titleKo ?? a.title}
                   </a>
                   <span className="ml-2 text-xs text-gray-400">
                     {a.publisher} · {relTime(a.publishedAt, now)}
@@ -243,8 +243,9 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
               rel="noopener noreferrer"
               className="block font-medium leading-snug hover:underline"
             >
-              {a.title}
+              {a.titleKo ?? a.title}
             </a>
+            {a.titleKo && <p className="mt-0.5 text-xs text-gray-400">{a.title}</p>}
             {a.summary && <p className="mt-1 line-clamp-2 text-sm text-gray-600">{a.summary}</p>}
             <p className="mt-1 text-xs text-gray-400">
               {a.publisher} · {relTime(a.publishedAt, now)}
@@ -265,11 +266,18 @@ export default function NewsBoard({ initial }: { initial: NewsBundle }) {
                 {s.ok ? "✅" : "❌"} [{REGION_LABEL[s.region]}] {s.name} — {s.ok ? `${s.count}건` : s.error}
               </li>
             ))}
+            <li>
+              {!bundle.translation.enabled
+                ? "⚪ 제목 번역 꺼짐 (ANTHROPIC_API_KEY 없음)"
+                : bundle.translation.error
+                  ? `❌ 제목 번역 — ${bundle.translation.error}`
+                  : `✅ 제목 번역 (${bundle.translation.model}) — ${bundle.translation.cached}건 번역됨`}
+            </li>
           </ul>
         )}
         <p className="mt-2">
-          주제·한국 관련 분류는 제목/요약의 키워드 매칭 결과이므로 오분류가 있을 수 있습니다. 기사 내용은 원문에서
-          확인하세요.
+          주제·한국 관련 분류는 제목/요약의 키워드 매칭 결과이므로 오분류가 있을 수 있습니다. 한국어 제목은 AI
+          번역이며, 원문 제목은 그 아래 작은 글씨로 표시됩니다. 기사 내용은 원문에서 확인하세요.
         </p>
       </footer>
     </main>

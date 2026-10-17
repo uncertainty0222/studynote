@@ -14,6 +14,8 @@ export type Source = {
   kind?: "articles" | "trends";
   // 지정 시 제목/요약이 이 정규식에 맞는 기사만 남긴다 (베트남과 무관한 기사가 섞이는 피드용)
   mustMatch?: RegExp;
+  // 지정 시 링크가 이 정규식에 맞는 기사는 버린다 (베트남과 무관한 섹션 제외용)
+  excludeLink?: RegExp;
 };
 
 type GnEdition = "en" | "ko" | "vi";
@@ -54,6 +56,8 @@ export const SOURCES: Source[] = [
     region: "vn",
     lang: "en",
     url: "https://e.vnexpress.net/rss/news.rss",
+    // 국제(World) 섹션은 베트남과 무관한 해외 기사라 제외
+    excludeLink: /\/news\/world\//,
   },
   {
     id: "vnexpress",
