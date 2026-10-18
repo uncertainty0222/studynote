@@ -38,7 +38,6 @@ type Query = {
 
 const NHATRANG_RE = /nha trang|khanh hoa|khánh hòa|cam ranh|나트랑|냐짱|카인호아|깜라인/i;
 const DALAT_RE = /da lat|dalat|đà lạt|달랏|lang biang|langbiang/i;
-const DALAT_LAMDONG_RE = /da lat|dalat|đà lạt|달랏|lang biang|langbiang|lâm đồng|lam dong|러엄동|럼동/i;
 
 // 특산품: 침향, 상황버섯, 커피 (한·베·영, 논문 학명 포함)
 const SPECIALTY_RE =
@@ -103,71 +102,65 @@ Then consider large economic, social or disaster events with national impact. Sk
     focus: `Only stories about Da Lat and its immediate area. Rank first what a tour guide working there must know: tourism policy and visitor numbers (especially Korean tourists), flights and Lien Khuong airport, roads and mountain passes, landslides and weather, attractions opening or closing, incidents involving tourists, local regulations, festivals and events, prices.`,
   },
   // 교민·관광업 생활정보: 일주일 전용 (일요일 밤이 지난 월요일 아침에 자동 생성)
-  // 해외생활: 베트남(특히 나트랑·달랏)에 사는 한국인 가이드·교민의 일상과 일에 영향을 주는 뉴스. 주간 전용
+  // 해외생활: 한국 교민이 베트남에서 살아가는 데 필요한 제도·행정 뉴스 (지역 가중치 없음. 지역 소식은 나트랑·달랏 탭). 주간 전용
   expat: {
-    label: "해외생활 (나트랑·달랏 가이드·교민의 일상)",
+    label: "해외생활 (베트남 교민 생활 제도)",
     weeklyOnly: true,
     queries: [
-      // 비자·체류·외국인 제도
+      // 이민: 비자·체류·워크퍼밋·영주·국적·혼인
       {
         lang: "vi",
-        q: '"người nước ngoài" ("thị thực" OR visa OR "thẻ tạm trú" OR "cư trú" OR "giấy phép lao động" OR "giấy phép lái xe" OR "bảo hiểm" OR "kết hôn" OR "trục xuất")',
+        q: '"người nước ngoài" ("thị thực" OR visa OR "thẻ tạm trú" OR "thẻ thường trú" OR "giấy phép lao động" OR "quốc tịch" OR "kết hôn" OR "trục xuất")',
       },
-      // 가이드 일: 가이드 자격, 외국인 불법 가이드 단속
+      // 행정: 거주 신고·서류·공증·운전면허·행정 절차
       {
         lang: "vi",
-        q: '"hướng dẫn viên" ("người nước ngoài" OR "trái phép" OR "thẻ hướng dẫn viên" OR "xử phạt" OR "khách Hàn")',
+        q: '"người nước ngoài" ("khai báo tạm trú" OR "thủ tục" OR "hành chính" OR "công chứng" OR "hợp pháp hóa" OR "giấy phép lái xe" OR "định danh")',
       },
-      // 나트랑·카인호아 생활 (가중치)
+      // 부동산: 외국인 주택 소유·임대·토지
       {
         lang: "vi",
-        q: '("Nha Trang" OR "Khánh Hòa" OR "Cam Ranh") ("người dân" OR "quy định" OR "xử phạt" OR "cấm" OR "mất điện" OR "cắt nước" OR "giao thông" OR "sân bay" OR "người nước ngoài")',
-        mustMatch: NHATRANG_RE,
+        q: '("người nước ngoài" OR "nước ngoài") ("sở hữu nhà" OR "nhà ở" OR "thuê nhà" OR "bất động sản" OR "đất đai" OR "chung cư")',
       },
-      // 달랏·러엄동 생활 (가중치)
+      // 상업: 사업자 등록, 가계사업자, 인허가, 전자상거래, 외국인 투자 소규모 사업
       {
         lang: "vi",
-        q: '("Đà Lạt" OR "Lâm Đồng") ("người dân" OR "quy định" OR "xử phạt" OR "cấm" OR "mất điện" OR "cắt nước" OR "giao thông" OR "sân bay" OR "người nước ngoài")',
-        mustMatch: DALAT_LAMDONG_RE,
+        q: '("hộ kinh doanh" OR "đăng ký kinh doanh" OR "giấy phép kinh doanh" OR "thương mại điện tử" OR "doanh nghiệp FDI" OR "nhà đầu tư nước ngoài") ("quy định" OR "nghị định" OR "thông tư" OR "từ ngày")',
       },
-      // 교통·운전 (오토바이·면허·음주 단속·과태료)
+      // 세금: 개인소득세, 사업세, 전자 세금계산서, 정산, 출국 금지
       {
         lang: "vi",
-        q: '("giao thông" OR "giấy phép lái xe" OR "xe máy" OR "nồng độ cồn") ("mức phạt" OR "xử phạt" OR "quy định mới" OR "từ ngày")',
+        q: '("thuế thu nhập cá nhân" OR "thuế khoán" OR "hóa đơn điện tử" OR "quyết toán thuế" OR "nợ thuế" OR "tạm hoãn xuất cảnh") ("quy định" OR "từ ngày" OR "người nước ngoài" OR "mới")',
       },
-      // 생활비: 전기·기름·물값, 환율, 최저임금, 건강보험
+      // 은행·외환·노동·보험: 계좌·생체 인증·송금·환율 규정, 외국인 사회보험
       {
         lang: "vi",
-        q: '("giá điện" OR "giá xăng" OR "giá nước" OR "tỷ giá" OR "lương tối thiểu" OR "bảo hiểm y tế") ("tăng" OR "giảm" OR "điều chỉnh" OR "từ ngày")',
-      },
-      // 주거·은행·세금 (외국인)
-      {
-        lang: "vi",
-        q: '"người nước ngoài" ("nhà ở" OR "thuê nhà" OR "ngân hàng" OR "tài khoản" OR "sinh trắc học" OR "chuyển tiền" OR "thuế")',
+        q: '("ngân hàng" OR "ngoại tệ" OR "chuyển tiền" OR "sinh trắc học" OR "bảo hiểm xã hội" OR "bảo hiểm y tế") ("người nước ngoài" OR "quy định mới" OR "từ ngày")',
       },
       {
         lang: "en",
-        q: 'Vietnam (foreigners OR expats OR "foreign residents" OR "work permit" OR "residence card" OR "e-visa" OR "tour guide" OR "traffic fines")',
+        q: 'Vietnam (foreigners OR expats OR "foreign residents") (visa OR "work permit" OR "residence card" OR property OR tax OR "business license" OR bank OR regulation)',
         mustMatch: VIETNAM_RE,
       },
       {
         lang: "ko",
-        q: "(나트랑 OR 냐짱 OR 달랏 OR 베트남) (교민 OR 한인 OR 가이드 OR 체류 OR 비자 OR 사건 OR 사고 OR 환율 OR 과태료)",
+        q: "베트남 (교민 OR 한인 OR 체류 OR 비자 OR 워크퍼밋 OR 거주증 OR 부동산 OR 세금 OR 법인 OR 사업자 OR 송금 OR 영사관)",
         mustMatch: VIETNAM_RE,
       },
     ],
-    focus: `Readers: Korean tour guides and Korean residents living in Vietnam, mostly in Nha Trang (Khanh Hoa) and Da Lat (Lam Dong).
-Pick only news that changes their everyday life or their work:
-- staying legally: visas, visa exemptions, temporary residence cards, work permits, police registration, overstay fines, deportation;
-- working as a guide or in tourism: tour-guide licence rules, crackdowns on foreigners guiding illegally, rules for tour companies and shops that serve Korean groups, Korean tourist numbers and flights to Cam Ranh / Lien Khuong;
-- getting around: traffic rules and fines, motorbike and driving licences, drink-driving checks, roads, airports;
-- cost of living: electricity, fuel and water prices, exchange rate moves, minimum wage, health insurance, school fees;
-- housing and money: renting and buying homes as a foreigner, bank accounts and biometric checks, remittance, taxes;
-- safety: crimes, scams and accidents involving Koreans or foreigners, storms, floods and outages in Nha Trang and Da Lat;
-- local administration in Khanh Hoa and Lam Dong that changes daily life (bans, closures, new fees, inspections).
-Rank by impact and importance: how many of these readers it affects, how directly (money, legal status, safety, ability to work), how soon (already in force or taking effect soon), then how widely covered it is (xN). A story from Nha Trang / Khanh Hoa or Da Lat / Lam Dong ranks above a similar national one. National rules count only when they apply to these readers.
-Skip general politics, diplomacy, macroeconomics, investment deals, tourism marketing, celebrity and entertainment unless they directly change these readers' daily life or work. In tp, say concretely what a guide or resident should do or watch out for. When a rule has an effective date, fine or threshold in the headline, put it in f.`,
-    categories: "비자·체류, 가이드·일, 교통·운전, 생활비·환율, 주거·은행·세금, 안전·사건사고, 날씨·재해, 지역 행정",
+    focus: `Readers: Korean expats living anywhere in Vietnam (residents, business owners, employees, families).
+Pick only news about the rules, procedures and costs they must deal with to live, work and do business in Vietnam:
+- administration: residence registration, police and paperwork procedures, notarisation and legalisation, IDs for foreigners, driving licences, changes from provincial or ministry reforms that alter where and how foreigners file papers;
+- immigration: visas and visa exemptions, temporary and permanent residence cards, work permits, citizenship, marriage and family status, overstay fines, deportation, crackdowns on foreigners working illegally;
+- real estate: foreign ownership of homes and condos, leasing rules, land law changes that affect foreigners;
+- business and commerce: business registration, household businesses, licences, e-commerce rules, rules for small foreign-owned businesses;
+- taxes: personal income tax, business and lump-sum tax, e-invoices, tax finalisation, tax debts and exit bans;
+- banking and money: bank accounts and biometric checks for foreigners, remittance, foreign-currency rules;
+- labour and insurance: labour law changes, social and health insurance for foreigners, schools for foreign children;
+- Korea–Vietnam: Korean embassy or consulate notices and agreements that change rules for Korean residents.
+Rank by impact and importance: how many Korean expats it affects, how directly (legal status, money, ability to work or run a business), how soon (already in force or taking effect soon), then how widely covered it is (xN). Do not favour any city or province; local stories count only when they change rules that many expats deal with.
+Skip general politics, diplomacy, macroeconomics, big investment deals, tourism, weather, local incidents, celebrity and entertainment unless they directly change these rules. In tp, say concretely what an expat should do or check. When a rule has an effective date, fine or threshold in the headline, put it in f.`,
+    categories: "행정, 이민·체류, 부동산, 사업·상업, 세금, 은행·외환, 노동·보험, 한-베 영사",
   },
   // 특산품: 나트랑·달랏 쇼핑 품목 뉴스. 기사가 적은 분야라 연구·논문도 넣는다. 주간 전용
   specialty: {
