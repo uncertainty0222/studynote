@@ -219,20 +219,23 @@ export default function WeeklyVietnam({
       <header className="sticky top-0 z-20 border-b border-zinc-200/80 bg-white/85 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/85">
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-5">
           <div className="flex items-center gap-2">
-            <span className="text-[17px] font-extrabold tracking-tight">{SITE_NAME}</span>
+            <span className="whitespace-nowrap text-[17px] font-extrabold tracking-tight">{SITE_NAME}</span>
             <AiBadge size="sm" />
-            {issue && <span className="text-xs font-medium text-zinc-400">No.{issue}</span>}
+            {issue && <span className="text-xs font-medium text-zinc-400 max-[419px]:hidden">No.{issue}</span>}
           </div>
-          <button
-            onClick={() => setPaywall(true)}
-            className={`h-8 rounded-full px-3.5 text-[13px] font-semibold ${
-              access.premium
-                ? "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
-                : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-            }`}
-          >
-            {access.premium ? "PRO 이용 중" : "PRO 이용권"}
-          </button>
+          <div className="flex items-center gap-2">
+            {access.loginEnabled && <AccountButton member={access.member} />}
+            <button
+              onClick={() => setPaywall(true)}
+              className={`h-8 whitespace-nowrap rounded-full px-3.5 text-[13px] font-semibold ${
+                access.premium
+                  ? "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+                  : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+              }`}
+            >
+              {access.premium ? "PRO 이용 중" : "PRO 이용권"}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -425,6 +428,9 @@ export default function WeeklyVietnam({
             기사 원문에서 확인하세요.
           </p>
           <p>주간·교민생활·특산품은 매주 월요일 06:00(베트남 시간)에 지난주 월~일 기준으로 발행됩니다.</p>
+          {access.loginEnabled && (
+            <p>로그인은 카카오톡(카카오계정)으로 하며, 카카오 닉네임만 받습니다. 멤버십은 로그인한 카카오계정에 연결됩니다.</p>
+          )}
           {showUsage && (
             <p className="font-mono text-xs">
               [운영자] {model} · 순위 {totals.runs}회 · 입력 {totals.inputTokens.toLocaleString()} · 출력{" "}
@@ -627,12 +633,82 @@ function CompactRow({ story: s }: { story: RankedStory }) {
 }
 
 // 이번 주 순위가 30위를 못 채워 지난 주 순위에서 가져온 항목 표시
+// 상단 바 로그인·로그아웃: 비회원은 카카오 로그인 버튼, 회원은 닉네임 메뉴(로그아웃)
+function AccountButton({ member }: { member: Access["member"] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [open]);
+
+  if (!member) {
+    return (
+      <a
+        href="/api/auth/kakao"
+        className="flex h-8 min-w-8 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-[#FEE500] px-2 text-[13px] font-semibold text-black/85 min-[390px]:px-3"
+        aria-label="카카오톡으로 로그인"
+      >
+        <KakaoIcon className="h-4 w-4" />
+        {/* 아주 좁은 화면에서는 카카오 아이콘만 */}
+        <span className="max-[389px]:hidden">로그인</span>
+      </a>
+    );
+  }
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.reload();
+  }
+
+  const name = member.nickname || "카카오 회원";
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-label={`${name} 계정 메뉴`}
+        className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FEE500] text-[13px] font-bold text-black/85"
+      >
+        {name.slice(0, 1)}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-10 z-30 w-56 rounded-2xl border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="px-3 py-2">
+            <p className="truncate text-sm font-semibold">{name}님</p>
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-zinc-500">
+              <KakaoIcon className="h-3.5 w-3.5" />
+              카카오톡으로 로그인됨
+            </p>
+          </div>
+          {member.admin && (
+            <a href="/admin" className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              운영자 · 멤버십 승인
+            </a>
+          )}
+          <button
+            onClick={logout}
+            className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-rose-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            로그아웃
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // "by AI" 배지: 상단 바(sm)와 제목 옆(lg)에 같은 모양으로 쓴다
 function AiBadge({ size }: { size: "sm" | "lg" }) {
   const sizing = size === "lg" ? "gap-1 px-3 py-1 text-[17px] shadow-md sm:px-3.5 sm:text-[22px]" : "gap-0.5 px-2 py-0.5 text-[11px] shadow-sm";
   return (
     <span
-      className={`relative inline-flex items-center overflow-hidden rounded-full bg-gradient-to-r from-rose-600 to-fuchsia-600 font-bold leading-none tracking-normal text-white shadow-rose-600/25 ${sizing}`}
+      className={`relative inline-flex items-center overflow-hidden whitespace-nowrap rounded-full bg-gradient-to-r from-rose-600 to-fuchsia-600 font-bold leading-none tracking-normal text-white shadow-rose-600/25 ${sizing}`}
     >
       <SparkleIcon />
       by AI
@@ -896,9 +972,9 @@ function MembershipApply({
   );
 }
 
-function KakaoIcon() {
+function KakaoIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5" fill="currentColor">
+    <svg viewBox="0 0 24 24" aria-hidden className={className} fill="currentColor">
       <path d="M12 3C6.48 3 2 6.54 2 10.9c0 2.82 1.87 5.3 4.69 6.7l-.95 3.48c-.08.3.26.54.52.37l4.14-2.74c.53.06 1.06.09 1.6.09 5.52 0 10-3.54 10-7.9S17.52 3 12 3z" />
     </svg>
   );
