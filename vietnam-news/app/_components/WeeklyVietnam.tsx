@@ -466,24 +466,20 @@ function FlightCard() {
       .catch(() => setCard({ enabled: false, updatedAt: null, routes: [] }));
   }, []);
 
-  if (card && !card.enabled) return null; // 운영자가 TRAVELPAYOUTS_TOKEN을 넣지 않았으면 숨긴다
+  // 받아 오기 전이나, 토큰이 없거나(운영자 미설정) 가격이 하나도 없으면 아예 그리지 않는다 (잠깐 보였다 사라지지 않게)
   const routes = card?.routes.filter((r) => r.best) ?? [];
-  if (card && routes.length === 0) return null;
+  if (!card || !card.enabled || routes.length === 0) return null;
 
   return (
     <div className="w-full shrink-0 rounded-2xl border border-zinc-200 p-4 sm:w-72 dark:border-zinc-800">
       <p className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
         <span aria-hidden>✈️</span> 한국 → 나트랑 편도 최저가
       </p>
-      {!card ? (
-        <div className="mt-3 h-12 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-900" />
-      ) : (
-        <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
-          {routes.map((r) => (
-            <FlightRow key={r.origin} route={r} />
-          ))}
-        </ul>
-      )}
+      <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
+        {routes.map((r) => (
+          <FlightRow key={r.origin} route={r} />
+        ))}
+      </ul>
       <p className="mt-2 break-keep text-[11px] leading-snug text-zinc-400">
         Aviasales 최근 검색 기준이라 실제 판매가와 다를 수 있어요.
       </p>

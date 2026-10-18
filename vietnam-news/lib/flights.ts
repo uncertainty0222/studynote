@@ -9,7 +9,7 @@ import { dbEnabled, query } from "./db";
 
 export type FlightQuote = { price: number; departureAt: string; airline: string; transfers: number; link: string | null };
 export type FlightRoute = { origin: string; label: string; best: FlightQuote | null; history: { day: string; price: number }[] };
-export type FlightCard = { enabled: boolean; updatedAt: number | null; routes: FlightRoute[] };
+export type FlightCard = { enabled: boolean; updatedAt: number | null; routes: FlightRoute[]; error?: string };
 
 const DESTINATION = "CXR"; // 깜라인 국제공항 (나트랑)
 const ORIGINS = [
@@ -17,6 +17,7 @@ const ORIGINS = [
   { origin: "PUS", label: "부산" },
 ];
 const REFRESH_MS = 6 * 3600_000;
+const RETRY_MS = 10 * 60_000; // 하나도 못 받았으면 10분 뒤 다시
 const ICT_OFFSET_MS = 7 * 3600_000;
 
 type Raw = {
@@ -39,7 +40,8 @@ export function flightsEnabled() {
 // 캐시된 카드를 돌려주고, 오래됐으면 새로 받는다 (처음 한 번은 받아 올 때까지 기다린다)
 export async function getFlightCard(): Promise<FlightCard> {
   if (!flightsEnabled()) return { enabled: false, updatedAt: null, routes: [] };
-  if (Date.now() - state.fetchedAt > REFRESH_MS && !state.running) {
+  const failed = Boolean(state.card && !state.card.routes.some((r) => r.best));
+  if (Date.now() - state.fetchedAt > (failed ? RETRY_MS : REFRESH_MS) && !state.running) {
     state.running = refresh().finally(() => {
       state.running = null;
     });
@@ -50,15 +52,20 @@ export async function getFlightCard(): Promise<FlightCard> {
 
 async function refresh() {
   const routes: FlightRoute[] = [];
+  const errors: string[] = [];
   for (const o of ORIGINS) {
     const best = await cheapest(o.origin).catch((e) => {
       console.error("[flights]", o.origin, e);
+      errors.push(`${o.origin}: ${e instanceof Error ? e.message : String(e)}`);
       return null;
     });
     if (best) await recordDaily(o.origin, best.price).catch((e) => console.error("[flights] history", e));
     routes.push({ origin: o.origin, label: o.label, best, history: await history(o.origin).catch(() => []) });
   }
-  state.card = { enabled: true, updatedAt: Date.now(), routes };
+  // 무엇 때문에 비었는지 /api/flights 에서 확인할 수 있게 남긴다 (토큰은 담지 않는다)
+  const empty = !routes.some((r) => r.best);
+  const error = errors.length ? errors.join(" / ") : empty ? "이번 달·다음 달 출발 가격 데이터가 없음" : undefined;
+  state.card = { enabled: true, updatedAt: Date.now(), routes, error };
   state.fetchedAt = Date.now();
 }
 
