@@ -300,29 +300,31 @@ export default function WeeklyVietnam({
           <p className="mt-1 text-[13px] text-zinc-500">매주 월요일 06:00 발행 · {SECTIONS.length}개 섹션 TOP 10</p>
         </section>
 
-        {/* 기간 */}
-        <div className="mt-7 grid grid-cols-5 gap-0.5 rounded-full bg-zinc-100 p-1 dark:bg-zinc-900" role="tablist" aria-label="기간">
-          {PERIOD_TABS.map((p) => {
-            const locked = p.premium && !access.premium;
-            const active = period === p.id;
-            return (
-              <button
-                key={p.id}
-                role="tab"
-                aria-selected={active}
-                onClick={() => choosePeriod(p.id)}
-                className={`flex h-9 items-center justify-center gap-0.5 whitespace-nowrap rounded-full text-sm font-semibold transition ${
-                  active
-                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
-                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-                }`}
-              >
-                {p.label}
-                {locked && <LockIcon />}
-              </button>
-            );
-          })}
-        </div>
+        {/* 기간: 주간만 보는 무료 독자에게는 숨기고(한 주를 한눈에), PRO 회원에게만 보인다 */}
+        {access.premium && (
+          <div className="mt-7 grid grid-cols-5 gap-0.5 rounded-full bg-zinc-100 p-1 dark:bg-zinc-900" role="tablist" aria-label="기간">
+            {PERIOD_TABS.map((p) => {
+              const locked = p.premium && !access.premium;
+              const active = period === p.id;
+              return (
+                <button
+                  key={p.id}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => choosePeriod(p.id)}
+                  className={`flex h-9 items-center justify-center gap-0.5 whitespace-nowrap rounded-full text-sm font-semibold transition ${
+                    active
+                      ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                      : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  }`}
+                >
+                  {p.label}
+                  {locked && <LockIcon />}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
 
         {/* 섹션: 한 번에 하나씩, 양옆 화살표·탭·좌우 스와이프로 넘긴다 */}
