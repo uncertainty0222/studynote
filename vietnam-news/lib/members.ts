@@ -48,9 +48,18 @@ export function readSession(value: string | undefined): string | null {
 
 // ── 카카오 OAuth ─────────────────────────
 export function siteUrl(req: Request) {
-  if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/$/, "");
+  return siteUrlFromHeaders(req.headers);
+}
+
+export function siteUrlFromHeaders(h: Headers) {
+  const env = process.env.SITE_URL?.trim();
+  if (env) {
+    // "xxx.up.railway.app", "https://xxx.up.railway.app/" 처럼 넣어도 https://호스트 형태로 맞춘다
+    try {
+      return new URL(/^https?:\/\//i.test(env) ? env : `https://${env}`).origin;
+    } catch {}
+  }
   // Railway 프록시 뒤에서는 원래 호스트가 x-forwarded-* 에 담겨 온다
-  const h = req.headers;
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "https";
   return `${proto}://${host}`;
