@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PeriodId, Ranking, RankedStory, ScopeId } from "@/lib/rankings";
-import type { Access } from "@/lib/premium";
+import type { FullAccess as Access } from "@/lib/access";
 import { issueNumber, PERIOD_TABS, SECTIONS, SITE_NAME, weekTitle } from "@/lib/labels";
 
 const POLL_MS = 8000;
 const MAX_POLLS = 45; // 약 6분
 
-type Purchase = { price: string; contact: string };
+type Purchase = { price: string; contact: string; kakaopayLink: string; kakaopayAmount: string };
 type Totals = { runs: number; inputTokens: number; outputTokens: number; costUsd: number; priced: boolean };
 
 // ── 데이터 ──────────────────────────────────
@@ -156,6 +156,20 @@ export default function WeeklyVietnam({
     setShowUsage(window.location.hash === "#usage");
   }, []);
 
+  // 카카오 로그인에서 돌아오면: 성공이면 신청 화면을 다시 열고, 실패면 안내를 띄운다
+  const [loginNotice, setLoginNotice] = useState("");
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("login");
+    if (!result) return;
+    params.delete("login");
+    const rest = params.toString();
+    window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (result === "ok") setPaywall(true);
+    else if (result !== "cancel") setLoginNotice("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
+  }, []);
+
   const national = useRanking("national", period, initial);
   const local = useRanking(city, period, initial);
   const expat = useRanking("expat", "week", initial);
@@ -201,6 +215,15 @@ export default function WeeklyVietnam({
       </header>
 
       <main className="mx-auto max-w-2xl px-5 pb-24">
+        {loginNotice && (
+          <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
+            {loginNotice}
+            <button onClick={() => setLoginNotice("")} aria-label="닫기" className="shrink-0 font-semibold">
+              ✕
+            </button>
+          </div>
+        )}
+
         {/* 이번 호 */}
         <section className="pt-12">
           <h1 className="text-[40px] font-extrabold leading-[1.02] tracking-[-0.035em] sm:text-[52px]">
@@ -697,6 +720,116 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl border border-dashed border-zinc-300 p-6 text-sm text-zinc-500 dark:border-zinc-700">{children}</div>;
 }
 
+// ── 멤버십 신청 (로그인한 회원) ─────────────────
+// 카카오페이 송금 → "송금했어요" → 운영자가 /admin 에서 확인·승인하면 30일 열린다
+function MembershipApply({ member, premium, purchase }: { member: NonNullable<Access["member"]>; premium: boolean; purchase: Purchase }) {
+  const [payer, setPayer] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "sent">(member.pending ? "sent" : "idle");
+  const [error, setError] = useState("");
+
+  async function notifySent(e: React.FormEvent) {
+    e.preventDefault();
+    setState("sending");
+    setError("");
+    try {
+      const res = await fetch("/api/membership", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payerName: payer }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (data.ok) setState("sent");
+      else {
+        setError(data.error ?? "보내지 못했습니다.");
+        setState("idle");
+      }
+    } catch {
+      setError("연결이 불안정합니다. 다시 시도해 주세요.");
+      setState("idle");
+    }
+  }
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.reload();
+  }
+
+  return (
+    <div className="mt-5">
+      {state === "sent" ? (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-500/25 dark:bg-rose-500/10">
+          <p className="text-[15px] font-bold">송금 확인 중이에요</p>
+          <p className="mt-1 break-keep text-[13px] leading-relaxed text-zinc-600 dark:text-zinc-400">
+            운영자가 카카오페이 입금을 확인하면 바로 열려요. 이 화면은 닫아도 괜찮아요.
+          </p>
+        </div>
+      ) : (
+        <div className="rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800/60">
+          <p className="text-[13px] font-semibold text-zinc-500">{premium ? "30일 연장하기" : "신청하기"}</p>
+          <ol className="mt-3 space-y-4 text-sm">
+            <li>
+              <p className="font-semibold">
+                1. 카카오페이로 {purchase.kakaopayAmount || purchase.price || DEFAULT_PRICE} 보내기
+              </p>
+              {purchase.kakaopayLink ? (
+                <a
+                  href={purchase.kakaopayLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 flex h-11 w-full items-center justify-center rounded-xl bg-[#FEE500] text-sm font-semibold text-black/85"
+                >
+                  카카오페이 송금 열기
+                </a>
+              ) : (
+                <p className="mt-1 text-xs text-zinc-400">(운영자: KAKAOPAY_LINK 설정 필요)</p>
+              )}
+            </li>
+            <li>
+              <form onSubmit={notifySent}>
+                <label htmlFor="payer-name" className="font-semibold">
+                  2. 보낸 분 이름을 적고 알려 주세요
+                </label>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    id="payer-name"
+                    value={payer}
+                    onChange={(e) => setPayer(e.target.value)}
+                    autoComplete="name"
+                    placeholder="카카오페이 송금자 이름"
+                    className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-300 bg-white px-3.5 text-[15px] outline-none focus:border-zinc-900 dark:border-zinc-700 dark:bg-transparent dark:focus:border-zinc-300"
+                  />
+                  <button
+                    type="submit"
+                    disabled={state === "sending" || !payer.trim()}
+                    className="h-11 shrink-0 rounded-xl bg-zinc-900 px-4 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-zinc-900"
+                  >
+                    송금했어요
+                  </button>
+                </div>
+              </form>
+            </li>
+          </ol>
+          {error && <p className="mt-2 text-[13px] font-medium text-rose-600">{error}</p>}
+        </div>
+      )}
+      <p className="mt-3 text-center text-xs text-zinc-500">
+        {member.nickname || "카카오 회원"}님으로 로그인됨 ·{" "}
+        <button onClick={logout} className="font-medium underline underline-offset-2">
+          로그아웃
+        </button>
+      </p>
+    </div>
+  );
+}
+
+function KakaoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className="h-5 w-5" fill="currentColor">
+      <path d="M12 3C6.48 3 2 6.54 2 10.9c0 2.82 1.87 5.3 4.69 6.7l-.95 3.48c-.08.3.26.54.52.37l4.14-2.74c.53.06 1.06.09 1.6.09 5.52 0 10-3.54 10-7.9S17.52 3 12 3z" />
+    </svg>
+  );
+}
+
 // ── 이용권 안내 · 코드 입력 ─────────────────────
 // PREMIUM_PRICE_TEXT가 없을 때 보여 줄 가격
 const DEFAULT_PRICE = "70,000동";
@@ -732,10 +865,12 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
     }
   }
 
-  async function logout() {
+  async function releaseCode() {
     await fetch("/api/unlock", { method: "DELETE" });
     window.location.reload();
   }
+
+  const member = access.member;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center" onClick={onClose}>
@@ -751,23 +886,16 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
         <h2 id="paywall-title" className="mt-1 whitespace-pre-line text-xl font-bold leading-snug tracking-tight">
           {access.premium ? "PRO 이용 중" : "멤버십 구독으로\n더 깊게, 더 자세히"}
         </h2>
-        {!access.premium && (
-          <p className="mt-2 break-keep text-[15px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-            주간 베스트뿐만 아니라 <b className="font-semibold text-zinc-900 dark:text-white">일간 · 월간 · 연간</b> 베스트 뉴스를 한눈에!
-          </p>
-        )}
 
         {access.premium ? (
-          <>
-            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-              이 기기에서 PRO를 사용 중입니다{access.expiresAt ? ` · ${fmtShort(access.expiresAt)}까지` : ""}.
-            </p>
-            <button onClick={logout} className="mt-6 h-11 w-full rounded-xl border border-zinc-300 text-sm font-semibold dark:border-zinc-700">
-              이 기기에서 해제
-            </button>
-          </>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+            {access.expiresAt ? `${fmtShort(access.expiresAt)}까지 이용할 수 있어요.` : "기간 제한 없이 이용 중이에요."}
+          </p>
         ) : (
           <>
+            <p className="mt-2 break-keep text-[15px] leading-relaxed text-zinc-600 dark:text-zinc-400">
+              주간 베스트뿐만 아니라 <b className="font-semibold text-zinc-900 dark:text-white">일간 · 월간 · 연간</b> 베스트 뉴스를 한눈에!
+            </p>
             <ul className="mt-4 space-y-2.5 text-sm text-zinc-700 dark:text-zinc-300">
               {["3년 장기 순위까지", "모든 섹션 11–30위까지", "주간 TOP 10은 지금처럼 무료"].map((t) => (
                 <li key={t} className="flex items-center gap-2.5">
@@ -789,7 +917,24 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
                 매주 수백 건의 기사 제목을 읽고 고르는 AI 이용료와 서버비로 쓰여요. AI도 쌀국수 한 그릇은 먹어야 일하거든요.
               </p>
             </div>
+          </>
+        )}
 
+        {/* 신청: 카카오 로그인 → 카카오페이 송금 → 운영자 승인 */}
+        {access.loginEnabled ? (
+          !member ? (
+            <a
+              href="/api/auth/kakao"
+              className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#FEE500] text-[15px] font-semibold text-black/85"
+            >
+              <KakaoIcon />
+              카카오로 시작하기
+            </a>
+          ) : (
+            <MembershipApply member={member} premium={access.premium} purchase={purchase} />
+          )
+        ) : (
+          !access.premium && (
             <div className="mt-5 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800/60">
               <p className="text-xs font-semibold text-zinc-500">구매 문의</p>
               {purchase.contact ? (
@@ -799,32 +944,44 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
               )}
               <p className="mt-1 text-xs text-zinc-500">결제 확인 후 이용권 코드를 보내 드려요.</p>
             </div>
+          )
+        )}
 
-            <form onSubmit={submit} className="mt-5">
-              <label htmlFor="premium-code" className="text-xs font-semibold text-zinc-500">
-                이용권 코드
-              </label>
-              <div className="mt-1.5 flex gap-2">
-                <input
-                  id="premium-code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  placeholder="코드 입력"
-                  className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-300 bg-transparent px-3.5 text-[15px] uppercase outline-none focus:border-zinc-900 dark:border-zinc-700 dark:focus:border-zinc-300"
-                />
-                <button
-                  type="submit"
-                  disabled={busy || !code.trim()}
-                  className="h-11 shrink-0 rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-zinc-900"
-                >
-                  {busy ? "확인 중" : "등록"}
-                </button>
-              </div>
-              {error && <p className="mt-2 text-[13px] font-medium text-rose-600">{error}</p>}
-            </form>
-          </>
+        {/* 예전 방식: 운영자가 보내 준 이용권 코드 */}
+        {access.byCode ? (
+          <button onClick={releaseCode} className="mt-5 h-11 w-full rounded-xl border border-zinc-300 text-sm font-semibold dark:border-zinc-700">
+            이 기기에서 이용권 코드 해제
+          </button>
+        ) : (
+          !access.premium && (
+            <details className="mt-5 group">
+              <summary className="cursor-pointer list-none text-center text-[13px] font-medium text-zinc-500 underline-offset-2 hover:underline">
+                이용권 코드가 있나요?
+              </summary>
+              <form onSubmit={submit} className="mt-3">
+                <div className="flex gap-2">
+                  <input
+                    id="premium-code"
+                    aria-label="이용권 코드"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    placeholder="코드 입력"
+                    className="h-11 min-w-0 flex-1 rounded-xl border border-zinc-300 bg-transparent px-3.5 text-[15px] uppercase outline-none focus:border-zinc-900 dark:border-zinc-700 dark:focus:border-zinc-300"
+                  />
+                  <button
+                    type="submit"
+                    disabled={busy || !code.trim()}
+                    className="h-11 shrink-0 rounded-xl bg-zinc-900 px-5 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-zinc-900"
+                  >
+                    {busy ? "확인 중" : "등록"}
+                  </button>
+                </div>
+                {error && <p className="mt-2 text-[13px] font-medium text-rose-600">{error}</p>}
+              </form>
+            </details>
+          )
         )}
 
         <button onClick={onClose} className="mt-4 h-10 w-full text-sm font-medium text-zinc-500">

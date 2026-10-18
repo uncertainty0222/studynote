@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { accessFromCookie, PREMIUM_COOKIE } from "@/lib/premium";
+import { getAccess } from "@/lib/access";
 import { getRanking, PERIODS, SCOPES, type PeriodId, type ScopeId } from "@/lib/rankings";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +12,6 @@ export async function GET(req: Request) {
   if (!(scope in SCOPES) || !(period in PERIODS)) {
     return Response.json({ error: "scope 또는 period 값이 올바르지 않습니다" }, { status: 400 });
   }
-  const { premium } = accessFromCookie((await cookies()).get(PREMIUM_COOKIE)?.value);
+  const { premium } = await getAccess();
   return Response.json(getRanking(scope, period, premium));
 }

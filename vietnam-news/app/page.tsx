@@ -1,12 +1,11 @@
-import { cookies } from "next/headers";
-import { accessFromCookie, PREMIUM_COOKIE } from "@/lib/premium";
+import { getAccess } from "@/lib/access";
 import { getRanking, modelName, usageTotals, weekRange } from "@/lib/rankings";
 import WeeklyVietnam from "./_components/WeeklyVietnam";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const access = accessFromCookie((await cookies()).get(PREMIUM_COOKIE)?.value);
+  const access = await getAccess();
   return (
     <WeeklyVietnam
       access={access}
@@ -19,6 +18,8 @@ export default async function Page() {
       purchase={{
         price: process.env.PREMIUM_PRICE_TEXT ?? "",
         contact: process.env.PREMIUM_CONTACT ?? "",
+        kakaopayLink: process.env.KAKAOPAY_LINK ?? "",
+        kakaopayAmount: process.env.KAKAOPAY_AMOUNT ?? "",
       }}
       model={modelName()}
       totals={usageTotals()}
