@@ -178,8 +178,10 @@ export default function WeeklyVietnam({
     fetch("/api/membership", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seen: true }) }).catch(() => {});
   }, [access.member?.justApproved]);
 
-  // 카카오 로그인에서 돌아오면: 성공이면 신청 화면을 다시 열고, 실패면 안내를 띄운다
+  // 카카오 로그인에서 돌아오면: 멤버십 안내에서 로그인했고 아직 PRO가 아니면 신청 화면을 다시 열고,
+  // 상단 버튼으로 로그인했으면 짧은 안내만, 실패면 오류 안내를 띄운다
   const [loginNotice, setLoginNotice] = useState("");
+  const [toast, setToast] = useState("");
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const result = params.get("login");
@@ -188,9 +190,15 @@ export default function WeeklyVietnam({
     const rest = params.toString();
     window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (result === "ok") setPaywall(true);
+    if (result === "pro" && !access.premium) setPaywall(true);
+    else if (result === "ok" || result === "pro") setToast("카카오톡으로 로그인했어요");
     else if (result !== "cancel") setLoginNotice("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
-  }, []);
+  }, [access.premium]);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 2500);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const national = useRanking("national", period, initial);
   const expat = useRanking("expat", "week", initial);
@@ -233,6 +241,15 @@ export default function WeeklyVietnam({
       </header>
 
       <main className="mx-auto max-w-2xl px-5 pb-24">
+        {toast && (
+          <div
+            role="status"
+            className="fixed inset-x-0 bottom-6 z-40 mx-auto w-fit rounded-full bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lg dark:bg-white dark:text-zinc-900"
+          >
+            {toast}
+          </div>
+        )}
+
         {approvedNotice && (
           <div
             role="status"
@@ -938,6 +955,7 @@ function MembershipApply({
 }) {
   const [payer, setPayer] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent">(member.pending ? "sent" : "idle");
+  const [extendOpen, setExtendOpen] = useState(!premium); // PRO 이용 중이면 연장 신청은 눌러야 펼친다
   const [error, setError] = useState("");
 
   async function notifySent(e: React.FormEvent) {
@@ -979,6 +997,13 @@ function MembershipApply({
             운영자가 카카오페이 입금을 확인하면 바로 열려요. 이 화면은 닫아도 괜찮아요.
           </p>
         </div>
+      ) : !extendOpen ? (
+        <button
+          onClick={() => setExtendOpen(true)}
+          className="h-11 w-full rounded-xl border border-zinc-300 text-sm font-semibold text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
+        >
+          기간 연장하기 (30일)
+        </button>
       ) : (
         <div className="rounded-xl bg-zinc-50 p-4 dark:bg-zinc-800/60">
           <p className="text-[13px] font-semibold text-zinc-500">{premium ? "30일 연장하기" : "신청하기"}</p>
@@ -1161,7 +1186,7 @@ function Paywall({ access, purchase, onClose, onSent }: { access: Access; purcha
         {access.loginEnabled ? (
           !member ? (
             <a
-              href="/api/auth/kakao"
+              href="/api/auth/kakao?next=pro"
               className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#FEE500] text-[15px] font-semibold text-black/85"
             >
               <KakaoIcon />
