@@ -19,7 +19,7 @@ export const SECTIONS: { id: string; scope: ScopeId; title: string; heading?: st
     id: "abroad",
     scope: "expat",
     title: "해외생활",
-    desc: "비자·거주 · 부동산 · 은행·환율 · 사업·세금 · 암호화폐 · 외국인 제도 · 나트랑 정책",
+    desc: "나트랑·달랏 가이드·교민의 일상에 닿는 뉴스 · 비자·체류 · 가이드 일 · 교통 · 생활비 · 안전",
     weekly: true,
   },
   { id: "nhatrang", scope: "nhatrang", title: "나트랑", desc: "관광 · 교통 · 날씨 · 지역 소식" },
