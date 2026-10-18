@@ -490,7 +490,7 @@ function FlightCard() {
   return (
     <div className="w-full shrink-0 rounded-2xl border border-zinc-200 p-4 sm:w-72 dark:border-zinc-800">
       <p className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
-        <span aria-hidden>✈️</span> 한국 → 나트랑 편도 최저가
+        <span aria-hidden>✈️</span> 한국 ↔ 나트랑 편도 최저가
       </p>
       <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
         {routes.map((r) => (
@@ -517,7 +517,9 @@ function FlightRow({ route }: { route: FlightRoute }) {
           <span className="text-lg font-bold tabular-nums tracking-tight">{b.price.toLocaleString("ko-KR")}원</span>
         </p>
         <p className="truncate text-[11px] text-zinc-500">
-          {dep.getMonth() + 1}.{dep.getDate()} 출발 · {AIRLINES[b.airline] ?? b.airline} · {b.transfers === 0 ? "직항" : `경유 ${b.transfers}회`}
+          {/* 한국 쪽 도시: 한국발이면 출발지, 한국행이면 도착지. 날짜는 출발일 */}
+          {b.city} {route.origin.startsWith("KR") ? "출발" : "도착"} · {dep.getMonth() + 1}.{dep.getDate()} · {AIRLINES[b.airline] ?? b.airline} ·{" "}
+          {b.transfers === 0 ? "직항" : `경유 ${b.transfers}회`}
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-0.5">

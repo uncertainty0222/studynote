@@ -1,4 +1,5 @@
-// 한국 → 나트랑(깜라인 CXR) 편도 최저가와 최근 7일 추이.
+// 한국 → 나트랑(깜라인 CXR), 나트랑 → 한국 편도 최저가와 최근 7일 추이.
+// 한국 쪽은 서울·부산·대구·청주 공항 중 가장 싼 표 하나를 방향별로 보여 준다.
 // 재료: Travelpayouts(Aviasales) Data API의 /aviasales/v3/prices_for_dates.
 //  - 실시간 판매가가 아니라 Aviasales 이용자가 최근(약 48시간) 검색한 결과의 캐시라 실제 가격과 다를 수 있다.
 //  - TRAVELPAYOUTS_TOKEN이 없으면 카드가 보이지 않는다.
@@ -7,14 +8,28 @@
 
 import { dbEnabled, query } from "./db";
 
-export type FlightQuote = { price: number; departureAt: string; airline: string; transfers: number; link: string | null };
+export type FlightQuote = {
+  price: number;
+  departureAt: string;
+  airline: string;
+  transfers: number;
+  link: string | null;
+  city: string; // 한국 쪽 도시 (서울·부산·대구·청주)
+};
 export type FlightRoute = { origin: string; label: string; best: FlightQuote | null; history: { day: string; price: number }[] };
 export type FlightCard = { enabled: boolean; updatedAt: number | null; routes: FlightRoute[]; error?: string };
 
-const DESTINATION = "CXR"; // 깜라인 국제공항 (나트랑)
-const ORIGINS = [
-  { origin: "SEL", label: "서울" }, // 인천·김포를 묶은 도시 코드
-  { origin: "PUS", label: "부산" },
+const NHA_TRANG = "CXR"; // 깜라인 국제공항 (나트랑)
+const KOREA = [
+  { code: "SEL", city: "서울" }, // 인천·김포를 묶은 도시 코드
+  { code: "PUS", city: "부산" },
+  { code: "TAE", city: "대구" },
+  { code: "CJJ", city: "청주" },
+];
+// origin 칸은 추이 저장 키로도 쓴다
+const DIRECTIONS = [
+  { origin: "KR>CXR", label: "한국 → 나트랑", toNhaTrang: true },
+  { origin: "CXR>KR", label: "나트랑 → 한국", toNhaTrang: false },
 ];
 const REFRESH_MS = 6 * 3600_000;
 const RETRY_MS = 10 * 60_000; // 하나도 못 받았으면 10분 뒤 다시
@@ -53,24 +68,29 @@ export async function getFlightCard(): Promise<FlightCard> {
 async function refresh() {
   const routes: FlightRoute[] = [];
   const errors: string[] = [];
-  for (const o of ORIGINS) {
-    const best = await cheapest(o.origin).catch((e) => {
-      console.error("[flights]", o.origin, e);
-      errors.push(`${o.origin}: ${e instanceof Error ? e.message : String(e)}`);
-      return null;
-    });
-    if (best) await recordDaily(o.origin, best.price).catch((e) => console.error("[flights] history", e));
-    routes.push({ origin: o.origin, label: o.label, best, history: await history(o.origin).catch(() => []) });
+  for (const d of DIRECTIONS) {
+    let best: FlightQuote | null = null;
+    for (const k of KOREA) {
+      const [from, to] = d.toNhaTrang ? [k.code, NHA_TRANG] : [NHA_TRANG, k.code];
+      const q = await cheapest(from, to, k.city).catch((e) => {
+        console.error("[flights]", from, to, e);
+        errors.push(`${from}-${to}: ${e instanceof Error ? e.message : String(e)}`);
+        return null;
+      });
+      if (q && (!best || q.price < best.price)) best = q;
+    }
+    if (best) await recordDaily(d.origin, best.price).catch((e) => console.error("[flights] history", e));
+    routes.push({ origin: d.origin, label: d.label, best, history: await history(d.origin).catch(() => []) });
   }
   // 무엇 때문에 비었는지 /api/flights 에서 확인할 수 있게 남긴다 (토큰은 담지 않는다)
   const empty = !routes.some((r) => r.best);
-  const error = errors.length ? errors.join(" / ") : empty ? "이번 달·다음 달 출발 가격 데이터가 없음" : undefined;
+  const error = empty ? (errors.length ? errors.join(" / ") : "이번 달·다음 달 출발 가격 데이터가 없음") : undefined;
   state.card = { enabled: true, updatedAt: Date.now(), routes, error };
   state.fetchedAt = Date.now();
 }
 
 // 이번 달과 다음 달 출발 편도 중 가장 싼 표 (이미 지난 날짜는 뺀다)
-async function cheapest(origin: string): Promise<FlightQuote | null> {
+async function cheapest(origin: string, destination: string, city: string): Promise<FlightQuote | null> {
   const now = new Date();
   const months = [0, 1].map((k) => {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + k, 1));
@@ -80,7 +100,7 @@ async function cheapest(origin: string): Promise<FlightQuote | null> {
   for (const month of months) {
     const p = new URLSearchParams({
       origin,
-      destination: DESTINATION,
+      destination,
       departure_at: month,
       one_way: "true",
       sorting: "price",
@@ -107,6 +127,7 @@ async function cheapest(origin: string): Promise<FlightQuote | null> {
     airline: best.airline ?? "",
     transfers: best.transfers ?? 0,
     link: best.link ? `https://www.aviasales.com${best.link.startsWith("/") ? "" : "/"}${best.link}` : null,
+    city,
   };
 }
 
