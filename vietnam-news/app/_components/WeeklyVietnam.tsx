@@ -388,6 +388,13 @@ export default function WeeklyVietnam({
             순위와 요약은 AI가 영어·한국어·베트남어 기사 제목을 읽고 정리한 편집 판단입니다. 금액·날짜·시행 규정은 근거
             기사 원문에서 확인하세요.
           </p>
+          <p>
+            금액 옆 괄호 속 원화는{" "}
+            <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+              ExchangeRate-API
+            </a>{" "}
+            환율로 계산한 대략값입니다.
+          </p>
           <p>주간·해외생활·특산품은 매주 월요일 06:00(베트남 시간)에 지난주 월~일 기준으로 발행됩니다.</p>
           {access.loginEnabled && (
             <p>로그인은 카카오톡(카카오계정)으로 하며, 카카오 닉네임만 받습니다. 멤버십은 로그인한 카카오계정에 연결됩니다.</p>

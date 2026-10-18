@@ -9,6 +9,7 @@
 // - 요약은 제목만 보고 쓰므로 세부 수치는 원문 링크로 확인해야 한다.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { formatMoney, krwRates, parseAmount, significantDigits } from "./fx";
 import { fetchFeed, googleNews, pubmedSearch, VIETNAM_RE, type FeedRequest, type Headline } from "./feeds";
 
 export type PeriodId = "day" | "week" | "month" | "year" | "threeYear";
@@ -247,8 +248,13 @@ const SCHEMA = {
             type: "array",
             items: {
               type: "object",
-              properties: { l: { type: "string" }, v: { type: "string" } },
-              required: ["l", "v"],
+              properties: {
+                l: { type: "string" },
+                v: { type: "string" },
+                src: { type: "string" },
+                cur: { type: "string" },
+              },
+              required: ["l", "v", "src", "cur"],
               additionalProperties: false,
             },
           },
@@ -633,7 +639,7 @@ Rules:
 - Ranks 1-10:
   - sm: 2 short, plain sentences on what happened and why it matters. tp: one plain sentence on what it means for Korean residents or visitors in Vietnam (or what to keep in mind).
   - st: current state in a few words (e.g. 협상 중, 타결, 시행 중, 진행 중, 종료, 피해 수습 중).
-  - f: up to 3 key numbers, e.g. {"l":"미국 관세율","v":"46% → 20%"}. Every number must appear in this story's headlines, digits copied exactly (keep %, $, units). Use "before → after" only when both numbers appear. Empty list if none.
+  - f: up to 3 key numbers. src: the number exactly as written in one of this story's headlines, digits and separators copied (e.g. "6,1 tấn", "46% xuống 20%", "1,2 tỷ USD"). v: the same number written the Korean way for Korean readers: "." as decimal point, "," for thousands, 만/억/조 for large counts, units translated (tấn→톤, người→명, ha→헥타르, dự án→개 사업, căn hộ→가구), e.g. "6.1톤", "1만 명", "46% → 20%". Use "before → after" only when both numbers appear. For money set cur to the ISO currency code (VND for đồng, USD, EUR, JPY, CNY, KRW…) and keep the amount with its unit word in src (e.g. "1,2 tỷ USD", "35.000 tỷ đồng"); the server writes the Korean money text itself. For non-money set cur "". Empty list if none.
   - tl: 2-4 key steps in order, each with the id of the line reporting it and a short description without dates.
 - Ranks 11 and below: only h, c and ids; sm, tp, st empty strings; f and tl empty lists.
 - Use only facts present in the headlines. Do not invent numbers, dates or quotes.
@@ -642,6 +648,7 @@ Rules:
   const lines = clusters
     .map((c, i) => `${i}\t${yymmdd(c.date)}\t${c.members.length > 1 ? `x${c.members.length}` : ""}\t${c.title}`)
     .join("\n");
+  const krwPer = await krwRates(); // 돈 수치의 원화 환산용 (실패하면 환산 생략)
   const client = new Anthropic();
   // 출력이 길 수 있어 스트리밍으로 받는다 (HTTP 타임아웃 방지)
   const response = await client.beta.messages
@@ -672,7 +679,7 @@ Rules:
       tp: string;
       c: string;
       st: string;
-      f: { l: string; v: string }[];
+      f: { l: string; v: string; src: string; cur: string }[];
       tl: { i: number; e: string }[];
       ids: number[];
     }[];
@@ -685,11 +692,21 @@ Rules:
     const allArticles = ids.flatMap((id) => clusters[id].members).sort((a, b) => a.publishedAt - b.publishedAt);
     const sourceText = allArticles.map((a) => a.title).join(" \n ");
 
-    // 수치는 근거 기사 제목에 그 숫자가 실제로 있을 때만 남긴다 (지어낸 숫자 차단)
+    // 수치는 근거 기사 제목에 그 숫자(src)가 실제로 있을 때만 남긴다 (지어낸 숫자 차단).
+    // 돈은 서버가 src를 직접 읽어 "원문 통화 (약 원화)"로 적고, 그 밖의 수는 한국식 표기(v)가 src와 같은 수일 때만 쓴다.
+    // 어느 쪽도 맞지 않으면 그 수치는 뺀다 (베트남어 원문이 그대로 보이지 않게)
     const figures = (s.f ?? [])
-      .filter((f) => f.v && numbersAppearIn(f.v, sourceText))
-      .slice(0, 3)
-      .map((f) => ({ label: f.l, value: f.v }));
+      .filter((f) => f.src && numbersAppearIn(f.src, sourceText))
+      .map((f) => {
+        if (f.cur) {
+          const amount = parseAmount(f.src);
+          const money = amount ? formatMoney(amount, f.cur.toUpperCase(), krwPer) : null;
+          return money ? { label: f.l, value: money } : null;
+        }
+        return f.v && significantDigits(f.v) === significantDigits(f.src) ? { label: f.l, value: f.v } : null;
+      })
+      .filter((f): f is { label: string; value: string } => f !== null)
+      .slice(0, 3);
 
     // 타임라인 날짜는 모델이 쓴 날짜가 아니라 그 줄 기사의 발행일을 쓴다
     const seenIds = new Set<number>();
