@@ -18,7 +18,8 @@ export default async function Page() {
       purchase={{
         price: process.env.PREMIUM_PRICE_TEXT ?? "",
         contact: process.env.PREMIUM_CONTACT ?? "",
-        kakaopayLink: process.env.KAKAOPAY_LINK ?? "",
+        // 변수에 따옴표나 공백이 같이 들어가도 링크가 깨지지 않게
+        kakaopayLink: (process.env.KAKAOPAY_LINK ?? "").trim().replace(/^["']|["']$/g, ""),
         kakaopayAmount: process.env.KAKAOPAY_AMOUNT ?? "",
       }}
       model={modelName()}
