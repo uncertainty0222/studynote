@@ -68,6 +68,8 @@
 | `ADMIN_KAKAO_IDS` | 없음 | 운영자 카카오 회원번호 (쉼표 구분). `/admin`에서 송금 확인 요청을 승인 |
 | `KAKAOPAY_LINK` | 없음 | 운영자 카카오페이 송금 링크(송금 QR 주소) |
 | `KAKAOPAY_AMOUNT` | 가격 문구 | 카카오페이로 받을 금액 표시 (예: `4,000원`) |
+| `TELEGRAM_BOT_TOKEN` | 없음 | 운영자 알림용 텔레그램 봇 토큰 |
+| `TELEGRAM_CHAT_ID` | 없음 | 알림을 받을 운영자 텔레그램 채팅 ID |
 
 ## 로그인·결제 (카카오 로그인 + 카카오페이 송금 + 운영자 승인)
 카카오페이 자동 결제(API)는 가맹점 계약이 필요해서, 사업자가 없으면 송금을 운영자가 확인하는 방식을 쓴다.
@@ -75,13 +77,15 @@
 2. `카카오페이 송금 열기`로 운영자에게 송금하고, 보낸 사람 이름을 적어 `송금했어요`
 3. 운영자가 카카오페이 앱에서 입금을 확인하고 `/admin`에서 `승인 (30일)` → 그 회원은 어느 기기에서든 로그인하면 유료 기능이 열린다. 남은 기간이 있으면 그 뒤로 30일 연장
 - 예전 이용권 코드(`PREMIUM_CODES`)도 그대로 쓸 수 있다 (`이용권 코드가 있나요?`).
-- 승인 요청이 와도 알림은 가지 않는다. `/admin`을 직접 확인해야 한다.
+- 운영자 알림: `TELEGRAM_BOT_TOKEN`·`TELEGRAM_CHAT_ID`가 있으면 `송금했어요`가 눌릴 때 텔레그램으로 "보낸 분 · 카카오 닉네임 · /admin 링크"를 보낸다. 없으면 `/admin`을 직접 확인해야 한다.
+- 회원 알림: 승인 대기 중인 화면은 20초마다 승인 여부를 확인해 승인되면 바로 열린다. 승인 후 처음 접속하면 한 번만 "🎉 멤버십이 열렸어요" 안내가 뜬다.
 
 설정 순서
 1. Railway 프로젝트에 **+ New → Database → PostgreSQL** 추가 → 사이트 서비스 Variables에 `DATABASE_URL`을 Postgres의 `DATABASE_URL` 참조로 추가 (표는 첫 접속 때 자동 생성)
 2. [Kakao Developers](https://developers.kakao.com) → 내 애플리케이션 → 앱 추가 → 플랫폼(Web)에 사이트 주소 등록 → 카카오 로그인 활성화, Redirect URI에 `https://사이트주소/api/auth/kakao/callback` 등록 → 동의항목에서 닉네임 설정 → REST API 키를 `KAKAO_REST_API_KEY`에
 3. `SITE_URL`, `SESSION_SECRET`, `KAKAOPAY_LINK`, `KAKAOPAY_AMOUNT` 입력
-4. 사이트에서 운영자 본인 카카오로 로그인 → `/admin` 접속 → 화면에 나온 회원번호를 `ADMIN_KAKAO_IDS`에 넣고 재배포
+4. (선택) 텔레그램 알림: 텔레그램에서 @BotFather에게 `/newbot` → 받은 토큰을 `TELEGRAM_BOT_TOKEN`에 → 만든 봇에게 아무 메시지나 보낸 뒤 브라우저로 `https://api.telegram.org/bot<토큰>/getUpdates`를 열어 `"chat":{"id":숫자}`의 숫자를 `TELEGRAM_CHAT_ID`에
+5. 사이트에서 운영자 본인 카카오로 로그인 → `/admin` 접속 → 화면에 나온 회원번호를 `ADMIN_KAKAO_IDS`에 넣고 재배포
 
 운영자용: 주소 끝에 `#usage`를 붙이면 화면 하단에 AI 사용 토큰·비용이 보인다.
 

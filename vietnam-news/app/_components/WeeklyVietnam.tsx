@@ -156,6 +156,28 @@ export default function WeeklyVietnam({
     setShowUsage(window.location.hash === "#usage");
   }, []);
 
+  // 송금 확인을 기다리는 동안 20초마다 승인됐는지 보고, 승인되면 새로고침해 유료 기능과 안내를 띄운다
+  const [waiting, setWaiting] = useState(Boolean(access.member?.pending));
+  useEffect(() => {
+    if (!waiting) return;
+    const t = setInterval(async () => {
+      try {
+        const res = await fetch("/api/membership", { cache: "no-store" });
+        const data = (await res.json()) as { pending?: boolean; premiumUntil?: number | null };
+        if (!data.pending && data.premiumUntil && data.premiumUntil > Date.now()) window.location.reload();
+        else if (!data.pending) setWaiting(false); // 거절된 경우
+      } catch {}
+    }, 20_000);
+    return () => clearInterval(t);
+  }, [waiting]);
+
+  // 승인 후 처음 들어왔을 때 한 번만 '멤버십이 열렸어요'
+  const [approvedNotice, setApprovedNotice] = useState(Boolean(access.member?.justApproved && access.premium));
+  useEffect(() => {
+    if (!access.member?.justApproved) return;
+    fetch("/api/membership", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ seen: true }) }).catch(() => {});
+  }, [access.member?.justApproved]);
+
   // 카카오 로그인에서 돌아오면: 성공이면 신청 화면을 다시 열고, 실패면 안내를 띄운다
   const [loginNotice, setLoginNotice] = useState("");
   useEffect(() => {
@@ -215,6 +237,24 @@ export default function WeeklyVietnam({
       </header>
 
       <main className="mx-auto max-w-2xl px-5 pb-24">
+        {approvedNotice && (
+          <div
+            role="status"
+            className="fixed inset-x-4 bottom-4 z-40 mx-auto flex max-w-md items-start gap-3 rounded-2xl bg-gradient-to-r from-rose-600 to-fuchsia-600 p-4 text-white shadow-lg shadow-rose-600/30"
+          >
+            <span aria-hidden className="text-2xl leading-none">🎉</span>
+            <div className="min-w-0 flex-1">
+              <p className="font-bold">멤버십이 열렸어요!</p>
+              <p className="mt-0.5 break-keep text-[13px] leading-snug text-white/90">
+                {access.expiresAt ? `${fmtShort(access.expiresAt)}까지 ` : ""}일간 · 월간 · 연간 순위와 11–30위를 모두 볼 수 있어요.
+              </p>
+            </div>
+            <button onClick={() => setApprovedNotice(false)} aria-label="닫기" className="shrink-0 font-semibold text-white/80">
+              ✕
+            </button>
+          </div>
+        )}
+
         {loginNotice && (
           <div role="alert" className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">
             {loginNotice}
@@ -394,7 +434,7 @@ export default function WeeklyVietnam({
         </footer>
       </main>
 
-      {paywall && <Paywall access={access} purchase={purchase} onClose={() => setPaywall(false)} />}
+      {paywall && <Paywall access={access} purchase={purchase} onClose={() => setPaywall(false)} onSent={() => setWaiting(true)} />}
     </div>
   );
 }
@@ -722,7 +762,17 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 // ── 멤버십 신청 (로그인한 회원) ─────────────────
 // 카카오페이 송금 → "송금했어요" → 운영자가 /admin 에서 확인·승인하면 30일 열린다
-function MembershipApply({ member, premium, purchase }: { member: NonNullable<Access["member"]>; premium: boolean; purchase: Purchase }) {
+function MembershipApply({
+  member,
+  premium,
+  purchase,
+  onSent,
+}: {
+  member: NonNullable<Access["member"]>;
+  premium: boolean;
+  purchase: Purchase;
+  onSent: () => void;
+}) {
   const [payer, setPayer] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent">(member.pending ? "sent" : "idle");
   const [error, setError] = useState("");
@@ -738,7 +788,10 @@ function MembershipApply({ member, premium, purchase }: { member: NonNullable<Ac
         body: JSON.stringify({ payerName: payer }),
       });
       const data = (await res.json()) as { ok?: boolean; error?: string };
-      if (data.ok) setState("sent");
+      if (data.ok) {
+        setState("sent");
+        onSent();
+      }
       else {
         setError(data.error ?? "보내지 못했습니다.");
         setState("idle");
@@ -834,7 +887,7 @@ function KakaoIcon() {
 // PREMIUM_PRICE_TEXT가 없을 때 보여 줄 가격
 const DEFAULT_PRICE = "70,000동";
 
-function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purchase; onClose: () => void }) {
+function Paywall({ access, purchase, onClose, onSent }: { access: Access; purchase: Purchase; onClose: () => void; onSent: () => void }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -931,7 +984,7 @@ function Paywall({ access, purchase, onClose }: { access: Access; purchase: Purc
               카카오로 시작하기
             </a>
           ) : (
-            <MembershipApply member={member} premium={access.premium} purchase={purchase} />
+            <MembershipApply member={member} premium={access.premium} purchase={purchase} onSent={onSent} />
           )
         ) : (
           !access.premium && (

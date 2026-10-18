@@ -6,6 +6,7 @@
 // SITE_URL             : 사이트 주소 (예: https://xxx.up.railway.app). 카카오 Redirect URI = SITE_URL + /api/auth/kakao/callback
 // ADMIN_KAKAO_IDS      : 운영자 카카오 회원번호 (쉼표 구분). /admin 에서 승인할 수 있다
 // SESSION_SECRET       : 로그인 쿠키 서명용 긴 임의 문자열 (없으면 PREMIUM_SECRET을 쓴다)
+// TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID : 있으면 '송금했어요' 신청이 올 때 운영자 텔레그램으로 알린다
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { dbEnabled, query } from "./db";
@@ -107,6 +108,7 @@ export type Member = {
   nickname: string;
   premiumUntil: number | null;
   pending: boolean; // 승인을 기다리는 송금 확인 요청이 있는지
+  justApproved: boolean; // 승인됐는데 아직 '멤버십이 열렸어요' 안내를 못 봤는지
   admin: boolean;
 };
 
@@ -126,9 +128,10 @@ export async function upsertMember(id: string, nickname: string) {
 }
 
 export async function getMember(id: string): Promise<Member | null> {
-  const rows = await query<{ nickname: string; premium_until: Date | null; pending: boolean }>(
+  const rows = await query<{ nickname: string; premium_until: Date | null; pending: boolean; just_approved: boolean }>(
     `select nickname, premium_until,
-       exists(select 1 from payment_requests p where p.kakao_id = m.kakao_id and p.status = 'pending') as pending
+       exists(select 1 from payment_requests p where p.kakao_id = m.kakao_id and p.status = 'pending') as pending,
+       exists(select 1 from payment_requests p where p.kakao_id = m.kakao_id and p.status = 'approved' and not p.seen) as just_approved
      from members m where kakao_id = $1`,
     [id],
   );
@@ -138,6 +141,7 @@ export async function getMember(id: string): Promise<Member | null> {
     nickname: rows[0].nickname,
     premiumUntil: rows[0].premium_until ? rows[0].premium_until.getTime() : null,
     pending: rows[0].pending,
+    justApproved: rows[0].just_approved,
     admin: isAdmin(id),
   };
 }
@@ -151,6 +155,28 @@ export async function requestMembership(id: string, payerName: string) {
   );
   if (updated.length === 0) {
     await query(`insert into payment_requests (kakao_id, payer_name) values ($1, $2)`, [id, name]);
+  }
+}
+
+export async function markApprovalSeen(id: string) {
+  await query(`update payment_requests set seen = true where kakao_id = $1 and status = 'approved' and not seen`, [id]);
+}
+
+// 운영자 텔레그램 알림. 실패해도 신청 자체는 막지 않는다
+export async function notifyOperator(text: string) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) console.error("[telegram]", res.status, await res.text().catch(() => ""));
+  } catch (e) {
+    console.error("[telegram]", e);
   }
 }
 

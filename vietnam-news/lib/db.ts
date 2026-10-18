@@ -26,6 +26,8 @@ create table if not exists payment_requests (
   decided_at timestamptz
 );
 create index if not exists payment_requests_status on payment_requests(status, created_at);
+-- 승인 후 회원이 사이트에서 '멤버십이 열렸어요' 안내를 봤는지
+alter table payment_requests add column if not exists seen boolean not null default false;
 `;
 
 function db() {
