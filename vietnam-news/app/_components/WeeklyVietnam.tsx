@@ -8,7 +8,7 @@ import { issueNumber, PERIOD_TABS, SECTIONS, SITE_NAME, weekTitle } from "@/lib/
 const POLL_MS = 8000;
 const MAX_POLLS = 45; // 약 6분
 
-type Purchase = { price: string; contact: string; kakaopayLink: string; kakaopayAmount: string };
+type Purchase = { price: string; contact: string; kakaopayLink: string; kakaopayAmount: string; kakaopayQr: string };
 type Totals = { runs: number; inputTokens: number; outputTokens: number; costUsd: number; priced: boolean };
 
 // ── 데이터 ──────────────────────────────────
@@ -825,14 +825,35 @@ function MembershipApply({
                 1. 카카오페이로 {purchase.kakaopayAmount || purchase.price || DEFAULT_PRICE} 보내기
               </p>
               {purchase.kakaopayLink ? (
-                <a
-                  href={purchase.kakaopayLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 flex h-11 w-full items-center justify-center rounded-xl bg-[#FEE500] text-sm font-semibold text-black/85"
-                >
-                  카카오페이 송금 열기
-                </a>
+                <>
+                  {/* 휴대폰(터치)에서는 버튼, PC(마우스)에서는 휴대폰으로 찍을 QR */}
+                  <a
+                    href={purchase.kakaopayLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`mt-2 h-11 w-full items-center justify-center rounded-xl bg-[#FEE500] text-sm font-semibold text-black/85 ${
+                      purchase.kakaopayQr ? "flex pointer-fine:hidden" : "flex"
+                    }`}
+                  >
+                    카카오페이 송금 열기
+                  </a>
+                  {purchase.kakaopayQr && (
+                    <div className="mt-2 hidden items-center gap-4 pointer-fine:flex">
+                      {/* 서버에서 만든 작은 SVG라 next/image 최적화가 필요 없다 */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`data:image/svg+xml;utf8,${encodeURIComponent(purchase.kakaopayQr)}`}
+                        alt="카카오페이 송금 QR 코드"
+                        width={112}
+                        height={112}
+                        className="shrink-0 rounded-lg bg-white p-1"
+                      />
+                      <p className="break-keep text-[13px] leading-relaxed text-zinc-600 dark:text-zinc-400">
+                        휴대폰 카메라로 QR을 찍으면 카카오페이 송금 화면이 열려요.
+                      </p>
+                    </div>
+                  )}
+                </>
               ) : (
                 <p className="mt-1 text-xs text-zinc-400">(운영자: KAKAOPAY_LINK 설정 필요)</p>
               )}
