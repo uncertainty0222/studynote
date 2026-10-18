@@ -57,7 +57,7 @@
 | `TOP10_MODEL` | `claude-opus-5-5` | 비용을 줄이려면 `claude-sonnet-5-5` 또는 `claude-haiku-5-5` |
 | `PREMIUM_CODES` | 없음 | 이용권 코드 목록, 쉼표 구분. 만료일은 `CODE@2026-12-31`. 목록에서 지우면 즉시 해제 |
 | `PREMIUM_SECRET` | 없음 | 쿠키 서명용 긴 임의 문자열. 없으면 재시작마다 독자가 코드를 다시 입력해야 함 |
-| `PREMIUM_PRICE_TEXT` | `70,000동` | 이용권 안내에 보일 가격 문구 |
+| `PREMIUM_PRICE_TEXT` | `80,000동` | 이용권 안내에 보일 가격 문구 |
 | `PREMIUM_CONTACT` | 없음 | 구매 문의 연락처 (예: 카카오톡 ID) |
 
 | `DATABASE_URL` | 없음 | Railway Postgres 연결 주소. 없으면 로그인·결제가 꺼지고 아래 '구매 문의' 방식으로 동작 |

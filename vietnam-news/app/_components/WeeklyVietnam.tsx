@@ -987,7 +987,7 @@ function KakaoIcon({ className = "h-5 w-5" }: { className?: string }) {
 
 // ── 이용권 안내 · 코드 입력 ─────────────────────
 // PREMIUM_PRICE_TEXT가 없을 때 보여 줄 가격
-const DEFAULT_PRICE = "70,000동";
+const DEFAULT_PRICE = "80,000동";
 
 function Paywall({ access, purchase, onClose, onSent }: { access: Access; purchase: Purchase; onClose: () => void; onSent: () => void }) {
   const [code, setCode] = useState("");
@@ -1039,7 +1039,7 @@ function Paywall({ access, purchase, onClose, onSent }: { access: Access; purcha
         <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700 sm:hidden" />
         <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">{SITE_NAME} PRO</p>
         <h2 id="paywall-title" className="mt-1 whitespace-pre-line text-xl font-bold leading-snug tracking-tight">
-          {access.premium ? "PRO 이용 중" : "멤버십 구독으로\n더 깊게, 더 자세히"}
+          {access.premium ? "PRO 이용 중" : "쌀국수 한 그릇 가격으로\n더 깊게, 더 자세히"}
         </h2>
 
         {access.premium ? (
@@ -1060,7 +1060,7 @@ function Paywall({ access, purchase, onClose, onSent }: { access: Access; purcha
               ))}
             </ul>
             <div className="mt-5 flex items-baseline justify-between gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-              <span className="text-sm text-zinc-500">🍜 한 달, 쌀국수 한 그릇</span>
+              <span className="text-sm text-zinc-500">🍜 한 달 이용료</span>
               <span className="text-lg font-bold tabular-nums">{purchase.price || DEFAULT_PRICE}</span>
             </div>
 
