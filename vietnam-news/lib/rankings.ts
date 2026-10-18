@@ -101,9 +101,9 @@ Then consider large economic, social or disaster events with national impact. Sk
     focus: `Only stories about Da Lat and its immediate area. Rank first what a tour guide working there must know: tourism policy and visitor numbers (especially Korean tourists), flights and Lien Khuong airport, roads and mountain passes, landslides and weather, attractions opening or closing, incidents involving tourists, local regulations, festivals and events, prices.`,
   },
   // 교민·관광업 생활정보: 일주일 전용 (일요일 밤이 지난 월요일 아침에 자동 생성)
-  // 교민생활: 외국인으로서 베트남(특히 나트랑)에서 사는 데 필요한 정책·제도 뉴스. 주간 전용
+  // 해외생활(예전 이름 교민생활): 외국인으로서 베트남(특히 나트랑)에서 사는 데 필요한 정책·제도 뉴스. 주간 전용
   expat: {
-    label: "교민생활",
+    label: "해외생활",
     weeklyOnly: true,
     queries: [
       // 비자·거주·외국인 제도
@@ -312,7 +312,7 @@ export function modelName() {
 
 // 저장된 순위를 바로 돌려주고, 없거나 오래됐으면 백그라운드 생성을 예약한다
 export function getRanking(scope: ScopeId, requested: PeriodId, premium = false): Ranking {
-  const period: PeriodId = SCOPES[scope].weeklyOnly ? "week" : requested; // 교민생활·특산품은 주간만 있다
+  const period: PeriodId = SCOPES[scope].weeklyOnly ? "week" : requested; // 해외생활·특산품은 주간만 있다
   // 유료 기간은 이용권이 없으면 만들지도 않는다 (토큰은 결제한 독자가 쓸 때만 든다)
   if (period !== FREE_PERIOD && !premium) {
     return { scope, period, enabled: Boolean(process.env.ANTHROPIC_API_KEY), status: "locked", generatedAt: null, poolSize: 0, stories: [] };

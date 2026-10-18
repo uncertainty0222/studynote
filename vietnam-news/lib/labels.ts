@@ -12,33 +12,25 @@ export const PERIOD_TABS: { id: PeriodId; label: string; premium: boolean }[] = 
   { id: "threeYear", label: "3년", premium: true },
 ];
 
-export const SECTIONS: { id: string; title: string; desc: string; scopes: { id: ScopeId; label: string }[] }[] = [
+// 섹션 순서 = 화면 탭 순서. weekly: 기간 탭과 상관없이 주간만 있는 섹션. heading: 섹션 제목(없으면 title)
+export const SECTIONS: { id: string; scope: ScopeId; title: string; heading?: string; desc: string; weekly?: boolean }[] = [
+  { id: "vietnam", scope: "national", title: "베트남", desc: "국제정세 · 국내정책 · 경제 · 한국 관련" },
   {
-    id: "vietnam",
-    title: "베트남",
-    desc: "국제정세 · 국내정책 · 경제 · 한국 관련",
-    scopes: [{ id: "national", label: "베트남" }],
-  },
-  {
-    id: "local",
-    title: "나트랑 · 달랏",
-    desc: "관광 · 교통 · 날씨 · 지역 소식",
-    scopes: [
-      { id: "nhatrang", label: "나트랑" },
-      { id: "dalat", label: "달랏" },
-    ],
-  },
-  {
-    id: "expat",
-    title: "교민생활",
+    id: "abroad",
+    scope: "expat",
+    title: "해외생활",
     desc: "비자·거주 · 부동산 · 은행·환율 · 사업·세금 · 암호화폐 · 외국인 제도 · 나트랑 정책",
-    scopes: [{ id: "expat", label: "교민생활" }],
+    weekly: true,
   },
+  { id: "nhatrang", scope: "nhatrang", title: "나트랑", desc: "관광 · 교통 · 날씨 · 지역 소식" },
+  { id: "dalat", scope: "dalat", title: "달랏", desc: "관광 · 교통 · 날씨 · 지역 소식" },
   {
     id: "specialty",
+    scope: "specialty",
     title: "특산품",
+    heading: "나트랑 · 달랏 특산품",
     desc: "침향 · 상황버섯 · 커피 · 연구 소식",
-    scopes: [{ id: "specialty", label: "특산품" }],
+    weekly: true,
   },
 ];
 

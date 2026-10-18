@@ -28,6 +28,13 @@ create table if not exists payment_requests (
 create index if not exists payment_requests_status on payment_requests(status, created_at);
 -- 승인 후 회원이 사이트에서 '멤버십이 열렸어요' 안내를 봤는지
 alter table payment_requests add column if not exists seen boolean not null default false;
+-- 한국 → 나트랑 항공권 날짜별 최저가 (lib/flights.ts)
+create table if not exists flight_prices (
+  day date not null,
+  origin text not null,
+  price integer not null,
+  primary key (day, origin)
+);
 `;
 
 function db() {

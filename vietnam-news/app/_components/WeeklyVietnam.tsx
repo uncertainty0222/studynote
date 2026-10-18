@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PeriodId, Ranking, RankedStory, ScopeId } from "@/lib/rankings";
 import type { FullAccess as Access } from "@/lib/access";
+import type { FlightCard as FlightCardData, FlightRoute } from "@/lib/flights";
 import { issueNumber, PERIOD_TABS, SECTIONS, SITE_NAME, weekTitle } from "@/lib/labels";
 
 const POLL_MS = 8000;
@@ -66,7 +67,6 @@ export default function WeeklyVietnam({
   totals: Totals;
 }) {
   const [period, setPeriod] = useState<PeriodId>("week");
-  const [city, setCity] = useState<ScopeId>("nhatrang");
   const [paywall, setPaywall] = useState(false);
   const [showUsage, setShowUsage] = useState(false);
   const [section, setSection] = useState(0);
@@ -193,11 +193,14 @@ export default function WeeklyVietnam({
   }, []);
 
   const national = useRanking("national", period, initial);
-  const local = useRanking(city, period, initial);
   const expat = useRanking("expat", "week", initial);
+  const nhatrang = useRanking("nhatrang", period, initial);
+  const dalat = useRanking("dalat", period, initial);
   const specialty = useRanking("specialty", "week", initial);
+  const byScope: Partial<Record<ScopeId, Ranking | undefined>> = { national, expat, nhatrang, dalat, specialty };
+  const current = SECTIONS[section];
 
-  // 호수·날짜는 항상 주간인 교민생활 순위에서 가져온다 (주간 순위가 나중에 도착해도 갱신된다)
+  // 호수·날짜는 항상 주간인 해외생활 순위에서 가져온다 (주간 순위가 나중에 도착해도 갱신된다)
   const weekly = expat?.weekKey ? expat : initial.find((r) => r.scope === "national");
   const weekKey = weekly?.weekKey ?? currentWeek;
   const issue = issueNumber(weekKey);
@@ -220,24 +223,11 @@ export default function WeeklyVietnam({
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-5">
           <div className="flex items-center gap-2">
             <span className="whitespace-nowrap text-[17px] font-extrabold tracking-tight">{SITE_NAME}</span>
-            {/* 휴대폰 폭에서는 로그인 버튼 자리를 위해 숨긴다 (제목 옆 큰 배지는 그대로) */}
-            <span className="max-sm:hidden">
-              <AiBadge size="sm" />
-            </span>
-            {issue && <span className="text-xs font-medium text-zinc-400 max-sm:hidden">No.{issue}</span>}
+            <AiBadge size="sm" />
+            {issue && <span className="text-xs font-medium text-zinc-400 max-[419px]:hidden">No.{issue}</span>}
           </div>
           <div className="flex items-center gap-2">
-            {access.loginEnabled && <AccountButton member={access.member} />}
-            <button
-              onClick={() => setPaywall(true)}
-              className={`h-8 whitespace-nowrap rounded-full px-3.5 text-[13px] font-semibold ${
-                access.premium
-                  ? "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
-                  : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
-              }`}
-            >
-              PRO<span className="max-[389px]:hidden">{access.premium ? " 이용 중" : " 이용권"}</span>
-            </button>
+            {access.loginEnabled && <AccountButton member={access.member} premium={access.premium} onPro={() => setPaywall(true)} />}
           </div>
         </div>
       </header>
@@ -290,7 +280,7 @@ export default function WeeklyVietnam({
             {week ? week.title : "이번 주"}
             {week && <span className="text-base font-medium tabular-nums text-zinc-400">({week.range})</span>}
           </p>
-          <p className="mt-1 text-[13px] text-zinc-500">매주 월요일 06:00 발행 · 4개 섹션 TOP 10</p>
+          <p className="mt-1 text-[13px] text-zinc-500">매주 월요일 06:00 발행 · {SECTIONS.length}개 섹션 TOP 10</p>
         </section>
 
         {/* 기간 */}
@@ -366,51 +356,19 @@ export default function WeeklyVietnam({
               enterFrom === "right" ? "animate-slide-from-right" : enterFrom === "left" ? "animate-slide-from-left" : ""
             }`}
           >
-          {section === 0 && (
-            <Section id="vietnam" title="베트남" desc={SECTIONS[0].desc} badge={periodTab.label}>
-              <RankingView key={`national:${period}`} ranking={national} onPaywall={() => setPaywall(true)} />
-            </Section>
-          )}
-
-          {section === 1 && (
-            <Section
-              id="local"
-              title="나트랑 · 달랏"
-              desc={SECTIONS[1].desc}
-              badge={periodTab.label}
-              right={
-                <div className="flex rounded-full bg-zinc-100 p-0.5 dark:bg-zinc-900">
-                  {SECTIONS[1].scopes.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => setCity(c.id)}
-                      aria-pressed={city === c.id}
-                      className={`h-8 rounded-full px-3.5 text-[13px] font-semibold ${
-                        city === c.id ? "bg-white shadow-sm dark:bg-zinc-700" : "text-zinc-500"
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-              }
-            >
-              <RankingView key={`${city}:${period}`} ranking={local} onPaywall={() => setPaywall(true)} />
-            </Section>
-          )}
-
-          {section === 2 && (
-            <Section id="expat" title="교민생활" desc={SECTIONS[2].desc} badge="주간">
-              <RankingView key="expat" ranking={expat} onPaywall={() => setPaywall(true)} />
-            </Section>
-          )}
-
-          {section === 3 && (
-            <Section id="specialty" title="나트랑 · 달랏 특산품" desc={SECTIONS[3].desc} badge="주간">
-              <RankingView key="specialty" ranking={specialty} onPaywall={() => setPaywall(true)} />
-            </Section>
-          )}
-
+          <Section
+            id={current.id}
+            title={current.heading ?? current.title}
+            desc={current.desc}
+            badge={current.weekly ? "주간" : periodTab.label}
+            extra={current.scope === "expat" ? <FlightCard /> : undefined}
+          >
+            <RankingView
+              key={`${current.scope}:${current.weekly ? "week" : period}`}
+              ranking={byScope[current.scope]}
+              onPaywall={() => setPaywall(true)}
+            />
+          </Section>
           </div>
 
           {/* 아래쪽 넘김: 기간 탭과 같은 알약 모양 */}
@@ -430,7 +388,7 @@ export default function WeeklyVietnam({
             순위와 요약은 AI가 영어·한국어·베트남어 기사 제목을 읽고 정리한 편집 판단입니다. 금액·날짜·시행 규정은 근거
             기사 원문에서 확인하세요.
           </p>
-          <p>주간·교민생활·특산품은 매주 월요일 06:00(베트남 시간)에 지난주 월~일 기준으로 발행됩니다.</p>
+          <p>주간·해외생활·특산품은 매주 월요일 06:00(베트남 시간)에 지난주 월~일 기준으로 발행됩니다.</p>
           {access.loginEnabled && (
             <p>로그인은 카카오톡(카카오계정)으로 하며, 카카오 닉네임만 받습니다. 멤버십은 로그인한 카카오계정에 연결됩니다.</p>
           )}
@@ -453,28 +411,140 @@ function Section({
   title,
   desc,
   badge,
-  right,
+  extra,
   children,
 }: {
   id: string;
   title: string;
   desc: string;
   badge: string;
-  right?: React.ReactNode;
+  extra?: React.ReactNode; // 제목 옆(넓은 화면) 또는 아래(휴대폰)에 붙는 카드
   children: React.ReactNode;
 }) {
   return (
     <section id={id} className="pt-8">
-      <div className="mb-5 flex items-end justify-between gap-3">
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">{badge} Top 10</p>
           <h2 className="mt-1 text-[22px] font-bold tracking-tight">{title}</h2>
-          <p className="mt-1 text-[13px] text-zinc-500">{desc}</p>
+          <p className="mt-1 break-keep text-[13px] text-zinc-500">{desc}</p>
         </div>
-        {right}
+        {extra}
       </div>
       {children}
     </section>
+  );
+}
+
+// ── 한국 → 나트랑 항공권 카드 (해외생활 섹션) ─────────────
+const AIRLINES: Record<string, string> = {
+  VJ: "비엣젯",
+  VN: "베트남항공",
+  KE: "대한항공",
+  OZ: "아시아나",
+  "7C": "제주항공",
+  LJ: "진에어",
+  TW: "티웨이",
+  BX: "에어부산",
+  ZE: "이스타",
+  RS: "에어서울",
+};
+
+function FlightCard() {
+  const [card, setCard] = useState<FlightCardData | null>(null);
+  useEffect(() => {
+    fetch("/api/flights")
+      .then((r) => r.json())
+      .then((d: FlightCardData) => setCard(d))
+      .catch(() => setCard({ enabled: false, updatedAt: null, routes: [] }));
+  }, []);
+
+  if (card && !card.enabled) return null; // 운영자가 TRAVELPAYOUTS_TOKEN을 넣지 않았으면 숨긴다
+  const routes = card?.routes.filter((r) => r.best) ?? [];
+  if (card && routes.length === 0) return null;
+
+  return (
+    <div className="w-full shrink-0 rounded-2xl border border-zinc-200 p-4 sm:w-72 dark:border-zinc-800">
+      <p className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500">
+        <span aria-hidden>✈️</span> 한국 → 나트랑 편도 최저가
+      </p>
+      {!card ? (
+        <div className="mt-3 h-12 animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-900" />
+      ) : (
+        <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800">
+          {routes.map((r) => (
+            <FlightRow key={r.origin} route={r} />
+          ))}
+        </ul>
+      )}
+      <p className="mt-2 break-keep text-[11px] leading-snug text-zinc-400">
+        Aviasales 최근 검색 기준이라 실제 판매가와 다를 수 있어요.
+      </p>
+    </div>
+  );
+}
+
+function FlightRow({ route }: { route: FlightRoute }) {
+  const b = route.best!;
+  const h = route.history;
+  const diff = h.length >= 2 ? h[h.length - 1].price - h[0].price : null;
+  const dep = new Date(b.departureAt);
+  const body = (
+    <div className="flex items-center gap-3 py-2">
+      <div className="min-w-0 flex-1">
+        <p className="flex items-baseline gap-2">
+          <span className="text-[13px] font-semibold text-zinc-500">{route.label}</span>
+          <span className="text-lg font-bold tabular-nums tracking-tight">{b.price.toLocaleString("ko-KR")}원</span>
+        </p>
+        <p className="truncate text-[11px] text-zinc-500">
+          {dep.getMonth() + 1}.{dep.getDate()} 출발 · {AIRLINES[b.airline] ?? b.airline} · {b.transfers === 0 ? "직항" : `경유 ${b.transfers}회`}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-end gap-0.5">
+        <Sparkline points={h} />
+        <span className="text-[11px] tabular-nums text-zinc-500">
+          {diff === null ? "추이 모으는 중" : diff === 0 ? "7일간 변동 없음" : `${diff < 0 ? "▼" : "▲"} ${Math.abs(diff).toLocaleString("ko-KR")}원`}
+        </span>
+      </div>
+    </div>
+  );
+  return <li>{b.link ? <a href={b.link} target="_blank" rel="noopener noreferrer" className="block hover:opacity-80">{body}</a> : body}</li>;
+}
+
+// 최근 7일 날짜별 최저가. 점이 하나뿐이면 점만 그린다
+function Sparkline({ points }: { points: { day: string; price: number }[] }) {
+  const W = 72;
+  const H = 24;
+  const pad = 3;
+  if (points.length === 0) return <svg width={W} height={H} aria-hidden />;
+  const prices = points.map((p) => p.price);
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const x = (i: number) => (points.length === 1 ? W - pad : pad + (i * (W - 2 * pad)) / (points.length - 1));
+  const y = (v: number) => (max === min ? H / 2 : pad + ((max - v) * (H - 2 * pad)) / (max - min));
+  const label = points.map((p) => `${p.day.slice(5).replace("-", ".")} ${p.price.toLocaleString("ko-KR")}원`).join(", ");
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`최근 7일 최저가: ${label}`} className="overflow-visible">
+      {points.length > 1 && (
+        <polyline
+          points={points.map((p, i) => `${x(i)},${y(p.price)}`).join(" ")}
+          fill="none"
+          className="stroke-rose-500"
+          strokeWidth={2}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      )}
+      {points.map((p, i) => (
+        <g key={p.day}>
+          {/* 점보다 넓은 투명 영역에 마우스를 올리면 날짜·가격이 뜬다 */}
+          <rect x={x(i) - 6} y={0} width={12} height={H} fill="transparent">
+            <title>{`${p.day.slice(5).replace("-", ".")} · ${p.price.toLocaleString("ko-KR")}원`}</title>
+          </rect>
+          {i === points.length - 1 && <circle cx={x(i)} cy={y(p.price)} r={3} className="fill-rose-500" />}
+        </g>
+      ))}
+    </svg>
   );
 }
 
@@ -637,7 +707,7 @@ function CompactRow({ story: s }: { story: RankedStory }) {
 
 // 이번 주 순위가 30위를 못 채워 지난 주 순위에서 가져온 항목 표시
 // 상단 바 로그인·로그아웃: 비회원은 카카오 로그인 버튼, 회원은 닉네임 메뉴(로그아웃)
-function AccountButton({ member }: { member: Access["member"] }) {
+function AccountButton({ member, premium, onPro }: { member: Access["member"]; premium: boolean; onPro: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -691,6 +761,15 @@ function AccountButton({ member }: { member: Access["member"] }) {
               카카오톡으로 로그인됨
             </p>
           </div>
+          <button
+            onClick={() => {
+              setOpen(false);
+              onPro();
+            }}
+            className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          >
+            {premium ? "PRO 이용 중 · 기간 보기" : "PRO 멤버십 안내"}
+          </button>
           {member.admin && (
             <a href="/admin" className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800">
               운영자 · 멤버십 승인

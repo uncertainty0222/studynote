@@ -16,6 +16,7 @@ export default async function Page() {
       initial={[
         getRanking("national", "week", access.premium),
         getRanking("nhatrang", "week", access.premium),
+        getRanking("dalat", "week", access.premium),
         getRanking("expat", "week", access.premium),
         getRanking("specialty", "week", access.premium),
       ]}
