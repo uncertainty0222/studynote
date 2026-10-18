@@ -220,8 +220,11 @@ export default function WeeklyVietnam({
         <div className="mx-auto flex h-14 max-w-2xl items-center justify-between px-5">
           <div className="flex items-center gap-2">
             <span className="whitespace-nowrap text-[17px] font-extrabold tracking-tight">{SITE_NAME}</span>
-            <AiBadge size="sm" />
-            {issue && <span className="text-xs font-medium text-zinc-400 max-[419px]:hidden">No.{issue}</span>}
+            {/* 휴대폰 폭에서는 로그인 버튼 자리를 위해 숨긴다 (제목 옆 큰 배지는 그대로) */}
+            <span className="max-sm:hidden">
+              <AiBadge size="sm" />
+            </span>
+            {issue && <span className="text-xs font-medium text-zinc-400 max-sm:hidden">No.{issue}</span>}
           </div>
           <div className="flex items-center gap-2">
             {access.loginEnabled && <AccountButton member={access.member} />}
@@ -233,7 +236,7 @@ export default function WeeklyVietnam({
                   : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
               }`}
             >
-              {access.premium ? "PRO 이용 중" : "PRO 이용권"}
+              PRO<span className="max-[389px]:hidden">{access.premium ? " 이용 중" : " 이용권"}</span>
             </button>
           </div>
         </div>
@@ -651,12 +654,11 @@ function AccountButton({ member }: { member: Access["member"] }) {
     return (
       <a
         href="/api/auth/kakao"
-        className="flex h-8 min-w-8 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-[#FEE500] px-2 text-[13px] font-semibold text-black/85 min-[390px]:px-3"
+        className="flex h-8 items-center gap-1 whitespace-nowrap rounded-full bg-[#FEE500] px-3 text-[13px] font-semibold text-black/85"
         aria-label="카카오톡으로 로그인"
       >
         <KakaoIcon className="h-4 w-4" />
-        {/* 아주 좁은 화면에서는 카카오 아이콘만 */}
-        <span className="max-[389px]:hidden">로그인</span>
+        카카오톡 로그인
       </a>
     );
   }
