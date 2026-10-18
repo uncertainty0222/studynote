@@ -675,9 +675,12 @@ function AccountButton({ member }: { member: Access["member"] }) {
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-label={`${name} 계정 메뉴`}
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FEE500] text-[13px] font-bold text-black/85"
+        className="flex h-8 max-w-[9.5rem] items-center gap-1 whitespace-nowrap rounded-full bg-[#FEE500] pl-2.5 pr-2 text-[13px] font-semibold text-black/85"
       >
-        {name.slice(0, 1)}
+        <KakaoIcon className="h-4 w-4 shrink-0" />
+        {/* 닉네임이 없으면(동의 안 함) '내 계정' */}
+        <span className="truncate">{member.nickname || "내 계정"}</span>
+        <Chevron open={open} />
       </button>
       {open && (
         <div className="absolute right-0 top-10 z-30 w-56 rounded-2xl border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
