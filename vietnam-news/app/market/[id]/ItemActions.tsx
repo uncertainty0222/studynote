@@ -11,13 +11,17 @@ export default function ItemActions({
   loggedIn,
   liked: initialLiked,
   canManage,
+  isOwner,
   status: initialStatus,
+  bump,
 }: {
   id: number;
   loggedIn: boolean;
   liked: boolean;
   canManage: boolean;
+  isOwner: boolean;
   status: Status;
+  bump: { nextAt: number; left: number; expired: boolean };
 }) {
   const [liked, setLiked] = useState(initialLiked);
   const [status, setStatus] = useState<Status>(initialStatus);
@@ -55,6 +59,22 @@ export default function ItemActions({
     try {
       await call(`/api/market/items/${id}`, { method: "PATCH", body: JSON.stringify({ status: next }) });
       setStatus(next);
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+  }
+
+  // 끌어올리기 가능 여부는 화면을 연 시각 기준 (서버에서 다시 확인한다)
+  const [now] = useState(() => Date.now());
+  const [bumped, setBumped] = useState(false);
+  const hoursLeft = Math.ceil((bump.nextAt - now) / 3600_000);
+  const canBump = !bumped && status !== "sold" && bump.left > 0 && hoursLeft <= 0;
+
+  async function doBump() {
+    try {
+      await call(`/api/market/items/${id}/bump`, { method: "POST" });
+      setBumped(true);
+      setMsg("끌어올렸어요. 목록 맨 위에 보여요.");
     } catch (e) {
       setMsg((e as Error).message);
     }
@@ -106,6 +126,30 @@ export default function ItemActions({
               </button>
             ))}
           </div>
+          {isOwner && (
+            <div className="mt-4">
+              <button
+                onClick={doBump}
+                disabled={!canBump}
+                className="h-10 w-full rounded-xl bg-zinc-900 text-sm font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-zinc-900"
+              >
+                ⬆ 끌어올리기 {bump.left > 0 && !bumped ? `(남은 ${bump.left}번)` : ""}
+              </button>
+              <p className="mt-1.5 text-xs text-zinc-500">
+                {bumped
+                  ? "24시간 뒤에 다시 끌어올릴 수 있어요."
+                  : status === "sold"
+                    ? "판매완료 글은 끌어올릴 수 없어요."
+                    : bump.left <= 0
+                      ? "이 글은 끌어올리기를 모두 썼어요. 새 글로 올려 주세요."
+                      : hoursLeft > 0
+                        ? `${hoursLeft}시간 뒤에 끌어올릴 수 있어요. (24시간에 한 번)`
+                        : bump.expired
+                          ? "30일 동안 끌어올리지 않아 목록에서 빠진 글이에요. 끌어올리면 다시 보여요."
+                          : "목록 맨 위로 다시 올려요. 24시간에 한 번, 글당 10번까지."}
+              </p>
+            </div>
+          )}
           <button onClick={remove} className="mt-3 text-[13px] font-medium text-rose-600 underline underline-offset-2">
             글 삭제
           </button>

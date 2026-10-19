@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAccess } from "@/lib/access";
-import { contactLink, getItem, STATUSES } from "@/lib/market";
+import { BUMP_INTERVAL_HOURS, contactLink, getItem, MAX_BUMPS, STATUSES } from "@/lib/market";
 import SiteTabs from "../../_components/SiteTabs";
 import MarketHeader from "../MarketHeader";
 import { formatPrice, timeAgo } from "../format";
@@ -73,7 +73,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
             )}
             <h1 className="mt-2 text-xl font-bold leading-snug tracking-tight">{item.title}</h1>
             <p className="mt-1 text-xs text-zinc-500">
-              {item.category} · {timeAgo(item.createdAt)}
+              {item.category} · {item.bumped ? `끌올 ${timeAgo(item.bumpedAt)}` : timeAgo(item.createdAt)}
               {item.likes > 0 && ` · 관심 ${item.likes}`}
             </p>
             <p className={`mt-3 text-2xl font-extrabold tracking-tight ${item.price === 0 ? "text-rose-600" : ""}`}>{formatPrice(item.price)}</p>
@@ -115,7 +115,13 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
             loggedIn={Boolean(me)}
             liked={item.likedByMe}
             canManage={isOwner || Boolean(me?.admin)}
+            isOwner={isOwner}
             status={item.status}
+            bump={{
+              nextAt: item.bumpedAt + BUMP_INTERVAL_HOURS * 3600_000,
+              left: MAX_BUMPS - item.bumpCount,
+              expired: item.expired,
+            }}
           />
 
           <Link href="/market" className="mt-8 block text-center text-sm font-medium text-zinc-500">

@@ -20,9 +20,38 @@ export default function AdminMarket({ initial }: { initial: ReportedItem[] }) {
     else setError(data.error ?? "처리하지 못했습니다.");
   }
 
-  if (items.length === 0) return <p className="text-zinc-500">신고된 글이 없습니다.</p>;
+  async function samples(action: "seed" | "clearSeed") {
+    const res = await fetch("/api/admin/market", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; removed?: number };
+    setError(data.ok ? (action === "seed" ? "테스트 글 5개를 올렸어요. 장터에서 확인하세요." : `테스트 글 ${data.removed ?? 0}개를 지웠어요.`) : (data.error ?? "처리하지 못했습니다."));
+  }
+
+  const sampleButtons = (
+    <div className="mb-4 flex flex-wrap gap-2">
+      <button onClick={() => samples("seed")} className="h-9 rounded-lg border border-zinc-300 px-3 text-sm font-semibold dark:border-zinc-700">
+        테스트 글 5개 넣기
+      </button>
+      <button onClick={() => samples("clearSeed")} className="h-9 rounded-lg border border-zinc-300 px-3 text-sm font-semibold text-rose-600 dark:border-zinc-700">
+        테스트 글 모두 지우기
+      </button>
+    </div>
+  );
+
+  if (items.length === 0)
+    return (
+      <div>
+        {sampleButtons}
+        {error && <p className="mb-3 text-sm font-medium text-rose-600">{error}</p>}
+        <p className="text-zinc-500">신고된 글이 없습니다.</p>
+      </div>
+    );
   return (
     <div>
+      {sampleButtons}
       {error && <p className="mb-3 text-sm font-medium text-rose-600">{error}</p>}
       <ul className="divide-y divide-zinc-200 rounded-2xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
         {items.map((it) => (

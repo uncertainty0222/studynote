@@ -133,7 +133,9 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
                       <div className="min-w-0 flex-1">
                         <p className="line-clamp-2 text-[15px] leading-snug">{it.title}</p>
                         <p className="mt-1 text-xs text-zinc-500">
-                          {it.area} · {timeAgo(it.createdAt)}
+                          {it.area} · {it.bumped ? "끌올 " : ""}
+                          {timeAgo(it.bumpedAt)}
+                          {it.expired && <span className="ml-1 font-semibold text-rose-600">· 목록에서 빠짐</span>}
                         </p>
                         <p className={`mt-1 text-[15px] font-bold ${it.price === 0 ? "text-rose-600" : ""}`}>{formatPrice(it.price)}</p>
                         {it.likes > 0 && <p className="mt-1 text-right text-xs text-zinc-400">♡ {it.likes}</p>}
