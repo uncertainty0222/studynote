@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 import { listRequests, siteUrlFromHeaders } from "@/lib/members";
 import { SITE_NAME } from "@/lib/labels";
 import AdminRequests from "./AdminRequests";
+import AdminMarket from "./AdminMarket";
+import { listReported } from "@/lib/market";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: `운영자 · ${SITE_NAME}`, robots: { index: false } };
@@ -29,7 +31,16 @@ export default async function AdminPage() {
       </p>
     );
   } else {
-    body = <AdminRequests initial={await listRequests()} />;
+    body = (
+      <>
+        <AdminRequests initial={await listRequests()} />
+        <h2 className="mt-12 text-lg font-bold tracking-tight">장터 신고</h2>
+        <p className="mt-1 text-sm text-zinc-500">서로 다른 회원 3명이 신고하면 자동으로 숨겨져요. 확인 후 되살리거나 지우세요.</p>
+        <div className="mt-4">
+          <AdminMarket initial={await listReported().catch(() => [])} />
+        </div>
+      </>
+    );
   }
 
   const redirectUri = `${siteUrlFromHeaders(await headers())}/api/auth/kakao/callback`;

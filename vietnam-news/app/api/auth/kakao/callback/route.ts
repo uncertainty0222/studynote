@@ -31,8 +31,8 @@ export async function GET(req: Request) {
     return fail("error");
   }
 
-  const next = req.headers.get("cookie")?.match(/(?:^|;\s*)vn_oauth_next=(pro)/)?.[1] ?? "ok";
-  const res = NextResponse.redirect(`${home}/?login=${next}`);
+  const next = req.headers.get("cookie")?.match(/(?:^|;\s*)vn_oauth_next=(pro|market)/)?.[1] ?? "ok";
+  const res = NextResponse.redirect(next === "market" ? `${home}/market` : `${home}/?login=${next}`);
   res.cookies.delete(STATE_COOKIE);
   res.cookies.delete("vn_oauth_next");
   res.cookies.set(SESSION_COOKIE, makeSession(user.id), {

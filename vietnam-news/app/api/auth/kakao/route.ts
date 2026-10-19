@@ -13,7 +13,8 @@ export async function GET(req: Request) {
   const state = randomBytes(16).toString("hex");
   const res = NextResponse.redirect(kakaoAuthorizeUrl(req, state));
   // 멤버십 안내에서 눌렀으면 돌아와서 신청 화면을 다시 연다
-  const next = new URL(req.url).searchParams.get("next") === "pro" ? "pro" : "ok";
+  const asked = new URL(req.url).searchParams.get("next");
+  const next = asked === "pro" || asked === "market" ? asked : "ok";
   res.cookies.set("vn_oauth_next", next, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 600 });
   res.cookies.set(STATE_COOKIE, state, {
     httpOnly: true,

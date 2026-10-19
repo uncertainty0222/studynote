@@ -238,3 +238,10 @@ export async function decideRequest(requestId: number, approve: boolean) {
   );
   return true;
 }
+
+// 지금 요청의 로그인 회원번호 (로그인 기능이 꺼져 있거나 비로그인이면 null)
+export async function currentMemberId(): Promise<string | null> {
+  if (!loginEnabled()) return null;
+  const { cookies } = await import("next/headers");
+  return readSession((await cookies()).get(SESSION_COOKIE)?.value);
+}

@@ -5,6 +5,7 @@ import type { PeriodId, Ranking, RankedStory, ScopeId } from "@/lib/rankings";
 import type { FullAccess as Access } from "@/lib/access";
 import type { FlightCard as FlightCardData, FlightRoute } from "@/lib/flights";
 import { issueNumber, PERIOD_TABS, SECTIONS, SITE_NAME, weekTitle } from "@/lib/labels";
+import SiteTabs from "./SiteTabs";
 
 const POLL_MS = 8000;
 const MAX_POLLS = 45; // 약 6분
@@ -239,6 +240,7 @@ export default function WeeklyVietnam({
           </div>
         </div>
       </header>
+      <SiteTabs active="news" />
 
       <main className="mx-auto max-w-2xl px-5 pb-24">
         {toast && (
