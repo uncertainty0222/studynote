@@ -48,7 +48,7 @@ export default async function MarketPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <MarketHeader nickname={me?.nickname ?? ""} loggedIn={Boolean(me)} loginEnabled={enabled} />
+      <MarketHeader member={me} loginEnabled={enabled} />
       <SiteTabs active="market" />
 
       <main className="mx-auto max-w-2xl px-5 pb-28">

@@ -28,6 +28,8 @@ input:focus-visible {
   --animate-indeterminate: indeterminate 1.4s ease-in-out infinite;
   /* by AI 배지 위로 지나가는 빛 */
   --animate-shine: shine 3.2s ease-in-out infinite;
+  /* 프로필 그림을 새로 뽑았을 때 */
+  --animate-pop: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 
   @keyframes slide-from-right {
     from {
@@ -63,6 +65,12 @@ input:focus-visible {
       transform: translateX(400%);
     }
   }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+  }
   @keyframes indeterminate {
     from {
       transform: translateX(-100%);
@@ -81,7 +89,8 @@ input:focus-visible {
   .animate-slide-from-left,
   .animate-steam,
   .animate-indeterminate,
-  .animate-shine {
+  .animate-shine,
+  .animate-pop {
     animation: none;
   }
 }

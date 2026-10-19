@@ -10,8 +10,10 @@
 
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { dbEnabled, query } from "./db";
+import { randomProfile } from "./profile";
 
 export const SESSION_COOKIE = "vn_session";
+export const WITHDRAW_COOKIE = "vn_withdraw"; // 내 정보 화면에서 탈퇴를 눌렀다는 표시 (10분)
 export const SESSION_MAX_AGE = 180 * 24 * 3600;
 export const MEMBERSHIP_DAYS = 30;
 
@@ -79,7 +81,7 @@ export function kakaoAuthorizeUrl(req: Request, state: string) {
   return `https://kauth.kakao.com/oauth/authorize?${p}`;
 }
 
-export async function kakaoUserFromCode(req: Request, code: string): Promise<{ id: string; nickname: string }> {
+export async function kakaoUserFromCode(req: Request, code: string): Promise<{ id: string; nickname: string; accessToken: string }> {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     client_id: process.env.KAKAO_REST_API_KEY ?? "",
@@ -108,13 +110,26 @@ export async function kakaoUserFromCode(req: Request, code: string): Promise<{ i
   if (!meRes.ok || me.id == null) throw new Error(`카카오 사용자 정보 조회 실패: ${meRes.status}`);
   // 회원번호는 숫자가 커서 문자열로 다룬다
   const nickname = me.kakao_account?.profile?.nickname ?? me.properties?.nickname ?? "";
-  return { id: String(me.id), nickname };
+  return { id: String(me.id), nickname, accessToken: token.access_token };
+}
+
+// 이 사이트와 카카오 계정의 연결을 끊는다. 다음 로그인 때 카카오 동의 화면이 다시 나온다
+export async function kakaoUnlink(accessToken: string) {
+  const res = await fetch("https://kapi.kakao.com/v1/user/unlink", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`카카오 연결 끊기 실패: ${res.status} ${await res.text().catch(() => "")}`);
 }
 
 // ── 회원·멤버십 ─────────────────────────
 export type Member = {
   id: string;
-  nickname: string;
+  nickname: string; // 카카오 닉네임 (운영자만 본다)
+  alias: string; // 사이트에서 보이는 별명
+  avatar: string; // 프로필 그림 (lib/profile.ts AVATARS의 key)
+  joinedAt: number;
   premiumUntil: number | null;
   pending: boolean; // 승인을 기다리는 송금 확인 요청이 있는지
   justApproved: boolean; // 승인됐는데 아직 '멤버십이 열렸어요' 안내를 못 봤는지
@@ -128,17 +143,44 @@ export function isAdmin(kakaoId: string) {
     .includes(kakaoId);
 }
 
+// 로그인할 때 회원을 저장한다. 처음 가입한 회원이면 isNew
 export async function upsertMember(id: string, nickname: string) {
-  await query(
+  const rows = await query<{ inserted: boolean; alias: string | null }>(
     `insert into members (kakao_id, nickname) values ($1, $2)
-     on conflict (kakao_id) do update set nickname = excluded.nickname, last_login_at = now()`,
+     on conflict (kakao_id) do update set nickname = excluded.nickname, last_login_at = now()
+     returning (xmax = 0) as inserted, alias`,
     [id, nickname],
   );
+  // 별명이 생기기 전에 가입한 회원도 이번 로그인에서 받는다
+  if (!rows[0]?.alias) await rerollProfile(id);
+  return { isNew: Boolean(rows[0]?.inserted) };
+}
+
+// 무작위 별명·그림을 새로 뽑아 저장한다. 별명이 겹치면 다시 뽑고, 계속 겹치면 숫자를 붙인다
+export async function rerollProfile(id: string) {
+  for (let i = 0; i < 8; i++) {
+    const p = randomProfile(i >= 4);
+    try {
+      await query(`update members set alias = $2, avatar = $3 where kakao_id = $1`, [id, p.alias, p.avatar]);
+      return p;
+    } catch (e) {
+      if ((e as { code?: string }).code !== "23505") throw e; // 23505: unique 위반 (같은 별명이 이미 있음)
+    }
+  }
+  throw new Error("별명을 정하지 못했습니다");
 }
 
 export async function getMember(id: string): Promise<Member | null> {
-  const rows = await query<{ nickname: string; premium_until: Date | null; pending: boolean; just_approved: boolean }>(
-    `select nickname, premium_until,
+  const rows = await query<{
+    nickname: string;
+    alias: string | null;
+    avatar: string | null;
+    created_at: Date;
+    premium_until: Date | null;
+    pending: boolean;
+    just_approved: boolean;
+  }>(
+    `select nickname, alias, avatar, created_at, premium_until,
        exists(select 1 from payment_requests p where p.kakao_id = m.kakao_id and p.status = 'pending') as pending,
        exists(select 1 from payment_requests p where p.kakao_id = m.kakao_id and p.status = 'approved' and not p.seen) as just_approved
      from members m where kakao_id = $1`,
@@ -148,11 +190,22 @@ export async function getMember(id: string): Promise<Member | null> {
   return {
     id,
     nickname: rows[0].nickname,
+    alias: rows[0].alias ?? "회원",
+    avatar: rows[0].avatar ?? "",
+    joinedAt: rows[0].created_at.getTime(),
     premiumUntil: rows[0].premium_until ? rows[0].premium_until.getTime() : null,
     pending: rows[0].pending,
     justApproved: rows[0].just_approved,
     admin: isAdmin(id),
   };
+}
+
+// 회원 탈퇴: 회원 정보, 멤버십 신청 기록, 장터 글·사진·관심·신고 기록을 모두 지운다
+export async function deleteMember(id: string) {
+  const { purgeMember } = await import("./market");
+  await purgeMember(id);
+  await query(`delete from payment_requests where kakao_id = $1`, [id]);
+  await query(`delete from members where kakao_id = $1`, [id]);
 }
 
 // 송금했다고 알리면 승인 대기 요청을 남긴다 (대기 중인 요청이 있으면 입금자명만 고친다)
@@ -193,6 +246,7 @@ export type PaymentRequest = {
   id: number;
   kakaoId: string;
   nickname: string;
+  alias: string;
   payerName: string;
   status: string;
   createdAt: number;
@@ -204,12 +258,13 @@ export async function listRequests(): Promise<PaymentRequest[]> {
     id: number;
     kakao_id: string;
     nickname: string;
+    alias: string | null;
     payer_name: string;
     status: string;
     created_at: Date;
     premium_until: Date | null;
   }>(
-    `select p.id, p.kakao_id::text, m.nickname, p.payer_name, p.status, p.created_at, m.premium_until
+    `select p.id, p.kakao_id::text, m.nickname, m.alias, p.payer_name, p.status, p.created_at, m.premium_until
      from payment_requests p join members m using (kakao_id)
      order by (p.status = 'pending') desc, p.created_at desc limit 100`,
   );
@@ -217,6 +272,7 @@ export async function listRequests(): Promise<PaymentRequest[]> {
     id: r.id,
     kakaoId: r.kakao_id,
     nickname: r.nickname,
+    alias: r.alias ?? "",
     payerName: r.payer_name,
     status: r.status,
     createdAt: r.created_at.getTime(),

@@ -15,7 +15,7 @@ export default async function NewItemPage() {
   if (!access.member) redirect("/api/auth/kakao?next=market");
   return (
     <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <MarketHeader nickname={access.member.nickname} loggedIn loginEnabled />
+      <MarketHeader member={access.member} loginEnabled />
       <SiteTabs active="market" />
       <main className="mx-auto max-w-2xl px-5 pb-24 pt-6">
         <h1 className="text-[22px] font-bold tracking-tight">내 물건 팔기</h1>

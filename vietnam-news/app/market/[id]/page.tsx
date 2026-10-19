@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { BUMP_INTERVAL_HOURS, contactLink, getItem, MAX_BUMPS, STATUSES } from "@/lib/market";
+import Avatar from "../../_components/Avatar";
 import SiteTabs from "../../_components/SiteTabs";
 import MarketHeader from "../MarketHeader";
 import { formatPrice, timeAgo } from "../format";
@@ -23,7 +24,7 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
-      <MarketHeader nickname={me?.nickname ?? ""} loggedIn={Boolean(me)} loginEnabled />
+      <MarketHeader member={me} loginEnabled />
       <SiteTabs active="market" />
 
       <main className="mx-auto max-w-2xl pb-24">
@@ -50,11 +51,9 @@ export default async function ItemPage({ params }: { params: Promise<{ id: strin
 
         <div className="px-5">
           <div className="flex items-center gap-2 border-b border-zinc-100 py-4 text-sm dark:border-zinc-900">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#FEE500] font-bold text-black/80">
-              {(item.sellerNickname || "회")[0]}
-            </span>
+            <Avatar avatar={item.sellerAvatar} size={36} />
             <div>
-              <p className="font-semibold">{item.sellerNickname || "카카오 회원"}</p>
+              <p className="font-semibold">{item.sellerAlias}</p>
               <p className="text-xs text-zinc-500">{item.area}</p>
             </div>
           </div>

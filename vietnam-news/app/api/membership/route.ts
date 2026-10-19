@@ -41,7 +41,7 @@ export async function POST(req: Request) {
 
   const m = await getMember(id);
   await notifyOperator(
-    `🍜 주간베트남 멤버십 신청\n보낸 분: ${body.payerName.trim().slice(0, 40)}\n카카오: ${m?.nickname || id}\n\n입금 확인 후 승인: ${siteUrl(req)}/admin`,
+    `🍜 주간베트남 멤버십 신청\n보낸 분: ${body.payerName.trim().slice(0, 40)}\n카카오: ${m?.nickname || id}${m?.alias ? ` (${m.alias})` : ""}\n\n입금 확인 후 승인: ${siteUrl(req)}/admin`,
   );
   return Response.json({ ok: true });
 }

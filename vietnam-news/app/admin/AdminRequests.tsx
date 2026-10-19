@@ -41,7 +41,7 @@ export default function AdminRequests({ initial }: { initial: PaymentRequest[] }
           <li key={r.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5">
             <div className="min-w-0 flex-1">
               <p className="font-semibold">
-                {r.payerName || "(이름 없음)"} <span className="text-sm font-normal text-zinc-500">· 카카오 {r.nickname || r.kakaoId}</span>
+                {r.payerName || "(이름 없음)"} <span className="text-sm font-normal text-zinc-500">· 카카오 {r.nickname || r.kakaoId}{r.alias && ` · ${r.alias}`}</span>
               </p>
               <p className="text-xs text-zinc-500">
                 요청 {fmt(r.createdAt)} · 상태 {STATUS[r.status] ?? r.status} · 이용 기한 {fmt(r.premiumUntil)}

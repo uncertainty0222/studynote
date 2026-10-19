@@ -42,7 +42,8 @@ export type ItemDetail = ItemSummary & {
   description: string;
   contact: string;
   sellerId: string;
-  sellerNickname: string;
+  sellerAlias: string;
+  sellerAvatar: string;
   imageIds: number[];
   likedByMe: boolean;
   hidden: boolean;
@@ -179,12 +180,20 @@ export async function listItems(f: ListFilter): Promise<ItemSummary[]> {
   return rows.map(toSummary);
 }
 
+// 탈퇴한 회원의 장터 기록을 지운다 (글을 지우면 사진·관심·신고도 함께 지워진다)
+export async function purgeMember(id: string) {
+  await ensureTables();
+  await query(`delete from market_items where seller_id = $1`, [id]);
+  await query(`delete from market_likes where kakao_id = $1`, [id]);
+  await query(`delete from market_reports where reporter_id = $1`, [id]);
+}
+
 export async function getItem(id: number, viewerId: string | null): Promise<ItemDetail | null> {
   await ensureTables();
   const rows = await query<
-    Row & { description: string; contact: string; seller_id: string; nickname: string; hidden: boolean; liked: boolean }
+    Row & { description: string; contact: string; seller_id: string; alias: string | null; avatar: string | null; hidden: boolean; liked: boolean }
   >(
-    `select ${SUMMARY_COLUMNS}, i.description, i.contact, i.seller_id::text, m.nickname, i.hidden,
+    `select ${SUMMARY_COLUMNS}, i.description, i.contact, i.seller_id::text, m.alias, m.avatar, i.hidden,
        exists(select 1 from market_likes l where l.item_id = i.id and l.kakao_id = $2) as liked
      from market_items i join members m on m.kakao_id = i.seller_id
      where i.id = $1 and not i.deleted`,
@@ -199,7 +208,8 @@ export async function getItem(id: number, viewerId: string | null): Promise<Item
     description: r.description,
     contact: r.contact,
     sellerId: r.seller_id,
-    sellerNickname: r.nickname,
+    sellerAlias: r.alias ?? "회원",
+    sellerAvatar: r.avatar ?? "",
     imageIds: images.map((i) => i.id),
     likedByMe: r.liked,
     hidden: r.hidden,

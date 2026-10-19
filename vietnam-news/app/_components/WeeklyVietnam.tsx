@@ -5,6 +5,7 @@ import type { PeriodId, Ranking, RankedStory, ScopeId } from "@/lib/rankings";
 import type { FullAccess as Access } from "@/lib/access";
 import type { FlightCard as FlightCardData, FlightRoute } from "@/lib/flights";
 import { issueNumber, PERIOD_TABS, SECTIONS, SITE_NAME, weekTitle } from "@/lib/labels";
+import Avatar from "./Avatar";
 import SiteTabs from "./SiteTabs";
 
 const POLL_MS = 8000;
@@ -193,6 +194,9 @@ export default function WeeklyVietnam({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (result === "pro" && !access.premium) setPaywall(true);
     else if (result === "ok" || result === "pro") setToast("카카오톡으로 로그인했어요");
+    else if (result === "bye") setToast("탈퇴했어요. 그동안 고마웠어요");
+    else if (result === "withdraw_denied") setLoginNotice("탈퇴하려던 계정과 다른 카카오 계정이에요. 내 정보에서 다시 시도해 주세요.");
+    else if (result === "withdraw_error") setLoginNotice("탈퇴를 마치지 못했어요. 잠시 후 내 정보에서 다시 시도해 주세요.");
     else if (result !== "cancel") setLoginNotice("카카오 로그인에 실패했어요. 잠시 후 다시 시도해 주세요.");
   }, [access.premium]);
   useEffect(() => {
@@ -732,7 +736,7 @@ function CompactRow({ story: s }: { story: RankedStory }) {
 }
 
 // 이번 주 순위가 30위를 못 채워 지난 주 순위에서 가져온 항목 표시
-// 상단 바 로그인·로그아웃: 비회원은 카카오 로그인 버튼, 회원은 닉네임 메뉴(로그아웃)
+// 상단 바: 비회원은 카카오 로그인 버튼, 회원은 프로필 그림 + 별명 메뉴
 function AccountButton({ member, premium, onPro }: { member: Access["member"]; premium: boolean; onPro: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -764,29 +768,33 @@ function AccountButton({ member, premium, onPro }: { member: Access["member"]; p
     window.location.reload();
   }
 
-  const name = member.nickname || "카카오 회원";
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        aria-label={`${name} 계정 메뉴`}
-        className="flex h-8 max-w-[9.5rem] items-center gap-1 whitespace-nowrap rounded-full bg-[#FEE500] pl-2.5 pr-2 text-[13px] font-semibold text-black/85"
+        aria-label={`${member.alias} 계정 메뉴`}
+        className="flex h-8 max-w-[11rem] items-center gap-1.5 whitespace-nowrap rounded-full border border-zinc-200 pl-1 pr-2 text-[13px] font-semibold dark:border-zinc-700 max-[389px]:max-w-[8.5rem]"
       >
-        <KakaoIcon className="h-4 w-4 shrink-0" />
-        {/* 닉네임이 없으면(동의 안 함) '내 계정' */}
-        <span className="truncate">{member.nickname || "내 계정"}</span>
+        <Avatar avatar={member.avatar} size={24} />
+        <span className="truncate">{member.alias}</span>
         <Chevron open={open} />
       </button>
       {open && (
-        <div className="absolute right-0 top-10 z-30 w-56 rounded-2xl border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
-          <div className="px-3 py-2">
-            <p className="truncate text-sm font-semibold">{name}님</p>
-            <p className="mt-0.5 flex items-center gap-1 text-xs text-zinc-500">
-              <KakaoIcon className="h-3.5 w-3.5" />
-              카카오톡으로 로그인됨
-            </p>
+        <div className="absolute right-0 top-10 z-30 w-60 rounded-2xl border border-zinc-200 bg-white p-2 shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex items-center gap-2.5 px-3 py-2">
+            <Avatar avatar={member.avatar} size={36} />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{member.alias}</p>
+              <p className="mt-0.5 flex items-center gap-1 text-xs text-zinc-500">
+                <KakaoIcon className="h-3.5 w-3.5" />
+                카카오톡으로 로그인됨
+              </p>
+            </div>
           </div>
+          <a href="/me" className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            내 정보 · 별명 바꾸기
+          </a>
           <button
             onClick={() => {
               setOpen(false);
@@ -1081,7 +1089,7 @@ function MembershipApply({
         </div>
       )}
       <p className="mt-3 text-center text-xs text-zinc-500">
-        {member.nickname || "카카오 회원"}님으로 로그인됨 ·{" "}
+        {member.alias}님으로 로그인됨 ·{" "}
         <button onClick={logout} className="font-medium underline underline-offset-2">
           로그아웃
         </button>
