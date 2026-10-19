@@ -32,6 +32,8 @@ alter table payment_requests add column if not exists seen boolean not null defa
 alter table members add column if not exists alias text;
 alter table members add column if not exists avatar text;
 create unique index if not exists members_alias on members(alias);
+-- 탈퇴한 회원: 행을 남겨 별명·그림을 카카오 회원번호에 묶어 둔다 (다시 가입해도 같은 별명)
+alter table members add column if not exists withdrawn_at timestamptz;
 -- 한국 → 나트랑 항공권 날짜별 최저가 (lib/flights.ts)
 create table if not exists flight_prices (
   day date not null,

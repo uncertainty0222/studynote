@@ -143,26 +143,28 @@ export function isAdmin(kakaoId: string) {
     .includes(kakaoId);
 }
 
-// 로그인할 때 회원을 저장한다. 처음 가입한 회원이면 isNew
+// 로그인할 때 회원을 저장한다. 처음 가입했거나 탈퇴 후 다시 가입한 회원이면 isNew
 export async function upsertMember(id: string, nickname: string) {
-  const rows = await query<{ inserted: boolean; alias: string | null }>(
-    `insert into members (kakao_id, nickname) values ($1, $2)
-     on conflict (kakao_id) do update set nickname = excluded.nickname, last_login_at = now()
-     returning (xmax = 0) as inserted, alias`,
+  const rows = await query<{ inserted: boolean; rejoined: boolean; alias: string | null }>(
+    `with prev as (select withdrawn_at from members where kakao_id = $1)
+     insert into members (kakao_id, nickname) values ($1, $2)
+     on conflict (kakao_id) do update set nickname = excluded.nickname, last_login_at = now(), withdrawn_at = null
+     returning (xmax = 0) as inserted, coalesce((select withdrawn_at is not null from prev), false) as rejoined, alias`,
     [id, nickname],
   );
   // 별명이 생기기 전에 가입한 회원도 이번 로그인에서 받는다
-  if (!rows[0]?.alias) await rerollProfile(id);
-  return { isNew: Boolean(rows[0]?.inserted) };
+  if (!rows[0]?.alias) await assignProfile(id);
+  return { isNew: Boolean(rows[0]?.inserted || rows[0]?.rejoined) };
 }
 
-// 무작위 별명·그림을 새로 뽑아 저장한다. 별명이 겹치면 다시 뽑고, 계속 겹치면 숫자를 붙인다
-export async function rerollProfile(id: string) {
+// 무작위 별명·그림을 한 번만 정한다 (이미 있으면 그대로). 바꾸는 기능은 없다
+// 별명이 겹치면 다시 뽑고, 계속 겹치면 숫자를 붙인다
+async function assignProfile(id: string) {
   for (let i = 0; i < 8; i++) {
     const p = randomProfile(i >= 4);
     try {
-      await query(`update members set alias = $2, avatar = $3 where kakao_id = $1`, [id, p.alias, p.avatar]);
-      return p;
+      await query(`update members set alias = $2, avatar = $3 where kakao_id = $1 and alias is null`, [id, p.alias, p.avatar]);
+      return;
     } catch (e) {
       if ((e as { code?: string }).code !== "23505") throw e; // 23505: unique 위반 (같은 별명이 이미 있음)
     }
@@ -183,7 +185,7 @@ export async function getMember(id: string): Promise<Member | null> {
     `select nickname, alias, avatar, created_at, premium_until,
        exists(select 1 from payment_requests p where p.kakao_id = m.kakao_id and p.status = 'pending') as pending,
        exists(select 1 from payment_requests p where p.kakao_id = m.kakao_id and p.status = 'approved' and not p.seen) as just_approved
-     from members m where kakao_id = $1`,
+     from members m where kakao_id = $1 and withdrawn_at is null`,
     [id],
   );
   if (!rows[0]) return null;
@@ -200,12 +202,13 @@ export async function getMember(id: string): Promise<Member | null> {
   };
 }
 
-// 회원 탈퇴: 회원 정보, 멤버십 신청 기록, 장터 글·사진·관심·신고 기록을 모두 지운다
-export async function deleteMember(id: string) {
+// 회원 탈퇴: 멤버십 신청 기록, 장터 글·사진·관심·신고 기록, 카카오 닉네임·PRO 기간을 지운다.
+// 회원번호와 별명·그림만 남겨, 다시 가입해도 같은 별명이 되고 다른 사람이 그 별명을 받지 못하게 한다
+export async function withdrawMember(id: string) {
   const { purgeMember } = await import("./market");
   await purgeMember(id);
   await query(`delete from payment_requests where kakao_id = $1`, [id]);
-  await query(`delete from members where kakao_id = $1`, [id]);
+  await query(`update members set nickname = '', premium_until = null, withdrawn_at = now() where kakao_id = $1`, [id]);
 }
 
 // 송금했다고 알리면 승인 대기 요청을 남긴다 (대기 중인 요청이 있으면 입금자명만 고친다)
@@ -299,5 +302,9 @@ export async function decideRequest(requestId: number, approve: boolean) {
 export async function currentMemberId(): Promise<string | null> {
   if (!loginEnabled()) return null;
   const { cookies } = await import("next/headers");
-  return readSession((await cookies()).get(SESSION_COOKIE)?.value);
+  const id = readSession((await cookies()).get(SESSION_COOKIE)?.value);
+  if (!id) return null;
+  // 다른 기기에서 탈퇴했으면 이 기기의 로그인도 무효
+  const rows = await query(`select 1 from members where kakao_id = $1 and withdrawn_at is null`, [id]);
+  return rows.length ? id : null;
 }

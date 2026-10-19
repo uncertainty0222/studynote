@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { SITE_NAME } from "@/lib/labels";
 import MarketHeader from "../market/MarketHeader";
-import ProfileEditor from "../_components/ProfileEditor";
+import Avatar from "../_components/Avatar";
 import AccountActions from "./AccountActions";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,11 @@ export default async function MePage() {
       <MarketHeader member={m} loginEnabled />
       <main className="mx-auto max-w-md px-5 pb-24 pt-8">
         <h1 className="sr-only">내 정보</h1>
-        <ProfileEditor alias={m.alias} avatar={m.avatar} />
+        <div className="flex flex-col items-center text-center">
+          <Avatar avatar={m.avatar} size={96} className="shadow-sm" />
+          <p className="mt-4 text-[22px] font-extrabold tracking-tight">{m.alias}</p>
+          <p className="mt-1 text-xs text-zinc-500">별명과 그림은 카카오 계정에 고정돼요</p>
+        </div>
 
         <dl className="mt-8 divide-y divide-zinc-100 rounded-2xl border border-zinc-200 text-sm dark:divide-zinc-900 dark:border-zinc-800">
           <div className="flex justify-between gap-4 px-4 py-3">

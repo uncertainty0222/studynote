@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { SITE_NAME } from "@/lib/labels";
-import ProfileEditor from "../_components/ProfileEditor";
+import Avatar from "../_components/Avatar";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: `환영합니다 · ${SITE_NAME}`, robots: { index: false } };
@@ -20,22 +20,25 @@ export default async function WelcomePage({ searchParams }: { searchParams: Prom
       <main className="w-full max-w-sm py-12 text-center">
         <p className="text-[13px] font-semibold text-rose-600">가입 완료</p>
         <h1 className="mt-1 text-2xl font-extrabold tracking-tight">{SITE_NAME}에 오신 걸 환영해요</h1>
-        <p className="mt-2 break-keep text-sm text-zinc-500">사이트에서는 이 별명과 그림으로 보여요.</p>
+        <p className="mt-2 break-keep text-sm text-zinc-500">무작위로 정해진 내 별명과 그림이에요.</p>
 
         <div className="mt-8 rounded-3xl border border-zinc-200 px-6 py-8 dark:border-zinc-800">
-          <ProfileEditor alias={access.member.alias} avatar={access.member.avatar} />
+          <div className="flex flex-col items-center">
+            <Avatar avatar={access.member.avatar} size={96} className="animate-pop shadow-sm" />
+            <p className="mt-4 text-[22px] font-extrabold tracking-tight">{access.member.alias}</p>
+          </div>
         </div>
 
         <ul className="mt-6 space-y-1.5 break-keep text-left text-[13px] leading-relaxed text-zinc-500">
           <li>· 카카오 닉네임과 프로필 사진은 다른 회원에게 보이지 않아요.</li>
-          <li>· 별명은 나중에 &lsquo;내 정보&rsquo;에서 다시 뽑을 수 있어요.</li>
+          <li>· 별명과 그림은 이 카카오 계정에 고정돼 바꿀 수 없어요. 탈퇴 후 다시 가입해도 같아요.</li>
         </ul>
 
         <Link
           href={next}
           className="mt-8 flex h-12 items-center justify-center rounded-xl bg-zinc-900 text-[15px] font-bold text-white dark:bg-white dark:text-zinc-900"
         >
-          이 이름으로 시작하기
+          시작하기
         </Link>
       </main>
     </div>

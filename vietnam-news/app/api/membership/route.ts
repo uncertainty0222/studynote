@@ -1,20 +1,16 @@
-import { cookies } from "next/headers";
 import {
+  currentMemberId,
   getMember,
   loginEnabled,
   markApprovalSeen,
   notifyOperator,
-  readSession,
   requestMembership,
-  SESSION_COOKIE,
   siteUrl,
 } from "@/lib/members";
 
 export const dynamic = "force-dynamic";
 
-async function sessionId() {
-  return loginEnabled() ? readSession((await cookies()).get(SESSION_COOKIE)?.value) : null;
-}
+const sessionId = currentMemberId;
 
 // GET /api/membership → 승인 대기 중인 화면이 승인됐는지 확인할 때
 export async function GET() {

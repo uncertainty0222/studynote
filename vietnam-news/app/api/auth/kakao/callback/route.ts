@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import {
-  deleteMember,
   kakaoUnlink,
   kakaoUserFromCode,
   loginEnabled,
@@ -10,6 +9,7 @@ import {
   SESSION_MAX_AGE,
   siteUrl,
   upsertMember,
+  withdrawMember,
   WITHDRAW_COOKIE,
 } from "@/lib/members";
 
@@ -52,7 +52,7 @@ export async function GET(req: Request) {
     if (!asked || asked !== user.id || cookieOf(req, WITHDRAW_COOKIE) !== asked) return fail("withdraw_denied");
     try {
       await kakaoUnlink(user.accessToken);
-      await deleteMember(user.id);
+      await withdrawMember(user.id);
     } catch (e) {
       console.error("[withdraw]", e);
       return fail("withdraw_error");

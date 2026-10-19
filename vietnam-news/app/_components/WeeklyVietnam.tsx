@@ -793,7 +793,7 @@ function AccountButton({ member, premium, onPro }: { member: Access["member"]; p
             </div>
           </div>
           <a href="/me" className="block rounded-lg px-3 py-2 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800">
-            내 정보 · 별명 바꾸기
+            내 정보
           </a>
           <button
             onClick={() => {

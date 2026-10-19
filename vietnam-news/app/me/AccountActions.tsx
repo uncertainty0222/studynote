@@ -14,7 +14,7 @@ export default function AccountActions({ admin, proActive }: { admin: boolean; p
 
   async function withdraw() {
     const warn = [
-      "탈퇴하면 별명, 장터에 올린 글과 사진, 관심 목록이 모두 지워지고 되돌릴 수 없어요.",
+      "탈퇴하면 장터에 올린 글과 사진, 관심 목록이 모두 지워지고 되돌릴 수 없어요.",
       proActive ? "남은 PRO 멤버십 기간도 사라져요." : "",
       "카카오 확인 화면을 거쳐 탈퇴할까요?",
     ]

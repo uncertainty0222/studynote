@@ -39,7 +39,7 @@ export const AVATARS: Record<string, { name: string; emoji: string; bg: string }
 
 const pick = <T,>(list: readonly T[]) => list[Math.floor(Math.random() * list.length)];
 
-// 무작위 별명과 그림. 겹치면 호출하는 쪽에서 다시 뽑거나 숫자를 붙인다
+// 무작위 별명과 그림. 가입할 때 한 번만 뽑아 카카오 회원번호에 묶는다 (겹치면 호출하는 쪽에서 다시 뽑는다)
 export function randomProfile(suffix = false) {
   const avatar = pick(Object.keys(AVATARS));
   const alias = `${pick(ADJECTIVES)} ${AVATARS[avatar].name}${suffix ? ` ${10 + Math.floor(Math.random() * 90)}` : ""}`;
