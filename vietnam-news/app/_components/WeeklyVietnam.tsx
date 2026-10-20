@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { PeriodId, Ranking, RankedStory, ScopeId } from "@/lib/rankings";
 import type { FullAccess as Access } from "@/lib/access";
@@ -9,6 +10,7 @@ import Avatar from "./Avatar";
 import SiteTabs from "./SiteTabs";
 
 const POLL_MS = 8000;
+const PERIOD_KEY = "vn-period"; // 이 탭에서 마지막으로 고른 기간
 const MAX_POLLS = 45; // 약 6분
 
 type Purchase = { price: string; contact: string; kakaopayLink: string; kakaopayAmount: string; kakaopayQr: string };
@@ -60,6 +62,7 @@ export default function WeeklyVietnam({
   model,
   totals,
   currentWeek,
+  marketNew,
 }: {
   access: Access;
   initial: Ranking[];
@@ -67,6 +70,7 @@ export default function WeeklyVietnam({
   purchase: Purchase;
   model: string;
   totals: Totals;
+  marketNew: number; // 최근 하루 장터 새 글 수
 }) {
   const [period, setPeriod] = useState<PeriodId>("week");
   const [paywall, setPaywall] = useState(false);
@@ -227,7 +231,20 @@ export default function WeeklyVietnam({
       return;
     }
     setPeriod(id);
+    try {
+      sessionStorage.setItem(PERIOD_KEY, id);
+    } catch {}
   }
+
+  // 장터에 다녀오면 보던 기간(일간 등)으로 돌아온다. 순위는 서버에서 계속 만들어지고 있다
+  useEffect(() => {
+    if (!access.premium) return;
+    try {
+      const saved = sessionStorage.getItem(PERIOD_KEY) as PeriodId | null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (saved && PERIOD_TABS.some((p) => p.id === saved)) setPeriod(saved);
+    } catch {}
+  }, [access.premium]);
 
   return (
     <div className="min-h-screen bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
@@ -244,7 +261,7 @@ export default function WeeklyVietnam({
           </div>
         </div>
       </header>
-      <SiteTabs active="news" />
+      <SiteTabs active="news" marketNew={marketNew} />
 
       <main className="mx-auto max-w-2xl px-5 pb-24">
         {toast && (
@@ -306,30 +323,36 @@ export default function WeeklyVietnam({
           <p className="mt-1 text-[13px] text-zinc-500">매주 월요일 06:00 발행 · {SECTIONS.length}개 섹션 TOP 10</p>
         </section>
 
-        {/* 기간: 주간만 보는 무료 독자에게는 숨기고(한 주를 한눈에), PRO 회원에게만 보인다 */}
-        {access.premium && (
-          <div className="mt-7 grid grid-cols-5 gap-0.5 rounded-full bg-zinc-100 p-1 dark:bg-zinc-900" role="tablist" aria-label="기간">
-            {PERIOD_TABS.map((p) => {
-              const locked = p.premium && !access.premium;
-              const active = period === p.id;
-              return (
-                <button
-                  key={p.id}
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => choosePeriod(p.id)}
-                  className={`flex h-9 items-center justify-center gap-0.5 whitespace-nowrap rounded-full text-sm font-semibold transition ${
-                    active
-                      ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+        {/* 기간: 무료 독자에게도 보이되, 주간 말고는 그늘진 칸 + 자물쇠 (누르면 PRO 안내) */}
+        <div className="mt-7 grid grid-cols-5 gap-1 rounded-full bg-zinc-100 p-1 dark:bg-zinc-900" role="tablist" aria-label="기간">
+          {PERIOD_TABS.map((p) => {
+            const locked = p.premium && !access.premium;
+            const active = period === p.id;
+            return (
+              <button
+                key={p.id}
+                role="tab"
+                aria-selected={active}
+                aria-label={locked ? `${p.label} (PRO 전용)` : undefined}
+                onClick={() => choosePeriod(p.id)}
+                className={`flex h-9 items-center justify-center gap-1 whitespace-nowrap rounded-full text-sm font-semibold transition ${
+                  active
+                    ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-700 dark:text-white"
+                    : locked
+                      ? "bg-zinc-200/80 text-zinc-400 shadow-[inset_0_2px_4px_rgba(0,0,0,0.12)] hover:text-zinc-500 dark:bg-black/50 dark:text-zinc-600 dark:shadow-[inset_0_2px_5px_rgba(0,0,0,0.6)] dark:hover:text-zinc-400"
                       : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
-                  }`}
-                >
-                  {p.label}
-                  {locked && <LockIcon />}
-                </button>
-              );
-            })}
-          </div>
+                }`}
+              >
+                {locked && <LockIcon size={12} />}
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+        {!access.premium && (
+          <button onClick={() => setPaywall(true)} className="mt-2 block w-full break-keep text-center text-xs text-zinc-500">
+            일간 · 월간 · 연간 · 3년 TOP 10은 <span className="font-semibold text-rose-600 underline underline-offset-2 dark:text-rose-400">PRO 멤버십</span>에서 열려요
+          </button>
         )}
 
 
@@ -926,7 +949,7 @@ function Skeleton() {
           <div className="min-w-0 flex-1">
             <p className="break-keep text-[15px] font-bold tracking-tight text-zinc-900 dark:text-white">뉴스를 모아 순위를 정리하고 있어요</p>
             <p className="mt-0.5 break-keep text-[13px] leading-snug text-zinc-600 dark:text-zinc-400">
-              보통 1~3분 걸려요. 끝나면 이 화면에 바로 나타나요.
+              보통 1~3분 걸려요. 다른 화면에 다녀와도 계속 만들어져요.
             </p>
           </div>
         </div>
@@ -938,6 +961,17 @@ function Skeleton() {
             {elapsed}
           </span>
         </div>
+        {/* 기다리는 동안 장터로 (순위는 서버에서 계속 만들어지고, 돌아오면 보던 기간으로 열린다) */}
+        <Link
+          href="/market"
+          className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <span aria-hidden className="text-lg leading-none">🛍️</span>
+            <span className="break-keep">기다리는 동안 나트랑 장터 구경하기</span>
+          </span>
+          <span aria-hidden className="shrink-0 text-rose-600 dark:text-rose-400">→</span>
+        </Link>
       </div>
       {[0, 1, 2].map((i) => (
         <div key={i} className="animate-pulse space-y-3 rounded-2xl border border-zinc-200 p-5 dark:border-zinc-800">
@@ -1339,9 +1373,9 @@ function ArrowIcon({ dir }: { dir: "left" | "right" }) {
   );
 }
 
-function LockIcon() {
+function LockIcon({ size = 11 }: { size?: number }) {
   return (
-    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden className="shrink-0 opacity-70">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden className="shrink-0 opacity-70">
       <rect x="5" y="11" width="14" height="10" rx="2" />
       <path d="M8 11V7a4 4 0 0 1 8 0v4" />
     </svg>

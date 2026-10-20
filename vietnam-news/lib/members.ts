@@ -189,10 +189,15 @@ export async function getMember(id: string): Promise<Member | null> {
     [id],
   );
   if (!rows[0]) return null;
+  // 별명이 생기기 전부터 로그인해 있던 회원은 다음 로그인을 기다리지 않고 여기서 받는다
+  if (!rows[0].alias) {
+    await assignProfile(id);
+    return getMember(id);
+  }
   return {
     id,
     nickname: rows[0].nickname,
-    alias: rows[0].alias ?? "회원",
+    alias: rows[0].alias,
     avatar: rows[0].avatar ?? "",
     joinedAt: rows[0].created_at.getTime(),
     premiumUntil: rows[0].premium_until ? rows[0].premium_until.getTime() : null,

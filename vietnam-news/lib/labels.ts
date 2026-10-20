@@ -8,7 +8,7 @@ export const PERIOD_TABS: { id: PeriodId; label: string; premium: boolean }[] = 
   { id: "week", label: "주간", premium: false },
   { id: "day", label: "일간", premium: true },
   { id: "month", label: "월간", premium: true },
-  { id: "year", label: "1년", premium: true },
+  { id: "year", label: "연간", premium: true },
   { id: "threeYear", label: "3년", premium: true },
 ];
 

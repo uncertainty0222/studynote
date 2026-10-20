@@ -180,6 +180,15 @@ export async function listItems(f: ListFilter): Promise<ItemSummary[]> {
   return rows.map(toSummary);
 }
 
+// 최근 하루 동안 새로 올라온 글 수 (뉴스 화면의 '나트랑 장터' 탭 배지)
+export async function countNewItems() {
+  await ensureTables();
+  const rows = await query<{ n: string }>(
+    `select count(*) as n from market_items where not deleted and not hidden and not sample and created_at > now() - interval '1 day'`,
+  );
+  return Number(rows[0]?.n ?? 0);
+}
+
 // 탈퇴한 회원의 장터 기록을 지운다 (글을 지우면 사진·관심·신고도 함께 지워진다)
 export async function purgeMember(id: string) {
   await ensureTables();
