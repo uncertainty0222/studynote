@@ -36,7 +36,7 @@ export async function GET(req: Request) {
   const state = url.searchParams.get("state");
   if (!code) return fail("cancel"); // 동의 화면에서 취소
   if (!state || state !== cookieOf(req, STATE_COOKIE)) return fail("state");
-  const next = cookieOf(req, "vn_oauth_next")?.match(/^(pro|market|withdraw)$/)?.[1] ?? "ok";
+  const next = cookieOf(req, "vn_oauth_next")?.match(/^(pro|market|realestate|withdraw)$/)?.[1] ?? "ok";
 
   let user: { id: string; nickname: string; accessToken: string };
   try {
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
   }
 
   // 처음 가입했으면 별명 소개 화면을 거쳐 원래 가려던 곳으로
-  const dest = next === "market" ? "/market" : `/?login=${next}`;
+  const dest = next === "market" || next === "realestate" ? `/${next}` : `/?login=${next}`;
   const res = NextResponse.redirect(isNew ? `${home}/welcome?next=${encodeURIComponent(dest)}` : `${home}${dest}`);
   res.cookies.delete(STATE_COOKIE);
   res.cookies.delete("vn_oauth_next");

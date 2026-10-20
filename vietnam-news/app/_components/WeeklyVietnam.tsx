@@ -18,7 +18,7 @@ type Totals = { runs: number; inputTokens: number; outputTokens: number; costUsd
 
 // ── 데이터 ──────────────────────────────────
 // 순위를 받아오고, 만드는 중이면 끝날 때까지 주기적으로 다시 묻는다
-function useRanking(scope: ScopeId, period: PeriodId, initial: Ranking[]) {
+export function useRanking(scope: ScopeId, period: PeriodId, initial: Ranking[]) {
   const [cache, setCache] = useState<Record<string, Ranking>>(() =>
     Object.fromEntries(initial.map((r) => [`${r.scope}:${r.period}`, r])),
   );
@@ -190,12 +190,19 @@ export default function WeeklyVietnam({
   const [toast, setToast] = useState("");
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    // 다른 화면(나트랑 부동산 등)에서 PRO 안내를 열어 달라고 보낸 경우
+    const askPro = params.get("paywall") === "1";
     const result = params.get("login");
-    if (!result) return;
+    if (!result && !askPro) return;
     params.delete("login");
+    params.delete("paywall");
     const rest = params.toString();
     window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : "") + window.location.hash);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!result) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (!access.premium) setPaywall(true);
+      return;
+    }
     if (result === "pro" && !access.premium) setPaywall(true);
     else if (result === "ok" || result === "pro") setToast("카카오톡으로 로그인했어요");
     else if (result === "bye") setToast("탈퇴했어요. 그동안 고마웠어요");
@@ -461,7 +468,7 @@ export default function WeeklyVietnam({
   );
 }
 
-function Section({
+export function Section({
   id,
   title,
   desc,
@@ -601,7 +608,7 @@ function Sparkline({ points }: { points: { day: string; price: number }[] }) {
   );
 }
 
-function RankingView({ ranking, onPaywall }: { ranking?: Ranking; onPaywall: () => void }) {
+export function RankingView({ ranking, onPaywall }: { ranking?: Ranking; onPaywall: () => void }) {
   const [showMore, setShowMore] = useState(false);
 
   if (ranking?.status === "locked") {

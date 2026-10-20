@@ -13,7 +13,7 @@ import { formatMoney, krwRates, parseAmount, significantDigits } from "./fx";
 import { fetchFeed, googleNews, pubmedSearch, VIETNAM_RE, type FeedRequest, type Headline } from "./feeds";
 
 export type PeriodId = "day" | "week" | "month" | "year" | "threeYear";
-export type ScopeId = "national" | "nhatrang" | "dalat" | "expat" | "specialty";
+export type ScopeId = "national" | "nhatrang" | "dalat" | "expat" | "specialty" | "realestate";
 
 export const PERIODS: Record<PeriodId, { label: string; days: number; windows: number; perQuery: number; refreshHours: number }> = {
   day: { label: "일간", days: 1, windows: 1, perQuery: 100, refreshHours: 6 },
@@ -45,6 +45,10 @@ const SPECIALTY_RE =
 const COFFEE_RE = /cà phê|coffee|robusta|arabica|커피/i;
 // 매일 나오는 시세 기사(예: "Giá cà phê hôm nay 14/10")는 사건이 아니므로 뺀다
 const DAILY_PRICE_RE = /giá (cà phê|trầm hương)[^,:]*(hôm nay|ngày \d)|coffee prices? today/i;
+
+// 부동산: 개발·분양·시세·토지·임대·외국인 소유 관련 단어 (나트랑 일반 뉴스를 거르려고 함께 맞춘다)
+const PROPERTY_RE =
+  /bất động sản|chung cư|căn hộ|nhà ở|giá đất|đất nền|đấu giá|quy hoạch|dự án|condotel|biệt thự|khu đô thị|sổ hồng|sổ đỏ|thuê nhà|real estate|property|condo|apartment|villa|\bland\b|housing|developer|부동산|아파트|콘도|분양|레지던스|빌라|토지|임대/i;
 
 const DEFAULT_CATEGORIES = "국제정세, 국내정책, 경제, 한국 관련, 관광, 사회, 문화, 날씨·재해";
 
@@ -197,6 +201,44 @@ Korean terms: always write trầm hương / agarwood as 침향 (never transliter
 Skip routine daily price bulletins, advertisements and product promotions, and stories that only mention a product in passing.
 For research items, set st to "연구 발표". When a headline has a price, export value, volume or percentage, put it in f.`,
     categories: "침향, 상황버섯, 커피",
+  },
+  // 나트랑 부동산: 장터 옆 별도 탭(/realestate). 매물이 아니라 뉴스다. 기사가 적은 분야라 지난 주 순위로 채운다. 주간 전용
+  realestate: {
+    label: "나트랑 부동산",
+    weeklyOnly: true,
+    carryOverWeeks: 4,
+    queries: [
+      {
+        lang: "vi",
+        q: '("Nha Trang" OR "Khánh Hòa" OR "Cam Ranh") ("bất động sản" OR "chung cư" OR "căn hộ" OR "nhà ở" OR "condotel" OR "biệt thự" OR "khu đô thị" OR "thuê nhà")',
+        mustMatch: [NHATRANG_RE, PROPERTY_RE],
+      },
+      // 토지·인허가: 땅값표, 경매, 계획, 수용, 소유권 증서
+      {
+        lang: "vi",
+        q: '("Nha Trang" OR "Khánh Hòa" OR "Cam Ranh") ("giá đất" OR "bảng giá đất" OR "đấu giá đất" OR "quy hoạch" OR "thu hồi đất" OR "sổ hồng" OR "sổ đỏ" OR "dự án")',
+        mustMatch: [NHATRANG_RE, PROPERTY_RE],
+      },
+      {
+        lang: "en",
+        q: '("Nha Trang" OR "Khanh Hoa" OR "Cam Ranh") ("real estate" OR property OR condo OR apartment OR "land price" OR developer OR housing)',
+        mustMatch: [NHATRANG_RE, PROPERTY_RE],
+      },
+      { lang: "ko", q: "(나트랑 OR 냐짱 OR 깜라인) (부동산 OR 아파트 OR 콘도 OR 분양 OR 레지던스 OR 투자)", mustMatch: [NHATRANG_RE, PROPERTY_RE] },
+      // 전국 규정: 외국인 주택 구매·소유·임대 (나트랑 교민에게도 바로 적용된다)
+      {
+        lang: "vi",
+        q: '"người nước ngoài" ("sở hữu nhà" OR "mua nhà" OR "mua chung cư" OR "thuê nhà" OR "nhà ở")',
+        mustMatch: PROPERTY_RE,
+      },
+    ],
+    focus: `Readers: Korean residents and visitors in Nha Trang who rent or think about buying property there.
+Pick news about the property market in Nha Trang, Cam Ranh and Khanh Hoa province: new apartment, condotel, villa and urban-area projects (launches, approvals, delays, legal problems); sale and rental prices and transaction trends; land price tables, land auctions, planning and land recovery decisions; title certificates (sổ hồng) being issued or withheld; large resort and hotel developments that change the city; infrastructure that moves property values (roads, airport, coastal projects); developer troubles, fraud and court cases.
+Also include nationwide rules on foreigners buying, owning or renting homes, because they apply directly in Nha Trang.
+Rank by how much it matters to someone renting or buying there (price, legal safety, availability), then by how widely covered it is (xN). Prefer Khanh Hoa stories over national ones except foreign-ownership rules.
+Skip general tourism and weather news, crime unrelated to property, and advertorials or project promotions that only praise a development. This is news, not investment advice: in tp, say what to check (legal status, title, contract terms), never recommend buying.
+When a headline has a price per m², total price, area, number of units or a date, put it in f.`,
+    categories: "개발·분양, 시세·거래, 토지·인허가, 외국인 규정, 임대, 리조트·호텔, 인프라, 분쟁·사기",
   },
 };
 
