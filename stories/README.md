@@ -28,3 +28,10 @@ node stories/story.mjs tags
 ## 주의
 - 이 환경의 컨테이너는 휘발성. **저장 후 git 커밋·푸시해야 보존**된다.
 - DB는 git 저장소 안의 파일이다. 여러 기기·앱에서 실시간 공유가 필요하면 별도 DB(예: money-tracker의 Postgres)로 옮겨야 한다.
+
+## 출력본 (A4 PDF)
+```
+node stories/print.mjs <id> [<id> ...] [--out stories/print/파일명.pdf]
+```
+이야기마다 1쪽: 훅·현장 대본(각색 표시)·강한 인상 / 2쪽: 각색 노트·신뢰 포인트·행동 유도·사실 검증·다음 꼭지(가이드 전용).
+Playwright Chromium 이 있으면 PDF, 없으면 HTML 을 만든다(브라우저에서 인쇄).
