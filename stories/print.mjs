@@ -39,7 +39,7 @@ function storyHtml(s, n) {
     <div class="meta">${esc(s.place)}${s.region ? ` · ${esc(s.region)}` : ''}${s.tags?.length ? ` · ${s.tags.map((t) => '#' + esc(t)).join(' ')}` : ''}</div>
   </header>
 
-  <div class="hook"><span class="lbl">훅 · 첫 15초</span>${esc(s.hook)}</div>
+  <div class="hook"><span class="lbl">훅 · 첫 15초</span>${marks(esc(s.hook))}</div>
 
   <h2>현장 대본</h2>
   <div class="script">${marks(paras(s.story))}</div>
