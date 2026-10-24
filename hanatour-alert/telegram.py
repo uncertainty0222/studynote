@@ -7,7 +7,9 @@
   3) 이 명령을 실행해 토큰을 입력하면, 방금 보낸 메시지로 내 채팅 ID를 찾아 저장한다.
 테스트:  python telegram.py test
 """
+import html
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -40,12 +42,31 @@ def setup():
     print(f"저장 완료: {chat.get('first_name', '')} (chat_id {chat['id']})")
 
 
+def _to_html(text):
+    """**굵게** 표시를 텔레그램 HTML 로 바꾸고 나머지는 이스케이프한다."""
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", html.escape(text, quote=False))
+
+
+def _chunks(text):
+    """줄 단위로 MAX_TEXT 이하로 나눈다(태그가 잘리지 않게)."""
+    out, cur = [], ""
+    for line in text.split("\n"):
+        if cur and len(cur) + len(line) + 1 > MAX_TEXT:
+            out.append(cur)
+            cur = line
+        else:
+            cur = f"{cur}\n{line}" if cur else line
+    if cur:
+        out.append(cur)
+    return out
+
+
 def send(text):
     if not configured():
         raise SystemExit("텔레그램 설정이 없습니다. 먼저 python telegram.py setup 을 성공시켜 주세요.")
     conf = json.loads(CONF_FILE.read_text(encoding="utf-8"))
-    for i in range(0, len(text), MAX_TEXT):
-        _api(conf["token"], "sendMessage", chat_id=conf["chat_id"], text=text[i:i + MAX_TEXT])
+    for part in _chunks(text):
+        _api(conf["token"], "sendMessage", chat_id=conf["chat_id"], text=_to_html(part), parse_mode="HTML")
 
 
 if __name__ == "__main__":

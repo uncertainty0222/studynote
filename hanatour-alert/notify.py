@@ -9,7 +9,7 @@ def send(text):
         telegram.send(text)
         sent = True
     if kakao.TOKEN_FILE.exists():
-        kakao.send(text)
+        kakao.send(text.replace("**", ""))  # 카카오 텍스트는 굵게 표시를 지원하지 않는다
         sent = True
     if not sent:
         raise RuntimeError("알림 채널이 없습니다. python telegram.py setup 을 실행하세요.")
