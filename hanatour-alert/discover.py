@@ -69,6 +69,16 @@ def save(page, name):
     print("저장:", stem, page.url)
 
 
+def wait_itinerary(page):
+    """상품페이지 일정표는 스크롤해야 그려지는 경우가 있어, 끝까지 내리며 나타날 때까지 기다린다."""
+    for _ in range(30):
+        if page.locator("dt[id^=schedule_day]").count():
+            return
+        page.mouse.wheel(0, 3000)
+        page.wait_for_timeout(500)
+    print("일정표를 찾지 못함:", page.url)
+
+
 def collect_all(page):
     """메인 화면에 있는 모든 행사의 내부 행사일정과 상품페이지를 자동으로 저장한다."""
     save(page, "auto_main")
@@ -91,7 +101,10 @@ def collect_all(page):
     for name, url in targets:
         try:
             page.goto(url, wait_until="networkidle")
-            page.wait_for_timeout(2000)  # 늦게 그려지는 일정표 대기
+            if "m.hanatour.com" in url:
+                wait_itinerary(page)
+            else:
+                page.wait_for_timeout(1000)
             save(page, name)
         except Exception as e:
             print("수집 실패:", url, type(e).__name__)
