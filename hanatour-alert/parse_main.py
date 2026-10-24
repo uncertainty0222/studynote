@@ -52,10 +52,10 @@ class Group:
 
 
 def short_title(title):
-    """'[출발확정] 나트랑/달랏 5일 #소이아일랜드투어 #스피드보트 #스노클링' -> '나트랑/달랏 5일 #소이아일랜드투어 #스피드보트'"""
+    """'[출발확정] 나트랑/달랏 5일 #소이아일랜드투어 #스피드보트 #스노클링' -> '나트랑/달랏 5일 #소이아일랜드투어'"""
     title = re.sub(r"^(\s*\[[^\]]*\])+", "", title)
     parts = [p.strip() for p in title.split("#")]
-    return " ".join([parts[0]] + [f"#{p}" for p in parts[1:3] if p])
+    return " ".join([parts[0]] + [f"#{p}" for p in parts[1:2] if p])
 
 
 def _text(el):
