@@ -14,7 +14,6 @@
 """
 import os
 from getpass import getpass
-import re
 import time
 from pathlib import Path
 
@@ -25,15 +24,34 @@ OUT = Path(__file__).parent / "dumps"
 
 
 def login(page, corp, uid, pw):
-    # 화면에는 GUIDE로 보이지만 실제 문자열은 Guide 등일 수 있어 대소문자를 무시한다.
-    page.get_by_text(re.compile(r"^\s*guide\s*$", re.I)).first.click(timeout=10000)
-    # GUIDE 탭에서만 법인코드 칸이 나타난다.
-    corp_box = page.get_by_placeholder("법인코드")
-    corp_box.wait_for(state="visible", timeout=10000)
-    corp_box.fill(corp)
-    page.locator('input[placeholder="아이디"]:visible').first.fill(uid)
-    page.locator('input[placeholder="패스워드"]:visible').first.fill(pw)
-    page.locator(':text-is("로그인"):visible').first.click()
+    # 로그인 폼 구조(login.hnt):
+    #   TC/GUIDE 탭 = radio name=empTyp (value tc|guide), 화면에 보이는 것은 꾸며진 label
+    #   법인코드 = compCode (placeholder 없음), 아이디 = empCode, 패스워드 = hpwd, 버튼 = #loginBtn
+    # 버튼을 누르면 폼 전체를 /loginProc.hnt 로 보내므로 값만 정확히 넣으면 된다.
+    messages = []
+
+    def on_dialog(d):
+        messages.append(d.message)
+        d.accept()
+
+    page.on("dialog", on_dialog)
+    page.evaluate(
+        """([corp, uid, pw]) => {
+            const f = document.querySelector('#loginFrm');
+            f.querySelector('input[name=empTyp][value=guide]').checked = true;
+            f.querySelector('input[name=compCode]').value = corp;
+            f.querySelector('input[name=empCode]').value = uid;
+            f.querySelector('input[name=hpwd]').value = pw;
+        }""",
+        [corp, uid, pw],
+    )
+    page.locator("#loginBtn").click()
+    try:
+        page.wait_for_url("**/main*", timeout=15000)
+    except Exception:
+        raise RuntimeError("로그인 후 메인으로 이동하지 않음. 사이트 메시지: " + (" / ".join(messages) or "없음"))
+    finally:
+        page.remove_listener("dialog", on_dialog)
     page.wait_for_load_state("networkidle")
 
 
