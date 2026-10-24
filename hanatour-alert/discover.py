@@ -3,7 +3,7 @@
 
 로그인 이후 페이지(일감 목록, 상세)의 구조를 파악해야 감지·브리핑 코드를 만들 수 있다.
 실행하면 브라우저 창이 뜨고 자동으로 로그인한다. 사용자가 직접 일감 목록/상세 화면으로
-이동한 뒤 터미널에서 Enter를 누르면 현재 화면의 스크린샷과 HTML을 dumps/ 에 저장한다.
+이동한 뒤 터미널에서 Enter를 누르면 열려 있는 모든 탭의 스크린샷과 HTML을 dumps/ 에 저장한다.
 
 준비:
     pip install playwright keyring beautifulsoup4
@@ -87,11 +87,17 @@ def main():
             if cmd == "q":
                 break
             n += 1
-            stem = OUT / f"{n:02d}_{time.strftime('%H%M%S')}"
-            page.screenshot(path=f"{stem}.png", full_page=True)
-            Path(f"{stem}.html").write_text(page.content(), encoding="utf-8")
-            Path(f"{stem}.url.txt").write_text(page.url, encoding="utf-8")
-            print("저장:", stem)
+            stamp = time.strftime("%H%M%S")
+            # 상품페이지처럼 새 탭으로 열린 화면도 있으므로 열린 탭을 모두 저장한다.
+            for t, tab in enumerate(page.context.pages, 1):
+                stem = OUT / f"{n:02d}_{stamp}_tab{t}"
+                try:
+                    tab.screenshot(path=f"{stem}.png", full_page=True)
+                except Exception as e:
+                    print("스크린샷 실패:", tab.url, type(e).__name__)
+                Path(f"{stem}.html").write_text(tab.content(), encoding="utf-8")
+                Path(f"{stem}.url.txt").write_text(tab.url, encoding="utf-8")
+                print("저장:", stem, tab.url)
 
         browser.close()
 
