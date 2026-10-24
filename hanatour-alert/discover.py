@@ -8,12 +8,12 @@
 준비:
     pip install playwright
     playwright install chromium
-실행 (macOS/Linux):
-    HANA_CORP=법인코드 HANA_ID=아이디 HANA_PW=비밀번호 python discover.py
-실행 (Windows PowerShell):
-    $env:HANA_CORP="법인코드"; $env:HANA_ID="아이디"; $env:HANA_PW="비밀번호"; python discover.py
+실행:
+    python discover.py
+    (법인코드, 아이디, 패스워드를 차례로 묻는다. 패스워드는 입력해도 화면에 표시되지 않는다.)
 """
 import os
+from getpass import getpass
 import re
 import time
 from pathlib import Path
@@ -38,9 +38,10 @@ def login(page, corp, uid, pw):
 
 
 def main():
-    corp, uid, pw = (os.environ.get(k) for k in ("HANA_CORP", "HANA_ID", "HANA_PW"))
-    if not all((corp, uid, pw)):
-        raise SystemExit("HANA_CORP, HANA_ID, HANA_PW 환경변수를 설정하세요.")
+    corp = os.environ.get("HANA_CORP") or input("법인코드: ")
+    uid = os.environ.get("HANA_ID") or input("아이디: ")
+    # 비밀번호는 화면과 명령 기록에 남지 않도록 입력 시 표시하지 않는다.
+    pw = os.environ.get("HANA_PW") or getpass("패스워드(입력해도 표시되지 않음): ")
     OUT.mkdir(exist_ok=True)
 
     with sync_playwright() as p:
