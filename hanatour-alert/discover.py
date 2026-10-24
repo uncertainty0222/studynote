@@ -44,8 +44,9 @@ def main():
     OUT.mkdir(exist_ok=True)
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False)
-        page = browser.new_page()
+        # 기본 1280x720 고정 화면이면 팝업 닫기 버튼이 잘린다. 창 크기를 따르도록 한다.
+        browser = p.chromium.launch(headless=False, args=["--start-maximized"])
+        page = browser.new_page(no_viewport=True)
         page.goto(URL, wait_until="networkidle")
 
         try:
