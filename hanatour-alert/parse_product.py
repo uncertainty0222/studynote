@@ -29,6 +29,7 @@ class Product:
     code: str
     shopping: int | None  # None: 페이지에서 확인 불가
     days: list
+    nights: int | None = None  # "3박 5일"의 3
 
 
 def parse(html):
@@ -61,7 +62,9 @@ def parse(html):
         body = dd.get_text(" ", strip=True) if dd else ""
         shops = len(re.findall(r"쇼핑\s*센터\s*방문", body))
         days.append(Day(n, date, meals, shops))
-    return Product(code, shopping, days)
+    m = re.search(r"(\d+)\s*박\s*\d+\s*일", text)
+    nights = int(m.group(1)) if m else None
+    return Product(code, shopping, days, nights)
 
 
 def brief(p):
