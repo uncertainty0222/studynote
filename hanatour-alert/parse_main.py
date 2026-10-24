@@ -132,8 +132,10 @@ def brief(g):
     end = max(t.end for t in g.tours)
     a, c, i = (sum(getattr(t, k) for t in main) for k in ("adult", "child", "infant"))
     lines = [
-        f"[패키지] {short_title(main[0].title)}",
-        f"기간 {start:%m/%d}~{end:%m/%d} · 총 {a + c + i}명 (성인 {a}, 아동 {c}, 유아 {i})",
+        # **...** 은 굵게 표시할 줄(텔레그램에서 굵게, 그 외에는 기호만 지움)
+        f"**[패키지] {short_title(main[0].title)}**",
+        f"**기간 {start:%m/%d}~{end:%m/%d} · 총 {a + c + i}명 (성인 {a}, 아동 {c}, 유아 {i})**",
+        "",
     ]
     for n, t in enumerate(g.tours, 1):
         rooms = ", ".join(f"{k} {v}" for k, v in t.rooms.items())
