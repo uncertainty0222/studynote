@@ -1,3 +1,4 @@
 __pycache__/
 # 고객 정보가 담긴 화면 저장본은 저장소에 올리지 않는다.
 dumps/
+has_account.txt

@@ -6,18 +6,19 @@
 이동한 뒤 터미널에서 Enter를 누르면 현재 화면의 스크린샷과 HTML을 dumps/ 에 저장한다.
 
 준비:
-    pip install playwright
+    pip install playwright keyring beautifulsoup4
     playwright install chromium
 실행:
-    python discover.py
-    (법인코드, 아이디, 패스워드를 차례로 묻는다. 패스워드는 입력해도 화면에 표시되지 않는다.)
+    python discover.py           처음 한 번만 로그인 정보를 묻고, 성공하면 저장한다.
+    python discover.py --reset   저장된 로그인 정보를 지우고 다시 입력한다.
 """
-import os
-from getpass import getpass
+import sys
 import time
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
+
+import creds
 
 URL = "https://has.hanatour.net/"
 OUT = Path(__file__).parent / "dumps"
@@ -56,10 +57,10 @@ def login(page, corp, uid, pw):
 
 
 def main():
-    corp = os.environ.get("HANA_CORP") or input("법인코드: ")
-    uid = os.environ.get("HANA_ID") or input("아이디: ")
-    # 비밀번호는 화면과 명령 기록에 남지 않도록 입력 시 표시하지 않는다.
-    pw = os.environ.get("HANA_PW") or getpass("패스워드(입력해도 표시되지 않음): ")
+    reset = "--reset" in sys.argv
+    if reset:
+        creds.forget()
+    corp, uid, pw = creds.load(reset)
     OUT.mkdir(exist_ok=True)
 
     with sync_playwright() as p:
@@ -70,11 +71,13 @@ def main():
 
         try:
             login(page, corp, uid, pw)
+            creds.save(corp, uid, pw)
         except Exception as e:
             # 자동 로그인이 실패해도 수집은 계속할 수 있게 한다.
             (OUT / "login_page.html").write_text(page.content(), encoding="utf-8")
             print("자동 로그인 실패:", type(e).__name__, str(e).splitlines()[0])
             print("로그인 화면 HTML을 dumps/login_page.html 에 저장했습니다.")
+            print("저장된 비밀번호가 바뀌었다면 python discover.py --reset 으로 다시 입력하세요.")
             input("브라우저에서 직접 GUIDE 탭을 눌러 로그인한 뒤 Enter: ")
         print("로그인 후 URL:", page.url)
 

@@ -134,7 +134,9 @@ def brief(g):
         extra = f" 요청사항 {t.requests}건" if t.requests else ""
         lines.append(f"{n}) {t.code} {t.start:%m/%d}~{t.end:%m/%d} {t.pax}명 {air} {rooms}{extra}")
         if t not in main:
+            # 부가 행사(일일투어 등) 인원은 본팀과 별개라 그날에만 더한다.
             lines.append(f"   └ 부가 행사: {t.title.split('#')[0].strip()}")
+            lines.append(f"   └ {t.start:%m/%d} 당일 인원: 본팀 {a + c + i}명 + {t.pax}명 = {a + c + i + t.pax}명")
     return "\n".join(lines)
 
 
