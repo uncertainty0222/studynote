@@ -41,6 +41,8 @@ def setup():
 
 
 def send(text):
+    if not configured():
+        raise SystemExit("텔레그램 설정이 없습니다. 먼저 python telegram.py setup 을 성공시켜 주세요.")
     conf = json.loads(CONF_FILE.read_text(encoding="utf-8"))
     for i in range(0, len(text), MAX_TEXT):
         _api(conf["token"], "sendMessage", chat_id=conf["chat_id"], text=text[i:i + MAX_TEXT])
