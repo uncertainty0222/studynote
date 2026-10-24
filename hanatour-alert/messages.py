@@ -27,9 +27,9 @@ def _base_product(group, products):
     return products[(with_days or mains)[0].code] if mains else None
 
 
-def shop_messages(group, products, shop_dates=None):
-    """쇼핑 횟수만큼 문구를 만든다. 쇼핑 날짜는 상품페이지에 없으므로
-    shop_dates(예: ['11월 2일'])로 받고, 없으면 확인 필요로 남긴다."""
+def shop_messages(group, products):
+    """쇼핑 횟수만큼 같은 문구를 만든다(사용자가 보내기 전에 고친다).
+    날짜는 일정표에 "쇼핑센터 방문"이 적힌 날을 순서대로 쓰고, 모자라면 확인 필요로 둔다."""
     base = _base_product(group, products)
     if not base or not base.shopping:
         return []
@@ -37,9 +37,10 @@ def shop_messages(group, products, shop_dates=None):
     adult = sum(t.adult for t in mains)
     kids = sum(t.child + t.infant for t in mains)
     pax = f"{adult}+{kids}명" if kids else f"{adult}명"
+    dates = [_md(d.date) for d in base.days for _ in range(d.shops)]
     out = []
     for i in range(base.shopping):
-        date = shop_dates[i] if shop_dates and i < len(shop_dates) else "(날짜 확인 필요)"
+        date = dates[i] if i < len(dates) else "(날짜 확인 필요)"
         out.append(f"안녕하세요 이사님~\n{date} {pax} {SHOP_TIME} 예약 가능할까요?")
     return out
 
@@ -67,10 +68,10 @@ def restaurant_messages(group, products):
     return out
 
 
-def all_messages(group, products, shop_dates=None):
+def all_messages(group, products):
     """보낼 순서대로: 브리핑, 쇼핑샵 문구, 식당 문구"""
     return (
         ["🔔 새 일감\n" + brief.package_brief(group, products)]
-        + shop_messages(group, products, shop_dates)
+        + shop_messages(group, products)
         + restaurant_messages(group, products)
     )
