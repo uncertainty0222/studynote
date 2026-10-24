@@ -14,6 +14,7 @@
     $env:HANA_CORP="법인코드"; $env:HANA_ID="아이디"; $env:HANA_PW="비밀번호"; python discover.py
 """
 import os
+import re
 import time
 from pathlib import Path
 
@@ -21,6 +22,19 @@ from playwright.sync_api import sync_playwright
 
 URL = "https://has.hanatour.net/"
 OUT = Path(__file__).parent / "dumps"
+
+
+def login(page, corp, uid, pw):
+    # 화면에는 GUIDE로 보이지만 실제 문자열은 Guide 등일 수 있어 대소문자를 무시한다.
+    page.get_by_text(re.compile(r"^\s*guide\s*$", re.I)).first.click(timeout=10000)
+    # GUIDE 탭에서만 법인코드 칸이 나타난다.
+    corp_box = page.get_by_placeholder("법인코드")
+    corp_box.wait_for(state="visible", timeout=10000)
+    corp_box.fill(corp)
+    page.locator('input[placeholder="아이디"]:visible').first.fill(uid)
+    page.locator('input[placeholder="패스워드"]:visible').first.fill(pw)
+    page.locator(':text-is("로그인"):visible').first.click()
+    page.wait_for_load_state("networkidle")
 
 
 def main():
@@ -34,13 +48,14 @@ def main():
         page = browser.new_page()
         page.goto(URL, wait_until="networkidle")
 
-        # 로그인 화면: TC / GUIDE 탭, 입력칸은 placeholder 문구로 찾는다.
-        page.get_by_text("GUIDE", exact=True).click()
-        page.get_by_placeholder("법인코드").fill(corp)
-        page.get_by_placeholder("아이디").fill(uid)
-        page.get_by_placeholder("패스워드").fill(pw)
-        page.get_by_role("button", name="로그인").click()
-        page.wait_for_load_state("networkidle")
+        try:
+            login(page, corp, uid, pw)
+        except Exception as e:
+            # 자동 로그인이 실패해도 수집은 계속할 수 있게 한다.
+            (OUT / "login_page.html").write_text(page.content(), encoding="utf-8")
+            print("자동 로그인 실패:", type(e).__name__, str(e).splitlines()[0])
+            print("로그인 화면 HTML을 dumps/login_page.html 에 저장했습니다.")
+            input("브라우저에서 직접 GUIDE 탭을 눌러 로그인한 뒤 Enter: ")
         print("로그인 후 URL:", page.url)
 
         n = 0
