@@ -75,6 +75,9 @@ def setup():
     tok.update(rest_key=rest_key, client_secret=secret, issued_at=time.time())
     _store(tok)
     print("저장 완료:", TOKEN_FILE)
+    print("동의된 권한:", tok.get("scope", "(응답에 없음)"))
+    if "talk_message" not in tok.get("scope", ""):
+        print("⚠ 카카오톡 메시지 전송 동의가 빠졌습니다. 동의 화면에서 해당 항목을 체크했는지 확인하세요.")
 
 
 def _access_token():
