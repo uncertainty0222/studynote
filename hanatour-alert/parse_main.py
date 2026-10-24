@@ -51,6 +51,13 @@ class Group:
         return frozenset(t.code for t in self.tours)
 
 
+def short_title(title):
+    """'[출발확정] 나트랑/달랏 5일 #소이아일랜드투어 #스피드보트 #스노클링' -> '나트랑/달랏 5일 #소이아일랜드투어 #스피드보트'"""
+    title = re.sub(r"^(\s*\[[^\]]*\])+", "", title)
+    parts = [p.strip() for p in title.split("#")]
+    return " ".join([parts[0]] + [f"#{p}" for p in parts[1:3] if p])
+
+
 def _text(el):
     return el.get_text(" ", strip=True) if el else ""
 
@@ -125,7 +132,7 @@ def brief(g):
     end = max(t.end for t in g.tours)
     a, c, i = (sum(getattr(t, k) for t in main) for k in ("adult", "child", "infant"))
     lines = [
-        f"[패키지] {main[0].title.split('#')[0].strip()}",
+        f"[패키지] {short_title(main[0].title)}",
         f"기간 {start:%m/%d}~{end:%m/%d} · 총 {a + c + i}명 (성인 {a}, 아동 {c}, 유아 {i})",
     ]
     for n, t in enumerate(g.tours, 1):
@@ -135,7 +142,7 @@ def brief(g):
         lines.append(f"{n}) {t.code} {t.start:%m/%d}~{t.end:%m/%d} {t.pax}명 {air} {rooms}{extra}")
         if t not in main:
             # 부가 행사(일일투어 등) 인원은 본팀과 별개라 그날에만 더한다.
-            lines.append(f"   └ 부가 행사: {t.title.split('#')[0].strip()}")
+            lines.append(f"   └ 부가 행사: {short_title(t.title)}")
             lines.append(f"   └ {t.start:%m/%d} 당일 인원: 본팀 {a + c + i}명 + {t.pax}명 = {a + c + i + t.pax}명")
     return "\n".join(lines)
 

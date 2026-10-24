@@ -2,6 +2,7 @@
 패키지 정보로 카카오톡에 보낼 문구를 만든다: 새 일감 브리핑, 쇼핑샵 예약 문구, 식당 예약 문구.
 """
 import re
+from datetime import timedelta
 
 import brief
 
@@ -29,7 +30,7 @@ def _base_product(group, products):
 
 def shop_messages(group, products):
     """쇼핑이 있는 패키지면 문구 하나를 만든다(횟수와 관계없이 1개, 사용자가 고쳐서 쓴다).
-    날짜는 일정표에 "쇼핑센터 방문"이 적힌 날을 쓰고, 없으면 확인 필요로 둔다."""
+    날짜: 일정표에 "쇼핑센터 방문"이 적힌 날, 없으면 "N박이면 N+1일차" 규칙."""
     base = _base_product(group, products)
     if not base or not base.shopping:
         return []
@@ -38,6 +39,10 @@ def shop_messages(group, products):
     kids = sum(t.child + t.infant for t in mains)
     pax = f"{adult}+{kids}명" if kids else f"{adult}명"
     dates = [_md(d.date) for d in base.days if d.shops]
+    if not dates and base.nights:
+        start = min(t.start for t in mains)
+        shop_day = start + timedelta(days=base.nights)  # N박 → N+1일차
+        dates = [f"{shop_day.month}월 {shop_day.day}일"]
     date = ", ".join(dates) if dates else "(날짜 확인 필요)"
     return [f"안녕하세요 이사님~\n{date} {pax} {SHOP_TIME} 예약 가능할까요?"]
 
