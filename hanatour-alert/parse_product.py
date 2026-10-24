@@ -21,6 +21,7 @@ class Day:
     n: int
     date: str
     meals: dict  # {"조식": "호텔식", ...}
+    shops: int = 0  # 이 날 일정에 적힌 "쇼핑센터" 방문 수
 
 
 @dataclass
@@ -57,7 +58,9 @@ def parse(html):
             kind, menu = p.find("span"), p.find("strong")
             if kind and menu:
                 meals[kind.get_text(strip=True)] = " ".join(menu.get_text(" ", strip=True).split())
-        days.append(Day(n, date, meals))
+        body = dd.get_text(" ", strip=True) if dd else ""
+        shops = len(re.findall(r"쇼핑\s*센터\s*방문", body))
+        days.append(Day(n, date, meals, shops))
     return Product(code, shopping, days)
 
 
@@ -70,8 +73,10 @@ def brief(p):
     if not p.days:
         lines.append("일정표: 페이지에 없음(로딩 전 저장된 것으로 보임)")
     for d in p.days:
-        meals = " / ".join(f"{k} {v}" for k, v in d.meals.items())
-        lines.append(f"{d.n}일차 {d.date}: {meals}")
+        parts = [f"{k} {v}" for k, v in d.meals.items()]
+        if d.shops:
+            parts.append(f"쇼핑센터 {d.shops}곳")
+        lines.append(f"{d.n}일차 {d.date}: {' / '.join(parts)}")
     return "\n".join(lines)
 
 
