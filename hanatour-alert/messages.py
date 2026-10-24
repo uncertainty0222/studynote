@@ -28,8 +28,8 @@ def _base_product(group, products):
 
 
 def shop_messages(group, products):
-    """쇼핑 횟수만큼 같은 문구를 만든다(사용자가 보내기 전에 고친다).
-    날짜는 일정표에 "쇼핑센터 방문"이 적힌 날을 순서대로 쓰고, 모자라면 확인 필요로 둔다."""
+    """쇼핑이 있는 패키지면 문구 하나를 만든다(횟수와 관계없이 1개, 사용자가 고쳐서 쓴다).
+    날짜는 일정표에 "쇼핑센터 방문"이 적힌 날을 쓰고, 없으면 확인 필요로 둔다."""
     base = _base_product(group, products)
     if not base or not base.shopping:
         return []
@@ -37,12 +37,9 @@ def shop_messages(group, products):
     adult = sum(t.adult for t in mains)
     kids = sum(t.child + t.infant for t in mains)
     pax = f"{adult}+{kids}명" if kids else f"{adult}명"
-    dates = [_md(d.date) for d in base.days for _ in range(d.shops)]
-    out = []
-    for i in range(base.shopping):
-        date = dates[i] if i < len(dates) else "(날짜 확인 필요)"
-        out.append(f"안녕하세요 이사님~\n{date} {pax} {SHOP_TIME} 예약 가능할까요?")
-    return out
+    dates = [_md(d.date) for d in base.days if d.shops]
+    date = ", ".join(dates) if dates else "(날짜 확인 필요)"
+    return [f"안녕하세요 이사님~\n{date} {pax} {SHOP_TIME} 예약 가능할까요?"]
 
 
 def restaurant_messages(group, products):
