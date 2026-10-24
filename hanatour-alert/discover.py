@@ -70,13 +70,29 @@ def save(page, name):
 
 
 def wait_itinerary(page):
-    """상품페이지 일정표는 스크롤해야 그려지는 경우가 있어, 끝까지 내리며 나타날 때까지 기다린다."""
+    """상품페이지 일정표를 띄운다. 일정표가 처음부터 있는 상품도 있고,
+    아래쪽 [일정 상세보기] 버튼을 눌러야 나오는 상품도 있다.
+    버튼이 새 탭을 열면 그 탭을 돌려준다."""
+    target = page
+    clicked = False
     for _ in range(30):
-        if page.locator("dt[id^=schedule_day]").count():
-            return
-        page.mouse.wheel(0, 3000)
-        page.wait_for_timeout(500)
-    print("일정표를 찾지 못함:", page.url)
+        if target.locator("dt[id^=schedule_day]").count():
+            return target
+        btn = page.locator("div.btn_next button", has_text="일정 상세보기")
+        if not clicked and btn.count():
+            before = len(page.context.pages)
+            btn.first.scroll_into_view_if_needed()
+            btn.first.click()
+            clicked = True
+            page.wait_for_timeout(1500)
+            if len(page.context.pages) > before:
+                target = page.context.pages[-1]
+                target.wait_for_load_state("networkidle")
+            continue
+        target.mouse.wheel(0, 3000)
+        target.wait_for_timeout(500)
+    print("일정표를 찾지 못함:", target.url)
+    return target
 
 
 def collect_all(page):
@@ -101,11 +117,14 @@ def collect_all(page):
     for name, url in targets:
         try:
             page.goto(url, wait_until="networkidle")
+            shown = page
             if "m.hanatour.com" in url:
-                wait_itinerary(page)
+                shown = wait_itinerary(page)
             else:
                 page.wait_for_timeout(1000)
-            save(page, name)
+            save(shown, name)
+            if shown is not page:
+                shown.close()
         except Exception as e:
             print("수집 실패:", url, type(e).__name__)
     page.goto(URL + "main", wait_until="domcontentloaded")
