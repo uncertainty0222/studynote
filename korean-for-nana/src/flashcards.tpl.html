@@ -36,6 +36,7 @@ h1 small{display:block;font-family:var(--vi);font-size:14px;font-weight:400;colo
 .rr{color:var(--sub);font-size:15px}
 .vi{font-size:18px}
 .note{font-size:14px;color:var(--lotus)}
+.num{font-size:13px;font-weight:600;color:var(--jade);font-variant-numeric:tabular-nums}
 .hint{margin-top:8px;font-size:13px;color:var(--sub)}
 .row{display:flex;gap:8px}
 .row button{flex:1;border:0;border-radius:14px;padding:15px 10px;font:600 16px var(--vi);color:var(--bg);cursor:pointer}
@@ -45,7 +46,7 @@ button:focus-visible,.card:focus-visible{outline:3px solid var(--lotus);outline-
 </head>
 <body>
 <main>
-<h1>나나 한국어 카드<small>Thẻ học tiếng Hàn của Nana</small></h1>
+<h1>나나의 손님 응대 50문장<small>50 câu chăm sóc khách Hàn</small></h1>
 <div class="chips" id="decks"></div>
 <div class="bar"><span id="count"></span><button id="mode"></button></div>
 <div class="card" id="card" tabindex="0" role="button"></div>
@@ -56,7 +57,7 @@ button:focus-visible,.card:focus-visible{outline:3px solid var(--lotus);outline-
   <button class="prev" id="prev">← 이전 · Trước</button>
   <button class="next" id="next">다음 → · Tiếp</button>
 </div>
-<div class="bar"><span></span><button id="shuffle">섞기 · Trộn thẻ</button></div>
+<div class="bar"><button id="order">순서대로 · Theo thứ tự</button><button id="shuffle">섞기 · Trộn thẻ</button></div>
 </main>
 <script>
 const DECKS = /*DECKS*/[];
@@ -73,8 +74,8 @@ const cardsOf = id => id === "all" ? DECKS.flatMap(d => d.cards) : DECKS.find(d 
 
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-function build() {
-  queue = shuffle([...cardsOf(deckId)]);
+function build(mix = false) {
+  queue = mix ? shuffle([...cardsOf(deckId)]) : [...cardsOf(deckId)];
   pos = 0; flipped = false;
   render();
 }
@@ -87,7 +88,7 @@ function go(step) {
 
 function render() {
   $("decks").innerHTML = "";
-  [{ id: "all", ko: "전체 · Tất cả" }, ...DECKS].forEach(d => {
+  [{ id: "all", ko: "전체 50 · Tất cả" }, ...DECKS].forEach(d => {
     const b = document.createElement("button");
     b.className = "chip" + (d.id === deckId ? " on" : "");
     b.textContent = d.ko;
@@ -97,9 +98,10 @@ function render() {
   $("count").textContent = `${pos + 1} / ${queue.length}`;
   $("mode").textContent = viFirst ? "베트남어 → 한국어" : "한국어 → 베트남어";
   const c = queue[pos];
+  const num = `<div class="num">#${c.n}</div>`;
   const front = viFirst ? `<div class="big">${c.vi}</div>` : `<div class="big ko">${c.ko}</div><div class="rr">${c.rr}</div>`;
   const back = `<div class="big ko">${c.ko}</div><div class="rr">${c.rr}</div><div class="vi">${c.vi}</div>` + (c.note ? `<div class="note">${c.note}</div>` : "");
-  $("card").innerHTML = flipped ? back : front + `<div class="hint">눌러서 정답 보기 · Chạm để xem đáp án</div>`;
+  $("card").innerHTML = num + (flipped ? back : front) + (flipped ? "" : `<div class="hint">눌러서 정답 보기 · Chạm để xem đáp án</div>`);
 }
 
 // lang만 지정하면 브라우저가 한국어가 아닌 기본 음성으로 읽는 경우가 있어 ko 음성을 직접 고른다.
@@ -124,7 +126,8 @@ $("speak").onclick = speak;
 $("prev").onclick = () => go(-1);
 $("next").onclick = () => go(1);
 $("mode").onclick = () => { viFirst = !viFirst; store.set("viFirst", viFirst); flipped = false; render(); };
-$("shuffle").onclick = build;
+$("shuffle").onclick = () => build(true);
+$("order").onclick = () => build(false);
 if ("speechSynthesis" in window) speechSynthesis.getVoices();
 if (!DECKS.some(d => d.id === deckId)) deckId = "all";
 build();
