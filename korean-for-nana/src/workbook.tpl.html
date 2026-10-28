@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>나나의 50문장 학습지</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Be+Vietnam+Pro:wght@400;600&display=swap">
+<style>
+/* A4 한 장 = 5문장. 문장마다: 듣기·읽기 체크 → 따라 쓰기(연한 글씨) → 보고 쓰기 → 안 보고 쓰기 */
+@page{size:A4;margin:10mm 12mm}
+:root{--ink:#1d2a26;--sub:#56665f;--line:#b9cbc3;--faint:#c9d3cf;--jade:#2f7d62;--lotus:#c8456b;--tint:#eef4f1;
+  --ko:"Gowun Dodum","Noto Sans KR",sans-serif;--vi:"Be Vietnam Pro",sans-serif;--cell:7.3mm}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:#fff;font-family:var(--vi)}
+.page{page-break-after:always;display:flex;flex-direction:column;gap:3.2mm}
+.page:last-child{page-break-after:auto}
+header{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid var(--jade);padding-bottom:1.5mm}
+h1{font-family:var(--ko);font-size:15pt;margin:0}
+h1 small{font-family:var(--vi);font-size:9pt;font-weight:400;color:var(--sub);margin-left:2mm}
+.date{font-size:9pt;color:var(--sub)}
+.how{display:flex;gap:4mm;font-size:8pt;color:var(--sub);background:var(--tint);border-radius:1.5mm;padding:1.6mm 2.5mm;flex-wrap:wrap}
+.how b{color:var(--jade)}
+.item{display:flex;flex-direction:column;gap:1.4mm;break-inside:avoid;padding-top:2mm}
+.head{display:flex;align-items:center;gap:3mm}
+.n{font-weight:600;color:var(--jade);font-size:11pt;width:7mm;font-variant-numeric:tabular-nums}
+.t{flex:1;min-width:0}
+.ko{font-family:var(--ko);font-size:13.5pt;line-height:1.2}
+.sub{font-size:8pt;color:var(--sub)}
+.sub .vi{color:var(--ink)}
+.sub .note{color:var(--lotus);margin-left:1.5mm}
+.checks{display:flex;flex-direction:column;align-items:flex-end;gap:0.6mm;font-size:7.5pt;color:var(--sub);white-space:nowrap}
+.dots span{display:inline-block;width:3.6mm;height:3.6mm;border:0.35mm solid var(--sub);border-radius:50%;margin-left:1mm;vertical-align:middle}
+.sq{display:inline-block;width:3.6mm;height:3.6mm;border:0.35mm solid var(--sub);border-radius:0.6mm;margin-left:1mm;vertical-align:middle}
+.row{display:flex;align-items:center;gap:1.5mm}
+.lab{width:14mm;flex:none;font-size:6.5pt;color:var(--sub);line-height:1.2;text-align:right;white-space:nowrap}
+.grid{display:flex;flex:none}
+.grid i{flex:none;width:var(--cell);height:var(--cell);border:0.25mm solid var(--line);margin-left:-0.25mm;font-style:normal;font-family:var(--ko);font-size:14pt;line-height:var(--cell);text-align:center;color:var(--faint);
+  background-image:linear-gradient(var(--tint),var(--tint)),linear-gradient(var(--tint),var(--tint));background-size:0.2mm 100%,100% 0.2mm;background-position:center;background-repeat:no-repeat}
+.grid i:first-child{margin-left:0}
+.test{display:flex;flex-direction:column;gap:5mm;padding-top:2mm}
+.test .q{display:flex;flex-direction:column;gap:0.8mm;break-inside:avoid}
+.test .q .p{font-size:9.5pt}
+.test .q .p b{color:var(--jade);margin-right:2mm}
+.score{font-size:10pt;color:var(--sub)}
+</style>
+</head>
+<body>
+<!--PAGES-->
+</body>
+</html>

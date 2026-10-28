@@ -9,6 +9,7 @@ Chỉ học **50 câu** dùng nhiều nhất khi chăm sóc khách Hàn. Mục t
 | 파일 | 내용 |
 |---|---|
 | [`top50-print.pdf`](top50-print.pdf) | 인쇄용 A4 2쪽(앞뒤). 들고 다니며 보기 · Bản in A4 2 trang, mang theo người |
+| [`workbook.pdf`](workbook.pdf) | 쓰기 학습지 A4 15쪽: 한 장에 5문장(따라 쓰기 → 보고 쓰기 → 가리고 쓰기) + 레벨별 확인 테스트 · Vở luyện viết |
 | [`flashcards.html`](flashcards.html) | 50문장 연습용 플래시카드. 레벨별, 순서대로/섞기, 🔊 · Thẻ luyện 50 câu |
 | [`top50.md`](top50.md) | 같은 50문장 표 · Bảng 50 câu |
 | `audio/` | 50문장 녹음 (VoxCPM2로 생성, `tts/` 참고). `NN.wav` 원본, `NN.mp3` 카드용 |
