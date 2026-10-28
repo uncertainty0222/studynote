@@ -422,6 +422,7 @@ export default function WeeklyVietnam({
               key={`${current.scope}:${current.weekly ? "week" : period}`}
               ranking={byScope[current.scope]}
               onPaywall={() => setPaywall(true)}
+              admin={Boolean(access.member?.admin)}
             />
           </Section>
           </div>
@@ -608,7 +609,7 @@ function Sparkline({ points }: { points: { day: string; price: number }[] }) {
   );
 }
 
-export function RankingView({ ranking, onPaywall }: { ranking?: Ranking; onPaywall: () => void }) {
+export function RankingView({ ranking, onPaywall, admin = false }: { ranking?: Ranking; onPaywall: () => void; admin?: boolean }) {
   const [showMore, setShowMore] = useState(false);
 
   if (ranking?.status === "locked") {
@@ -627,7 +628,13 @@ export function RankingView({ ranking, onPaywall }: { ranking?: Ranking; onPaywa
     return <Skeleton />;
   }
   if (ranking.stories.length === 0) {
-    return <Empty>순위를 만들지 못했습니다. 잠시 후 다시 확인해 주세요.</Empty>;
+    return (
+      <Empty>
+        순위를 만들지 못했습니다. 30분 뒤 다시 시도해요.
+        {/* 실패 사유는 운영자에게만 */}
+        {admin && ranking.error && <span className="mt-2 block break-all font-mono text-xs text-rose-600">운영자용 사유: {ranking.error}</span>}
+      </Empty>
+    );
   }
 
   const head = ranking.stories.slice(0, 10);

@@ -587,6 +587,8 @@ async function generate(entry: Entry) {
     entry.failedAt = Date.now();
     entry.error = describeError(e);
     entry.status = entry.stories.length ? "ready" : "error";
+    // Railway 로그(Deployments → View logs)에서 원인을 볼 수 있게
+    console.error(`[rankings] ${scope}:${period} 생성 실패: ${entry.error}`);
   }
 }
 
