@@ -39,7 +39,7 @@ h1 small{display:block;font-family:var(--vi);font-size:14px;font-weight:400;colo
 .hint{margin-top:8px;font-size:13px;color:var(--sub)}
 .row{display:flex;gap:8px}
 .row button{flex:1;border:0;border-radius:14px;padding:15px 10px;font:600 16px var(--vi);color:var(--bg);cursor:pointer}
-.again{background:var(--muted)}.known{background:var(--jade)}.speak{background:var(--lotus)}
+.prev{background:var(--muted)}.next{background:var(--jade)}.speak{background:var(--lotus)}
 button:focus-visible,.card:focus-visible{outline:3px solid var(--lotus);outline-offset:2px}
 </style>
 </head>
@@ -53,10 +53,10 @@ button:focus-visible,.card:focus-visible{outline:3px solid var(--lotus);outline-
   <button class="speak" id="speak">🔊 듣기 · Nghe</button>
 </div>
 <div class="row">
-  <button class="again" id="again">다시 · Chưa thuộc</button>
-  <button class="known" id="known">알아요 · Thuộc rồi</button>
+  <button class="prev" id="prev">← 이전 · Trước</button>
+  <button class="next" id="next">다음 → · Tiếp</button>
 </div>
-<div class="bar"><span></span><button id="reset">처음부터 · Học lại</button></div>
+<div class="bar"><span></span><button id="shuffle">섞기 · Trộn thẻ</button></div>
 </main>
 <script>
 const DECKS = [
@@ -538,10 +538,9 @@ const store = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
-let known = new Set(store.get("known", []));
 let deckId = store.get("deck", "all");
 let viFirst = store.get("viFirst", true);
-let queue = [], flipped = false;
+let queue = [], pos = 0, flipped = false;
 
 const $ = id => document.getElementById(id);
 const cardsOf = id => id === "all" ? DECKS.flatMap(d => d.cards) : DECKS.find(d => d.id === id).cards;
@@ -549,7 +548,13 @@ const cardsOf = id => id === "all" ? DECKS.flatMap(d => d.cards) : DECKS.find(d 
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
 function build() {
-  queue = shuffle(cardsOf(deckId).filter(c => !known.has(c.ko)));
+  queue = shuffle([...cardsOf(deckId)]);
+  pos = 0; flipped = false;
+  render();
+}
+
+function go(step) {
+  pos = (pos + step + queue.length) % queue.length;
   flipped = false;
   render();
 }
@@ -563,35 +568,38 @@ function render() {
     b.onclick = () => { deckId = d.id; store.set("deck", deckId); build(); };
     $("decks").appendChild(b);
   });
-  const total = cardsOf(deckId).length;
-  $("count").textContent = `남은 카드 · Còn lại: ${queue.length} / ${total}`;
+  $("count").textContent = `${pos + 1} / ${queue.length}`;
   $("mode").textContent = viFirst ? "베트남어 → 한국어" : "한국어 → 베트남어";
-  const c = queue[0];
-  if (!c) { $("card").innerHTML = `<div class="big">🎉 다 외웠어요!</div><div class="vi">Thuộc hết rồi! Giỏi lắm!</div>`; return; }
+  const c = queue[pos];
   const front = viFirst ? `<div class="big">${c.vi}</div>` : `<div class="big ko">${c.ko}</div><div class="rr">${c.rr}</div>`;
   const back = `<div class="big ko">${c.ko}</div><div class="rr">${c.rr}</div><div class="vi">${c.vi}</div>` + (c.note ? `<div class="note">${c.note}</div>` : "");
   $("card").innerHTML = flipped ? back : front + `<div class="hint">눌러서 정답 보기 · Chạm để xem đáp án</div>`;
 }
 
+// lang만 지정하면 브라우저가 한국어가 아닌 기본 음성으로 읽는 경우가 있어 ko 음성을 직접 고른다.
+function koVoice() {
+  const vs = speechSynthesis.getVoices().filter(v => v.lang.replace("_", "-").toLowerCase().startsWith("ko"));
+  return vs.find(v => /natural|neural|online|google|premium|enhanced/i.test(v.name)) || vs[0] || null;
+}
+
 function speak() {
-  const c = queue[0];
+  const c = queue[pos];
   if (!c || !("speechSynthesis" in window)) return;
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(c.ko.replace(/\//g, ","));
-  u.lang = "ko-KR"; u.rate = 0.85;
+  u.lang = "ko-KR"; u.rate = 0.9;
+  const v = koVoice(); if (v) u.voice = v;
   speechSynthesis.speak(u);
 }
 
 $("card").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("card").click(); } };
 $("card").onclick = () => { flipped = !flipped; render(); if (flipped) speak(); };
 $("speak").onclick = speak;
-$("again").onclick = () => { if (queue.length) { queue.push(queue.shift()); flipped = false; render(); } };
-$("known").onclick = () => {
-  const c = queue.shift(); if (!c) return;
-  known.add(c.ko); store.set("known", [...known]); flipped = false; render();
-};
+$("prev").onclick = () => go(-1);
+$("next").onclick = () => go(1);
 $("mode").onclick = () => { viFirst = !viFirst; store.set("viFirst", viFirst); flipped = false; render(); };
-$("reset").onclick = () => { cardsOf(deckId).forEach(c => known.delete(c.ko)); store.set("known", [...known]); build(); };
+$("shuffle").onclick = build;
+if ("speechSynthesis" in window) speechSynthesis.getVoices();
 if (!DECKS.some(d => d.id === deckId)) deckId = "all";
 build();
 </script>

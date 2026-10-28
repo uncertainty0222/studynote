@@ -8,7 +8,7 @@ Không học từ ngữ pháp cơ bản. Học **câu dùng được ngay hôm n
 
 | 파일 | 내용 |
 |---|---|
-| [`flashcards.html`](flashcards.html) | 휴대폰용 플래시카드. 발음 듣기(🔊), 외운 카드 자동 제외 · Thẻ học trên điện thoại, có nghe phát âm |
+| [`flashcards.html`](flashcards.html) | 휴대폰용 플래시카드. 발음 듣기(🔊), 이전/다음, 섞기 · Thẻ học trên điện thoại, có nghe phát âm |
 | [`phrases.md`](phrases.md) | 전체 문장표 (인쇄용) · Bảng tất cả các câu (để in) |
 | `src/` | 문장 원본(`data.py`)과 생성 스크립트. 문장 추가 후 `cd src && python3 gen.py ..` |
 
@@ -20,8 +20,8 @@ Không học từ ngữ pháp cơ bản. Học **câu dùng được ngay hôm n
    Nghe 🔊 rồi đọc to theo 3 lần.
 3. **미션**: 다음 날 손님에게 1번, 남편에게 1번 실제로 말한다.
    **Nhiệm vụ**: Ngày hôm sau nói thật 1 lần với khách, 1 lần với chồng.
-4. 쓴 문장은 "알아요 · Thuộc rồi" 버튼. 끝.
-   Nói được rồi thì bấm "Thuộc rồi". Xong.
+4. 외운 문장도 카드에서 빠지지 않는다. 가끔 "전체"로 섞어서 복습.
+   Câu đã thuộc vẫn còn trong thẻ. Thỉnh thoảng chọn "Tất cả" để ôn lại.
 
 순서대로 할 필요 없음. 빠진 날이 있어도 다음 날 3문장부터 다시 시작.
 Không cần học theo thứ tự. Bỏ một ngày cũng không sao, hôm sau học tiếp 3 câu.
