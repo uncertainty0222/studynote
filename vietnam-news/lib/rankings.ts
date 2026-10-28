@@ -278,52 +278,66 @@ const MAX_LINES_LOCAL = 200;
 const MAX_SOURCES = 12; // 한 항목에 보여줄 근거 기사 수
 const RETRY_AFTER_FAILURE_MS = 30 * 60 * 1000;
 
-// 출력 토큰을 아끼려고 키 이름을 짧게 쓴다 (프롬프트에 뜻을 적어 둔다)
-const SCHEMA = {
+// 출력 토큰을 아끼려고 키 이름을 짧게 쓴다 (프롬프트에 뜻을 적어 둔다).
+// 1~10위(top)와 11위 이하(rest)를 다른 목록으로 받는다: 한 목록에서 순위로 규칙을 나누면 모델이 1~10위 요약까지 비우는 일이 있었다
+const TOP_ITEM = {
   type: "object",
   properties: {
-    s: {
+    h: { type: "string" },
+    sm: { type: "string" },
+    tp: { type: "string" },
+    c: { type: "string" },
+    st: { type: "string" },
+    f: {
       type: "array",
       items: {
         type: "object",
         properties: {
-          h: { type: "string" },
-          sm: { type: "string" },
-          tp: { type: "string" },
-          c: { type: "string" },
-          st: { type: "string" },
-          f: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                l: { type: "string" },
-                v: { type: "string" },
-                src: { type: "string" },
-                cur: { type: "string" },
-              },
-              required: ["l", "v", "src", "cur"],
-              additionalProperties: false,
-            },
-          },
-          tl: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: { i: { type: "integer" }, e: { type: "string" } },
-              required: ["i", "e"],
-              additionalProperties: false,
-            },
-          },
-          ids: { type: "array", items: { type: "integer" } },
+          l: { type: "string" },
+          v: { type: "string" },
+          src: { type: "string" },
+          cur: { type: "string" },
         },
-        required: ["h", "sm", "tp", "c", "st", "f", "tl", "ids"],
+        required: ["l", "v", "src", "cur"],
         additionalProperties: false,
       },
     },
+    tl: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { i: { type: "integer" }, e: { type: "string" } },
+        required: ["i", "e"],
+        additionalProperties: false,
+      },
+    },
+    ids: { type: "array", items: { type: "integer" } },
   },
-  required: ["s"],
+  required: ["h", "sm", "tp", "c", "st", "f", "tl", "ids"],
   additionalProperties: false,
+};
+const REST_ITEM = {
+  type: "object",
+  properties: { h: { type: "string" }, c: { type: "string" }, ids: { type: "array", items: { type: "integer" } } },
+  required: ["h", "c", "ids"],
+  additionalProperties: false,
+};
+const SCHEMA = {
+  type: "object",
+  properties: { top: { type: "array", items: TOP_ITEM }, rest: { type: "array", items: REST_ITEM } },
+  required: ["top", "rest"],
+  additionalProperties: false,
+};
+
+type TopItem = {
+  h: string;
+  sm: string;
+  tp: string;
+  c: string;
+  st: string;
+  f: { l: string; v: string; src: string; cur: string }[];
+  tl: { i: number; e: string }[];
+  ids: number[];
 };
 
 // 100만 토큰당 달러 (입력, 출력). 실사용 비용 표시용
@@ -680,16 +694,17 @@ async function rank(scope: ScopeId, period: PeriodId, now: Date, allowEmpty = fa
 ${SCOPES[scope].focus}
 Each line is: id, date (YYMMDD), xN = number of similar headlines merged into that line (more = wider coverage), headline. Prefer widely covered stories.
 
-Output keys: h headline, sm summary, tp talking point, c category, st status, f figures (l label, v value), tl timeline (i headline id, e event), ids headline ids.
+Output: "top" = ranks 1-10 in order, every one fully written; "rest" = ranks 11 and below in order (headline only).
+Keys: h headline, sm summary, tp talking point, c category, st status, f figures (l label, v value), tl timeline (i headline id, e event), ids headline ids.
 Rules:
 - Merge lines about the same event or ongoing development into one story. ids: up to 8 of its most relevant line ids.
 - Write in Korean. h: one concise line. c: one of ${SCOPES[scope].categories ?? DEFAULT_CATEGORIES}.
-- Ranks 1-10:
+- top (ranks 1-10). Never leave sm, tp or st empty here:
   - sm: 2 short, plain sentences on what happened and why it matters. tp: one plain sentence on what it means for Korean residents or visitors in Vietnam (or what to keep in mind).
   - st: current state in a few words (e.g. 협상 중, 타결, 시행 중, 진행 중, 종료, 피해 수습 중).
   - f: up to 3 key numbers. src: the number exactly as written in one of this story's headlines, digits and separators copied (e.g. "6,1 tấn", "46% xuống 20%", "1,2 tỷ USD"). v: the same number written the Korean way for Korean readers: "." as decimal point, "," for thousands, 만/억/조 for large counts, units translated (tấn→톤, người→명, ha→헥타르, dự án→개 사업, căn hộ→가구), e.g. "6.1톤", "1만 명", "46% → 20%". Use "before → after" only when both numbers appear. For money set cur to the ISO currency code (VND for đồng, USD, EUR, JPY, CNY, KRW…) and keep the amount with its unit word in src (e.g. "1,2 tỷ USD", "35.000 tỷ đồng"); the server writes the Korean money text itself. For non-money set cur "". Empty list if none.
   - tl: 2-4 key steps in order, each with the id of the line reporting it and a short description without dates.
-- Ranks 11 and below: only h, c and ids; sm, tp, st empty strings; f and tl empty lists.
+- rest (ranks 11 and below): only h, c and ids.
 - Use only facts present in the headlines. Do not invent numbers, dates or quotes.
 - Order by significance, most important first. Return fewer stories if there are fewer real ones.`;
 
@@ -698,43 +713,48 @@ Rules:
     .join("\n");
   const krwPer = await krwRates(); // 돈 수치의 원화 환산용 (실패하면 환산 생략)
   const client = new Anthropic();
-  // 출력이 길 수 있어 스트리밍으로 받는다 (HTTP 타임아웃 방지)
-  const response = await client.beta.messages
-    .stream({
-      model: MODEL,
-      max_tokens: 32000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      // AI의 검토(thinking) 토큰도 출력 요금이라, 짧은 기간은 낮은 강도로 충분하다
-      output_config: {
-        effort: period === "day" || period === "month" ? "low" : "medium", // 주간·1년·3년은 중간
-        format: { type: "json_schema", schema: SCHEMA },
-      },
-      system,
-      messages: [{ role: "user", content: lines }],
-    })
-    .finalMessage();
-  if (response.stop_reason === "refusal") throw new Error("요청이 거절됨");
-  if (response.stop_reason === "max_tokens") throw new Error("응답이 잘림 (max_tokens)");
-
-  const usage = recordUsage(response.usage.input_tokens, response.usage.output_tokens);
-
-  const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
-  const parsed = JSON.parse(text) as {
-    s: {
-      h: string;
-      sm: string;
-      tp: string;
-      c: string;
-      st: string;
-      f: { l: string; v: string; src: string; cur: string }[];
-      tl: { i: number; e: string }[];
-      ids: number[];
-    }[];
+  // AI의 검토(thinking) 토큰도 출력 요금이라, 짧은 기간은 낮은 강도로 충분하다 (주간·1년·3년은 중간)
+  const ask = async (effort: "low" | "medium") => {
+    // 출력이 길 수 있어 스트리밍으로 받는다 (HTTP 타임아웃 방지)
+    const response = await client.beta.messages
+      .stream({
+        model: MODEL,
+        max_tokens: 32000,
+        betas: ["server-side-fallback-2026-07-01"],
+        fallbacks: "default",
+        output_config: { effort, format: { type: "json_schema", schema: SCHEMA } },
+        system,
+        messages: [{ role: "user", content: lines }],
+      })
+      .finalMessage();
+    if (response.stop_reason === "refusal") throw new Error("요청이 거절됨");
+    if (response.stop_reason === "max_tokens") throw new Error("응답이 잘림 (max_tokens)");
+    const usage = recordUsage(response.usage.input_tokens, response.usage.output_tokens);
+    const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+    const parsed = JSON.parse(text) as { top: TopItem[]; rest: { h: string; c: string; ids: number[] }[] };
+    // 1~10위 중 요약이 빈 항목 수
+    const blank = parsed.top.slice(0, FREE_RANKS).filter((t) => !t.sm?.trim()).length;
+    return { parsed, usage, blank };
   };
+
+  let effort: "low" | "medium" = period === "day" || period === "month" ? "low" : "medium";
+  let { parsed, usage, blank } = await ask(effort);
+  // 1~10위 요약이 절반 넘게 비었으면 한 번만 더 (강도를 올려) 받는다
+  if (blank > Math.min(parsed.top.length, FREE_RANKS) / 2) {
+    console.warn(`[rankings] ${scope}:${period} 요약 빈 항목 ${blank}개 → 다시 요청`);
+    effort = "medium";
+    const retry = await ask(effort);
+    usage = addUsage(usage, retry.usage) ?? usage;
+    if (retry.blank < blank) ({ parsed, blank } = retry);
+  }
+  const items: TopItem[] = [
+    ...parsed.top,
+    ...parsed.rest.map((r) => ({ ...r, sm: "", tp: "", st: "", f: [], tl: [] })),
+  ];
+
   const validId = (id: number) => Number.isInteger(id) && id >= 0 && id < clusters.length;
 
-  const stories: RankedStory[] = parsed.s.slice(0, MAX_STORIES).map((s, i) => {
+  const stories: RankedStory[] = items.slice(0, MAX_STORIES).map((s, i) => {
     // 모델이 준 id 중 실제로 있는 줄만 근거로 남기고, 묶여 있던 기사까지 펼친다
     const ids = [...new Set(s.ids)].filter(validId);
     const allArticles = ids.flatMap((id) => clusters[id].members).sort((a, b) => a.publishedAt - b.publishedAt);
