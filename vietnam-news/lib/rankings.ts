@@ -13,7 +13,7 @@ import { formatMoney, krwRates, parseAmount, significantDigits } from "./fx";
 import { fetchFeed, googleNews, pubmedSearch, VIETNAM_RE, type FeedRequest, type Headline } from "./feeds";
 
 export type PeriodId = "day" | "week" | "month" | "year" | "threeYear";
-export type ScopeId = "national" | "nhatrang" | "dalat" | "expat" | "specialty" | "realestate";
+export type ScopeId = "national" | "nhatrang" | "dalat" | "expat" | "agarwood" | "coffee" | "artichoke" | "realestate";
 
 export const PERIODS: Record<PeriodId, { label: string; days: number; windows: number; perQuery: number; refreshHours: number }> = {
   day: { label: "일간", days: 1, windows: 1, perQuery: 100, refreshHours: 6 },
@@ -39,12 +39,16 @@ type Query = {
 const NHATRANG_RE = /nha trang|khanh hoa|khánh hòa|cam ranh|나트랑|냐짱|카인호아|깜라인/i;
 const DALAT_RE = /da lat|dalat|đà lạt|달랏|lang biang|langbiang/i;
 
-// 특산품: 침향, 상황버섯, 커피 (한·베·영, 논문 학명 포함)
-const SPECIALTY_RE =
-  /trầm hương|kỳ nam|agarwood|aquilaria|\boud\b|침향|기남|thượng hoàng|phellinus|상황버섯|cà phê|coffee|robusta|arabica|커피/i;
+// 특산품 세 탭: 침향(나트랑·칸호아), 커피(달랏·럼동), 아티소(달랏)
+const AGARWOOD_RE = /trầm hương|kỳ nam|agarwood|aquilaria|\boud\b|침향|기남/i;
 const COFFEE_RE = /cà phê|coffee|robusta|arabica|커피/i;
+const ARTICHOKE_RE = /atis[oô]|actis[oô]|artichoke|cynara|아티소|아티초크/i;
 // 매일 나오는 시세 기사(예: "Giá cà phê hôm nay 14/10")는 사건이 아니므로 뺀다
-const DAILY_PRICE_RE = /giá (cà phê|trầm hương)[^,:]*(hôm nay|ngày \d)|coffee prices? today/i;
+const DAILY_PRICE_RE = /giá (cà phê|trầm hương)[^,:]*(hôm nay|ngày \d)|coffee prices? today|giá cà phê (sáng|chiều|tối)/i;
+// 특산품 탭 공통 지시 (연구 항목·광고 제외)
+const PRODUCT_RULES = `News on this product is scarce, so also include research: Vietnamese press reports on studies, and lines from PubMed (journal articles, usually English titles). For research use only what the title states; do not claim health benefits beyond it. Prefer research done in Vietnam or with practical meaning (quality, authenticity testing, cultivation, safety). Keep at most 3 research items in the top 10, and set st to "연구 발표" for them.
+Skip routine daily price bulletins, advertisements and product promotions, and stories that only mention the product in passing.
+When a headline has a price, export value, volume or percentage, put it in f.`;
 
 // 부동산: 개발·분양·시세·토지·임대·외국인 소유 관련 단어 (나트랑 일반 뉴스를 거르려고 함께 맞춘다)
 const PROPERTY_RE =
@@ -62,6 +66,7 @@ export const SCOPES: Record<
     weeklyOnly?: boolean;
     carryOverWeeks?: number; // 주간 순위가 30위를 못 채우면 최대 이 주 수만큼 지난 주 순위로 채운다
     topCaps?: Record<string, number>; // 분류별 TOP 10 안 최대 개수. 넘치는 항목은 11위 아래로 내린다
+    minPool?: number; // 순위를 만들 최소 기사 수 (기본: 전국·해외생활 30, 나머지 5)
   }
 > = {
   national: {
@@ -166,41 +171,74 @@ Rank by impact and importance: how many Korean expats it affects, how directly (
 Skip general politics, diplomacy, macroeconomics, big investment deals, tourism, weather, local incidents, celebrity and entertainment unless they directly change these rules. In tp, say concretely what an expat should do or check. When a rule has an effective date, fine or threshold in the headline, put it in f.`,
     categories: "행정, 이민·체류, 부동산, 사업·상업, 세금, 은행·외환, 노동·보험, 한-베 영사",
   },
-  // 특산품: 나트랑·달랏 쇼핑 품목 뉴스. 기사가 적은 분야라 연구·논문도 넣는다. 주간 전용
-  specialty: {
-    label: "나트랑·달랏 특산품 (침향·상황버섯·커피)",
+  // 침향: 나트랑(칸호아) 대표 특산품. 기사가 적은 분야라 연구·논문도 넣는다. 주간 전용
+  agarwood: {
+    label: "침향 (trầm hương, 나트랑·칸호아 특산품)",
     weeklyOnly: true,
     carryOverWeeks: 4,
-    topCaps: { 커피: 1 },
     queries: [
-      { lang: "vi", q: '"trầm hương" OR "kỳ nam"', mustMatch: SPECIALTY_RE, excludeTitle: DAILY_PRICE_RE },
-      { lang: "vi", q: '"nấm thượng hoàng"', mustMatch: SPECIALTY_RE },
-      // 국내 언론의 연구 소식
+      { lang: "vi", q: '"trầm hương" OR "kỳ nam"', mustMatch: AGARWOOD_RE, excludeTitle: DAILY_PRICE_RE },
       {
         lang: "vi",
-        q: '("trầm hương" OR "nấm thượng hoàng") ("nghiên cứu" OR "nhà khoa học" OR "công bố" OR "đề tài" OR "bằng sáng chế")',
-        mustMatch: SPECIALTY_RE,
+        q: '"trầm hương" ("Khánh Hòa" OR "Nha Trang" OR "xuất khẩu" OR "giả" OR "nghiên cứu" OR "trồng" OR "chứng nhận")',
+        mustMatch: AGARWOOD_RE,
+        excludeTitle: DAILY_PRICE_RE,
       },
-      // 커피는 TOP 10에 1건만 쓰므로 검색도 하나만
+      { lang: "en", q: 'Vietnam (agarwood OR "oud")', mustMatch: [AGARWOOD_RE, VIETNAM_RE] },
+      { lang: "ko", q: "(베트남 OR 나트랑) (침향 OR 침향환)", mustMatch: AGARWOOD_RE },
+      { lang: "en", source: "pubmed", q: "agarwood OR Aquilaria" },
+    ],
+    focus: `Pick news about agarwood (trầm hương, kỳ nam), the signature specialty of Nha Trang and Khanh Hoa that Korean visitors buy. Ignore other products.
+Rank by how widely discussed the story is (xN) and its impact: export deals and prices moving sharply, new rules and certification (CITES, geographical indications, quarantine, customs limits for travellers carrying agarwood), counterfeit or fraud cases and crackdowns (fake or dyed agarwood, tourist shop scams), plantation, harvest and cultivation news, big investments, anything involving Korean buyers or tourists, Khanh Hoa stories.
+${PRODUCT_RULES}
+Korean terms: always write trầm hương / agarwood as 침향 (never transliterate it as 트람흥 or 짬흐엉), kỳ nam as 기남침향.`,
+    categories: "수출·가격, 규제·인증, 위조·단속, 재배·생산, 관광·쇼핑, 연구",
+  },
+  // 커피: 달랏·럼동 아라비카, 베트남 로부스타 수출. 시세 기사가 매일 나오므로 사건만. 주간 전용
+  coffee: {
+    label: "커피 (베트남, 특히 달랏·럼동)",
+    weeklyOnly: true,
+    carryOverWeeks: 2,
+    queries: [
       {
         lang: "vi",
-        q: '"cà phê" ("Lâm Đồng" OR "Đà Lạt" OR "xuất khẩu" OR Arabica OR Robusta OR "chỉ dẫn địa lý") -"giá cà phê hôm nay"',
+        q: '"cà phê" ("Lâm Đồng" OR "Đà Lạt" OR Arabica OR "Cầu Đất" OR "chỉ dẫn địa lý")',
         mustMatch: COFFEE_RE,
         excludeTitle: DAILY_PRICE_RE,
       },
-      { lang: "en", q: 'Vietnam (agarwood OR "Phellinus")', mustMatch: [SPECIALTY_RE, VIETNAM_RE] },
-      { lang: "ko", q: "베트남 (침향 OR 상황버섯 OR 침향환)", mustMatch: [SPECIALTY_RE, VIETNAM_RE] },
-      // 논문 (PubMed): 침향·상황버섯 학명
-      { lang: "en", source: "pubmed", q: 'agarwood OR Aquilaria OR "Phellinus linteus"' },
+      {
+        lang: "vi",
+        q: '"cà phê" ("xuất khẩu" OR "kim ngạch" OR EUDR OR "Hàn Quốc" OR "giá kỷ lục" OR "mất mùa" OR "cà phê chồn")',
+        mustMatch: COFFEE_RE,
+        excludeTitle: DAILY_PRICE_RE,
+      },
+      { lang: "en", q: 'Vietnam coffee (export OR robusta OR arabica OR "Da Lat" OR EUDR OR harvest)', mustMatch: [COFFEE_RE, VIETNAM_RE], excludeTitle: DAILY_PRICE_RE },
+      { lang: "ko", q: "(베트남 OR 달랏) (커피 OR 콘삭커피 OR 족제비커피)", mustMatch: COFFEE_RE },
     ],
-    focus: `Pick news about three specialty products sold to visitors in Nha Trang and Da Lat: agarwood (trầm hương, kỳ nam), Phellinus linteus mushroom (nấm thượng hoàng) and coffee. Ignore every other product.
-The section is mainly about agarwood and the mushroom: include at most ONE coffee story in the top 10 (the most significant one), and fill the rest of the top 10 with agarwood and mushroom stories.
-Rank by how widely discussed the story is (xN) and its impact: export deals and prices moving sharply, new rules and certification (geographical indications, food safety, quarantine, customs limits for travellers), counterfeit or fraud cases and crackdowns, harvest and cultivation news, big investments, anything involving Korean buyers or tourists, Khanh Hoa and Lam Dong stories.
-News on these products is scarce, so also include research: Vietnamese press reports on studies, and lines from PubMed (journal articles, usually English titles). For research use only what the title states; do not claim health benefits beyond it. Prefer research done in Vietnam or with practical meaning (quality, authenticity testing, cultivation, safety). Keep at most 3 research items in the top 10.
-Korean terms: always write trầm hương / agarwood as 침향 (never transliterate it as 트람흥 or 짬흐엉), kỳ nam as 기남침향, nấm thượng hoàng / Phellinus linteus as 상황버섯.
-Skip routine daily price bulletins, advertisements and product promotions, and stories that only mention a product in passing.
-For research items, set st to "연구 발표". When a headline has a price, export value, volume or percentage, put it in f.`,
-    categories: "침향, 상황버섯, 커피",
+    focus: `Pick news about Vietnamese coffee that Korean residents and visitors in Nha Trang and Da Lat would care about: Da Lat and Lam Dong arabica (Cau Dat and other origins), Vietnam's robusta and export market, record price moves, harvests and weather damage, EU deforestation rules (EUDR) and other trade rules, geographical indications, coffee sold to tourists (weasel coffee / cà phê chồn authenticity and fraud), Korea–Vietnam coffee trade, notable cafés, farms and festivals in Da Lat.
+Rank by impact and how widely covered it is (xN). Prefer Da Lat / Lam Dong and Korea-related stories when similar in weight.
+Skip routine daily price bulletins ("giá cà phê hôm nay"), advertisements and café promotions, and stories that only mention coffee in passing.
+Korean terms: cà phê chồn is 족제비 커피 (콘삭 커피), Cầu Đất is 꺼우덧.
+When a headline has a price, export value, volume or percentage, put it in f.`,
+    categories: "수출·가격, 작황·날씨, 규제·무역, 달랏·럼동, 관광·쇼핑, 한국 관련",
+  },
+  // 아티소: 달랏 특산품(차·말린 꽃). 기사가 매우 적어 연구·논문과 지난 주 순위로 채운다. 주간 전용
+  artichoke: {
+    label: "아티소 (atiso, 달랏 특산품)",
+    weeklyOnly: true,
+    carryOverWeeks: 8,
+    minPool: 2,
+    queries: [
+      { lang: "vi", q: 'atiso OR atisô OR actiso OR "trà atiso"', mustMatch: ARTICHOKE_RE },
+      { lang: "en", q: 'artichoke ("Da Lat" OR Dalat OR Vietnam OR "Lam Dong")', mustMatch: ARTICHOKE_RE },
+      { lang: "ko", q: "(달랏 OR 베트남) (아티소 OR 아티소차 OR 아티초크)", mustMatch: ARTICHOKE_RE },
+      { lang: "en", source: "pubmed", q: '"Cynara scolymus" OR "Cynara cardunculus" OR artichoke' },
+    ],
+    focus: `Pick news about artichoke (atiso), the Da Lat specialty sold to visitors as tea, dried flowers and extracts. Ignore other products.
+Rank by impact and how widely covered it is (xN): Da Lat and Lam Dong farming, harvest and prices, processing and export, food-safety and quality problems (fake or adulterated artichoke tea), certification and OCOP products, tourism (artichoke farms and shops), anything involving Korean buyers or tourists.
+${PRODUCT_RULES}
+Korean terms: write atiso / artichoke as 아티소 (the name Korean visitors use in Da Lat), never 아티초크.`,
+    categories: "재배·생산, 가공·수출, 품질·안전, 관광·쇼핑, 연구",
   },
   // 나트랑 부동산: 장터 옆 별도 탭(/realestate). 매물이 아니라 뉴스다. 기사가 적은 분야라 지난 주 순위로 채운다. 주간 전용
   realestate: {
@@ -380,7 +418,7 @@ export function modelName() {
 
 // 저장된 순위를 바로 돌려주고, 없거나 오래됐으면 백그라운드 생성을 예약한다
 export function getRanking(scope: ScopeId, requested: PeriodId, premium = false): Ranking {
-  const period: PeriodId = SCOPES[scope].weeklyOnly ? "week" : requested; // 해외생활·특산품은 주간만 있다
+  const period: PeriodId = SCOPES[scope].weeklyOnly ? "week" : requested; // 해외생활·특산품·부동산은 주간만 있다
   // 유료 기간은 이용권이 없으면 만들지도 않는다 (토큰은 결제한 독자가 쓸 때만 든다)
   if (period !== FREE_PERIOD && !premium) {
     return { scope, period, enabled: Boolean(process.env.ANTHROPIC_API_KEY), status: "locked", generatedAt: null, poolSize: 0, stories: [] };
@@ -657,7 +695,10 @@ export function applyTopCaps(stories: RankedStory[], caps?: Record<string, numbe
 }
 
 // 모델이 음역해 버린 품목명을 바로잡는다 (Trầm hương → 침향)
-const KO_FIXES: [RegExp, string][] = [[/트람\s?흐?엉|트람흥|짬\s?흐엉|쩜\s?흐엉|짬흥/g, "침향"]];
+const KO_FIXES: [RegExp, string][] = [
+  [/트람\s?흐?엉|트람흥|짬\s?흐엉|쩜\s?흐엉|짬흥/g, "침향"],
+  [/아티초크/g, "아티소"],
+];
 export function fixTerms(text: string) {
   return KO_FIXES.reduce((t, [re, to]) => t.replace(re, to), text);
 }
@@ -682,7 +723,7 @@ async function rank(scope: ScopeId, period: PeriodId, now: Date, allowEmpty = fa
   const week = period === "week" ? weekRange(now) : null;
   const pool = await collect(scope, period, now);
   const wide = scope === "national" || scope === "expat";
-  const minPool = wide ? 30 : 5;
+  const minPool = SCOPES[scope].minPool ?? (wide ? 30 : 5);
   if (pool.length < minPool) {
     if (allowEmpty) return { stories: [], poolSize: pool.length, usage: null, week };
     throw new Error(`기사가 너무 적음 (${pool.length}건)`);

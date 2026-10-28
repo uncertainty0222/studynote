@@ -24,14 +24,9 @@ export const SECTIONS: { id: string; scope: ScopeId; title: string; heading?: st
   },
   { id: "nhatrang", scope: "nhatrang", title: "나트랑", desc: "관광 · 교통 · 날씨 · 지역 소식" },
   { id: "dalat", scope: "dalat", title: "달랏", desc: "관광 · 교통 · 날씨 · 지역 소식" },
-  {
-    id: "specialty",
-    scope: "specialty",
-    title: "특산품",
-    heading: "나트랑 · 달랏 특산품",
-    desc: "침향 · 상황버섯 · 커피 · 연구 소식",
-    weekly: true,
-  },
+  { id: "agarwood", scope: "agarwood", title: "침향", heading: "침향 · 나트랑 특산품", desc: "수출·가격 · 규제·인증 · 위조 단속 · 재배 · 연구 소식", weekly: true },
+  { id: "coffee", scope: "coffee", title: "커피", heading: "커피 · 달랏 특산품", desc: "달랏·럼동 아라비카 · 수출·가격 · 작황 · 족제비 커피", weekly: true },
+  { id: "artichoke", scope: "artichoke", title: "아티소", heading: "아티소 · 달랏 특산품", desc: "재배·가공 · 품질·안전 · 관광 · 연구 소식", weekly: true },
 ];
 
 // 제1호 = 2026.10.5(월)~10.11(일) 주

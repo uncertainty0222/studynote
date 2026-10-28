@@ -80,6 +80,16 @@ export default function WeeklyVietnam({
   const anchorRef = useRef<HTMLDivElement>(null); // 섹션 탭 바로 위의 고정 기준점 (탭은 sticky라 위치가 변한다)
   const touch = useRef<{ x: number; y: number } | null>(null);
   const [arrowsVisible, setArrowsVisible] = useState(false);
+  // 고른 섹션 탭이 화면 밖(옆)에 있으면 보이게 민다
+  useEffect(() => {
+    const row = navRef.current?.querySelector<HTMLElement>("[role=tablist]");
+    const tab = row?.querySelector<HTMLElement>("[aria-selected=true]");
+    if (!row || !tab) return;
+    const left = tab.offsetLeft - row.offsetLeft;
+    if (left < row.scrollLeft || left + tab.offsetWidth > row.scrollLeft + row.clientWidth) {
+      row.scrollTo({ left: left - 16, behavior: "smooth" });
+    }
+  }, [section]);
   const [showHint, setShowHint] = useState(false);
 
   // 처음 온 모바일 독자에게만 '옆으로 넘겨 보세요' 안내를 한 번 보여 준다
@@ -220,8 +230,10 @@ export default function WeeklyVietnam({
   const expat = useRanking("expat", "week", initial);
   const nhatrang = useRanking("nhatrang", period, initial);
   const dalat = useRanking("dalat", period, initial);
-  const specialty = useRanking("specialty", "week", initial);
-  const byScope: Partial<Record<ScopeId, Ranking | undefined>> = { national, expat, nhatrang, dalat, specialty };
+  const agarwood = useRanking("agarwood", "week", initial);
+  const coffee = useRanking("coffee", "week", initial);
+  const artichoke = useRanking("artichoke", "week", initial);
+  const byScope: Partial<Record<ScopeId, Ranking | undefined>> = { national, expat, nhatrang, dalat, agarwood, coffee, artichoke };
   const current = SECTIONS[section];
 
   // 호수·날짜는 항상 주간인 해외생활 순위에서 가져온다 (주간 순위가 나중에 도착해도 갱신된다)
@@ -370,14 +382,15 @@ export default function WeeklyVietnam({
           className="sticky top-14 z-10 -mx-5 border-b border-zinc-200 bg-white/90 px-5 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90"
           aria-label="섹션"
         >
-          <div className="flex items-center gap-4 whitespace-nowrap min-[380px]:gap-5 sm:gap-6" role="tablist">
+          {/* 섹션이 7개라 휴대폰에서는 옆으로 밀어 본다 (고른 탭은 자동으로 보이게) */}
+          <div className="flex items-center gap-4 overflow-x-auto whitespace-nowrap [scrollbar-width:none] min-[380px]:gap-5 sm:gap-6 [&::-webkit-scrollbar]:hidden" role="tablist">
             {SECTIONS.map((s, i) => (
               <button
                 key={s.id}
                 role="tab"
                 aria-selected={section === i}
                 onClick={() => goTo(i)}
-                className={`relative py-3 text-sm font-semibold transition-colors ${
+                className={`relative shrink-0 py-3 text-sm font-semibold transition-colors ${
                   section === i ? "text-zinc-900 dark:text-white" : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
                 }`}
               >
@@ -385,7 +398,7 @@ export default function WeeklyVietnam({
                 {section === i && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-rose-600" />}
               </button>
             ))}
-            <span className="ml-auto font-mono text-xs tabular-nums text-zinc-400">
+            <span className="ml-auto pl-2 font-mono text-xs tabular-nums text-zinc-400 max-sm:hidden">
               {section + 1}/{SECTIONS.length}
             </span>
           </div>
@@ -451,7 +464,7 @@ export default function WeeklyVietnam({
             </a>{" "}
             환율로 계산한 대략값입니다.
           </p>
-          <p>주간·해외생활·특산품은 매주 월요일 06:00(베트남 시간)에 지난주 월~일 기준으로 발행됩니다.</p>
+          <p>주간·해외생활·침향·커피·아티소는 매주 월요일 06:00(베트남 시간)에 지난주 월~일 기준으로 발행됩니다.</p>
           {access.loginEnabled && (
             <p>로그인은 카카오톡(카카오계정)으로 하며, 카카오 닉네임만 받습니다. 멤버십은 로그인한 카카오계정에 연결됩니다.</p>
           )}

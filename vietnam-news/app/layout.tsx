@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "주간베트남",
-  description: "나트랑 교민을 위한 한 주 베트남 뉴스 — 베트남 · 해외생활 · 나트랑 · 달랏 · 특산품 TOP 10",
+  description: "나트랑 교민을 위한 한 주 베트남 뉴스 — 베트남 · 해외생활 · 나트랑 · 달랏 · 침향 · 커피 · 아티소 TOP 10",
 };
 
 export const viewport: Viewport = {

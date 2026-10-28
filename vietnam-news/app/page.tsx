@@ -21,7 +21,9 @@ export default async function Page() {
         getRanking("nhatrang", "week", access.premium),
         getRanking("dalat", "week", access.premium),
         getRanking("expat", "week", access.premium),
-        getRanking("specialty", "week", access.premium),
+        getRanking("agarwood", "week", access.premium),
+        getRanking("coffee", "week", access.premium),
+        getRanking("artichoke", "week", access.premium),
       ]}
       purchase={{
         price: process.env.PREMIUM_PRICE_TEXT ?? "",
