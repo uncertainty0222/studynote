@@ -13,7 +13,8 @@ VoxCPM 저장소(github.com/OpenBMB/VoxCPM)는 **따로 내려받을 필요가 �
 1. GitHub에서 `uncertainty0222/studynote` 저장소를 연다.
 2. 왼쪽 위 브랜치 선택 버튼(`main`이라고 적힌 버튼)을 눌러 `claude/youthful-meitner-e6exel`을 고른다. (main에 합쳐진 뒤라면 main 그대로)
 3. 초록색 **Code** 버튼 → **Download ZIP**.
-4. ZIP 압축을 푼다. `korean-for-nana\tts` 폴더로 들어간다.
+4. ZIP 압축을 푼다. 안에 있는 `korean-for-nana` 폴더를 통째로 **`C:\nana`** 로 옮긴다 (`C:\nana\tts\setup.bat`이 되도록).
+   다운로드 폴더처럼 경로가 길면 Windows 경로 길이 제한(260자) 때문에 설치가 실패한다.
 
 ## 2. 설치 (한 번만)
 
@@ -31,7 +32,7 @@ VoxCPM 저장소(github.com/OpenBMB/VoxCPM)는 **따로 내려받을 필요가 �
 
 1. 남편이 10~30초 정도 조용한 곳에서 한국어로 말하는 걸 녹음해 `tts` 폴더에 `voice.wav`로 저장한다. (mp3/m4a면 wav로 변환)
 2. 녹음한 말을 그대로 글로 적어 둔다.
-3. `tts` 폴더 주소창에 `cmd` 입력 → 엔터. 열린 창에:
+3. `C:\nana\tts` 폴더 주소창에 `cmd` 입력 → 엔터. 열린 창에:
 
 ```bat
 .venv\Scripts\activate
