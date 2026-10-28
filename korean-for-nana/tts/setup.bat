@@ -4,8 +4,8 @@ cd /d "%~dp0"
 py -3.12 -m venv .venv || goto :err
 call .venv\Scripts\activate.bat
 python -m pip install --upgrade pip
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128 || goto :err
-pip install voxcpm || goto :err
+python -m pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128 || goto :err
+python -m pip install voxcpm || goto :err
 python -c "import torch; print('CUDA GPU:', torch.cuda.is_available())"
 echo.
 echo Setup done. Next: double-click test.bat
