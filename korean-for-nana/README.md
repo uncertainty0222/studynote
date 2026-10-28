@@ -11,6 +11,7 @@ Chỉ học **50 câu** dùng nhiều nhất khi chăm sóc khách Hàn. Mục t
 | [`top50-print.pdf`](top50-print.pdf) | 인쇄용 A4 2쪽(앞뒤). 들고 다니며 보기 · Bản in A4 2 trang, mang theo người |
 | [`flashcards.html`](flashcards.html) | 50문장 연습용 플래시카드. 레벨별, 순서대로/섞기, 🔊 · Thẻ luyện 50 câu |
 | [`top50.md`](top50.md) | 같은 50문장 표 · Bảng 50 câu |
+| `audio/` | 50문장 녹음 (VoxCPM2로 생성, `tts/` 참고). `NN.wav` 원본, `NN.mp3` 카드용 |
 | `src/` | 문장 원본 `data.py`. 수정 후 `cd src && python3 gen.py ..` → `cd .. && node src/make_pdf.js` |
 
 ## 레벨 · Cấp độ
@@ -52,4 +53,4 @@ Chỉ học **50 câu** dùng nhiều nhất khi chăm sóc khách Hàn. Mục t
 ## 참고
 
 - 발음 표기는 국립국어원 로마자 표기법 기준. 실제 발음과 다른 부분(예: 늦지 → [늗찌])은 🔊로 확인.
-- 🔊는 기기의 한국어 음성(TTS)을 사용한다. 기기에 따라 품질이 다르다.
+- 🔊는 `audio/NN.mp3` 녹음을 튼다. 파일이 없는 문장만 기기 음성(TTS)으로 읽는다. 속도 버튼으로 1x / 0.8x / 0.6x.

@@ -40,7 +40,7 @@ h1 small{display:block;font-family:var(--vi);font-size:14px;font-weight:400;colo
 .hint{margin-top:8px;font-size:13px;color:var(--sub)}
 .row{display:flex;gap:8px}
 .row button{flex:1;border:0;border-radius:14px;padding:15px 10px;font:600 16px var(--vi);color:var(--bg);cursor:pointer}
-.prev{background:var(--muted)}.next{background:var(--jade)}.speak{background:var(--lotus)}
+.prev{background:var(--muted)}.speed{flex:0 0 auto;background:var(--card);color:var(--ink);border:1px solid var(--line)}.next{background:var(--jade)}.speak{background:var(--lotus)}
 button:focus-visible,.card:focus-visible{outline:3px solid var(--lotus);outline-offset:2px}
 </style>
 </head>
@@ -52,6 +52,7 @@ button:focus-visible,.card:focus-visible{outline:3px solid var(--lotus);outline-
 <div class="card" id="card" tabindex="0" role="button"></div>
 <div class="row">
   <button class="speak" id="speak">🔊 듣기 · Nghe</button>
+  <button class="speed" id="speed"></button>
 </div>
 <div class="row">
   <button class="prev" id="prev">← 이전 · Trước</button>
@@ -110,12 +111,25 @@ function koVoice() {
   return vs.find(v => /natural|neural|online|google|premium|enhanced/i.test(v.name)) || vs[0] || null;
 }
 
+const SPEEDS = [1, 0.8, 0.6];
+let speed = store.get("speed", 1);
+const player = new Audio();
+
+// 녹음 파일(audio/NN.mp3)을 먼저 틀고, 없거나 재생이 안 되면 기기 음성으로 읽는다.
 function speak() {
   const c = queue[pos];
-  if (!c || !("speechSynthesis" in window)) return;
-  speechSynthesis.cancel();
+  if (!c) return;
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+  player.onerror = () => deviceSpeak(c);
+  player.src = `audio/${String(c.n).padStart(2, "0")}.mp3`;
+  player.playbackRate = speed;
+  player.play().catch(() => {});
+}
+
+function deviceSpeak(c) {
+  if (!("speechSynthesis" in window)) return;
   const u = new SpeechSynthesisUtterance(c.ko.replace(/\//g, ","));
-  u.lang = "ko-KR"; u.rate = 0.9;
+  u.lang = "ko-KR"; u.rate = 0.9 * speed;
   const v = koVoice(); if (v) u.voice = v;
   speechSynthesis.speak(u);
 }
@@ -123,6 +137,13 @@ function speak() {
 $("card").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("card").click(); } };
 $("card").onclick = () => { flipped = !flipped; render(); if (flipped) speak(); };
 $("speak").onclick = speak;
+$("speed").onclick = () => {
+  speed = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+  store.set("speed", speed); renderSpeed(); speak();
+};
+function renderSpeed() { $("speed").textContent = `속도 · Tốc độ ${speed}x`; }
+if (!SPEEDS.includes(speed)) speed = 1;
+renderSpeed();
 $("prev").onclick = () => go(-1);
 $("next").onclick = () => go(1);
 $("mode").onclick = () => { viFirst = !viFirst; store.set("viFirst", viFirst); flipped = false; render(); };
