@@ -34,7 +34,7 @@ function storyHtml(s, n) {
   return `
 <section class="story">
   <header>
-    <div class="no">STORY ${n}</div>
+    <div class="no">STORY ${n} · ${esc(s.tier || '초안')}</div>
     <h1>${esc(s.title)}</h1>
     <div class="meta">${esc(s.place)}${s.region ? ` · ${esc(s.region)}` : ''}${s.tags?.length ? ` · ${s.tags.map((t) => '#' + esc(t)).join(' ')}` : ''}</div>
   </header>

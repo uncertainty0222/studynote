@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const DB = process.env.STORY_DB || join(dirname(fileURLToPath(import.meta.url)), 'stories.jsonl');
+const TIERS = ['초안', '실전본', '견본'];
 const CRED = { fact: '사실', disputed: '논쟁', legend: '전설/야사' };
 
 // ── 공통 유틸 ────────────────────────────────────────────────
@@ -59,7 +60,7 @@ const text = (s) => [s.title, s.place, s.region, s.hook, s.story, s.action, s.sa
 
 function row(s) {
   const tags = (s.tags || []).map((t) => `#${t}`).join(' ');
-  return `${s.id}  |  ${s.title}  |  ${s.place || '-'}  ${tags}`;
+  return `[${s.tier || '초안'}] ${s.id}  |  ${s.title}  |  ${s.place || '-'}  ${tags}`;
 }
 
 // ── 검증 ────────────────────────────────────────────────────
@@ -101,6 +102,8 @@ function cmdAdd(flags) {
   s.tags = (s.tags || []).map((t) => String(t).replace(/^#/, ''));
   s.related = (s.related || []).map((r) => (typeof r === 'string' ? { title: r } : r));
   s.status = s.status || 'draft';
+  s.tier = s.tier || '초안';
+  if (!TIERS.includes(s.tier)) throw new Error(`tier 는 ${TIERS.join(' | ')} 중 하나`);
   s.created = s.created || new Date().toISOString().slice(0, 10);
 
   const idx = all.findIndex((x) => x.id === s.id);
@@ -123,6 +126,7 @@ function cmdList(flags) {
   if (flags.place) all = all.filter((s) => (s.place || '').includes(flags.place) || (s.region || '').includes(flags.place));
   if (flags.tag) all = all.filter((s) => (s.tags || []).includes(String(flags.tag).replace(/^#/, '')));
   if (flags.status) all = all.filter((s) => s.status === flags.status);
+  if (flags.tier) all = all.filter((s) => (s.tier || '초안') === flags.tier);
   if (!all.length) return console.log('(결과 없음)');
   all.forEach((s) => console.log(row(s)));
   console.log(`\n${all.length}건`);
@@ -144,7 +148,7 @@ function cmdShow(flags) {
   if (!s) throw new Error(`id '${id}' 없음. list 또는 search 로 확인`);
   const line = '─'.repeat(50);
   console.log(`${s.title}\n${line}`);
-  console.log(`장소: ${s.place}${s.region ? ` (${s.region})` : ''}   상태: ${s.status}   저장: ${s.created}`);
+  console.log(`장소: ${s.place}${s.region ? ` (${s.region})` : ''}   등급: ${s.tier || '초안'}   상태: ${s.status}   저장: ${s.created}`);
   if (s.tags?.length) console.log(`태그: ${s.tags.map((t) => '#' + t).join(' ')}`);
   console.log(`\n[훅] ${s.hook}\n\n[이야기]\n${s.story}`);
   if (s.action) console.log(`\n[행동 유도] ${s.action}`);
@@ -189,7 +193,7 @@ function help() {
   console.log(`투어 가이드 스토리 DB  (저장소: ${DB})
 
   add [--file x.json] [--replace]   stdin/파일의 JSON 한 건 저장 (같은 id면 --replace 필요)
-  list [--place X] [--tag X] [--status draft|ready|used]
+  list [--place X] [--tag X] [--status draft|ready|used] [--tier 초안|실전본|견본]
   search <키워드...>                 제목·본문·태그·장소 전체에서 AND 검색
   show <id>                          한 건 전체 출력
   hooks                              아직 이야기로 만들지 않은 '다음 꼭지' 목록
@@ -197,6 +201,8 @@ function help() {
 
 JSON 필드: title, place, hook, story, facts[{claim,status,source}] 필수
            region, tags[], action, sales, related[{title,teaser}], sources[], status, id 선택
+           tier: 초안(대화로 만든 것, 기본값) | 실전본(가이드가 자기 목소리로 다듬은 것) | 견본(남이 만든 교본)
+           emotion: 감동 포인트(가이드 전용)
            embellishments[{line,type,fact,source,comeback}] — 대본 속 각색과 실제 팩트 (line·fact 필수)
 facts.status: fact(출처 필수) | disputed | legend`);
 }

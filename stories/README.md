@@ -35,3 +35,13 @@ node stories/print.mjs <id> [<id> ...] [--out stories/print/파일명.pdf]
 ```
 이야기마다 1쪽: 훅·현장 대본(각색 표시)·강한 인상 / 2쪽: 각색 노트·신뢰 포인트·행동 유도·사실 검증·다음 꼭지(가이드 전용).
 Playwright Chromium 이 있으면 PDF, 없으면 HTML 을 만든다(브라우저에서 인쇄).
+
+## 멘트 등급 (tier)
+- **초안**: 대화로 즉흥적으로 만든 멘트 (기본값) → `print/초안/`
+- **실전본**: 가이드가 자기 목소리로 다듬은 멘트 → `print/실전본/`
+- **견본**: 다른 사람이 만든, 교본으로 삼는 멘트 → `print/견본/`, 원문·분석 `reference/`
+
+```
+node stories/story.mjs list --tier 실전본
+node stories/print.mjs <id> --out stories/print/실전본/파일명.pdf
+```
