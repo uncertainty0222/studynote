@@ -28,11 +28,24 @@ SEEN_FILE = HERE / "seen_codes.json"
 LOG_FILE = HERE / "monitor.log"
 
 
+# 작업 스케줄러에서 출력이 파일로 넘어가면 Windows 기본 인코딩(cp1252 등)이 쓰여
+# 한글 print 에서 UnicodeEncodeError 로 죽는다. 출력 인코딩을 UTF-8 로 고정한다.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
+
 def log(msg):
     line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}"
-    print(line)
+    # 기록 파일을 먼저 쓴다. 화면 출력이 실패해도 기록은 남아야 한다.
     with LOG_FILE.open("a", encoding="utf-8") as f:
         f.write(line + "\n")
+    try:
+        print(line)
+    except Exception:
+        pass
 
 
 def fetch(corp, uid, pw, want_products):
