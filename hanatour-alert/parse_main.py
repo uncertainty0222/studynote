@@ -51,11 +51,11 @@ class Group:
         return frozenset(t.code for t in self.tours)
 
 
-def short_title(title):
-    """'[출발확정] 나트랑/달랏 5일 #소이아일랜드투어 #스피드보트 #스노클링' -> '나트랑/달랏 5일 #소이아일랜드투어'"""
+def short_title(title, tags=1):
+    """'[출발확정] 나트랑/달랏 5일 #소이아일랜드투어 #스피드보트 #스노클링' -> '나트랑/달랏 5일 #소이아일랜드투어' (tags=1)"""
     title = re.sub(r"^(\s*\[[^\]]*\])+", "", title)
     parts = [p.strip() for p in title.split("#")]
-    return " ".join([parts[0]] + [f"#{p}" for p in parts[1:2] if p])
+    return " ".join([parts[0]] + [f"#{p}" for p in parts[1:1 + tags] if p])
 
 
 def _text(el):
