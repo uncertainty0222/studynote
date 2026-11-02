@@ -89,6 +89,12 @@ def bookings_message(group, products):
     return "\n".join(lines)
 
 
+def _same_meal(a, b):
+    """'불포함'과 '기내-불포함(유료제공)'처럼 표기만 다른 경우는 같은 식사로 본다."""
+    norm = lambda v: "불포함" if v and "불포함" in v else v
+    return norm(a) == norm(b)
+
+
 def _meal_text(meals):
     return " / ".join(f"{k} {v}" for k, v in meals.items())
 
@@ -101,8 +107,18 @@ def schedule_message(group, products):
     lines = [f"**일정 요약** · 쇼핑 {_shop(base.shopping)}"]
     if not base.days:
         lines.append("일정표: 페이지에 없음")
+    # 출발지가 여러 곳이면(인천·부산 등) 첫날 출발지와 마지막 날 도착지를 합쳐 보여 준다.
+    mains_with_days = [products[t.code] for t in _mains(group)
+                       if t.code in products and products[t.code].days]
+    firsts = list(dict.fromkeys(p.days[0].cities.split(", ")[0] for p in mains_with_days))
+    lasts = list(dict.fromkeys(p.days[-1].cities.split(", ")[-1] for p in mains_with_days))
     for d in base.days:
-        route = d.cities.replace(", ", "→")
+        cities = d.cities.split(", ")
+        if d is base.days[0] and len(firsts) > 1:
+            cities[0] = "·".join(firsts)
+        if d is base.days[-1] and len(lasts) > 1:
+            cities[-1] = "·".join(lasts)
+        route = "→".join(cities)
         lines.append(f"**{d.n}일차 {d.date}** {route}")
         if d.places:
             lines.append(f"  📍 {d.places}")
@@ -121,7 +137,7 @@ def schedule_message(group, products):
         bm = {d.n: d.meals for d in base.days}
         for d in other.days:
             for kind in ("조식", "중식", "석식"):
-                if bm.get(d.n, {}).get(kind) != d.meals.get(kind):
+                if not _same_meal(bm.get(d.n, {}).get(kind), d.meals.get(kind)):
                     diffs.append(f"{t.code} {d.n}일차 {kind}: {d.meals.get(kind, '없음')}"
                                  f" (기준 {bm.get(d.n, {}).get(kind, '없음')})")
     if diffs:
