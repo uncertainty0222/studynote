@@ -26,6 +26,8 @@ import parse_product
 HERE = Path(__file__).parent
 SEEN_FILE = HERE / "seen_codes.json"
 LOG_FILE = HERE / "monitor.log"
+NET_RETRIES = 4   # 인터넷 연결 오류 시 시도 횟수
+NET_WAIT = 60     # 다시 시도하기 전 대기(초)
 
 
 # 작업 스케줄러에서 출력이 파일로 넘어가면 Windows 기본 인코딩(cp1252 등)이 쓰여
@@ -84,7 +86,17 @@ def main():
         return [g for g in groups if send_all or not g.codes <= seen]
 
     corp, uid, pw = creds.load()
-    groups, products = fetch(corp, uid, pw, lambda gs: [t for g in new_groups(gs) for t in g.tours])
+    want = lambda gs: [t for g in new_groups(gs) for t in g.tours]
+    # PC가 절전에서 깨어난 직후처럼 인터넷이 아직 안 붙었을 때(net::ERR_...)는 잠시 기다렸다 다시 시도한다.
+    for attempt in range(1, NET_RETRIES + 1):
+        try:
+            groups, products = fetch(corp, uid, pw, want)
+            break
+        except Exception as e:
+            if "net::ERR_" not in str(e) or attempt == NET_RETRIES:
+                raise
+            log(f"인터넷 연결 오류, {NET_WAIT}초 후 다시 시도 ({attempt}/{NET_RETRIES}): {str(e).splitlines()[0]}")
+            time.sleep(NET_WAIT)
     todo = new_groups(groups)
     all_codes = set().union(*(g.codes for g in groups)) if groups else set()
 
