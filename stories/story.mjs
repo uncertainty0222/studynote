@@ -182,6 +182,35 @@ function cmdHooks() {
   console.log(`\n${seen.size}개 꼭지 대기 중`);
 }
 
+// 현장 반응 기록: node stories/story.mjs react <id> --score 1~5 [--team "50대 남성 동기 10명"] [--note "88올림픽에서 박수"] [--date 2026-11-01]
+function cmdReact(flags) {
+  const id = flags._pos[0];
+  const score = Number(flags.score);
+  if (!id) throw new Error('id 필요: react <id> --score 1~5');
+  if (!(score >= 1 && score <= 5)) throw new Error('--score 는 1~5 (1=반응 없음, 3=보통, 5=박수·눈물)');
+  const all = load();
+  const s = all.find((x) => x.id === id);
+  if (!s) throw new Error(`id '${id}' 없음`);
+  s.reactions = s.reactions || [];
+  s.reactions.push({
+    date: flags.date || new Date().toISOString().slice(0, 10),
+    score,
+    team: flags.team && flags.team !== true ? flags.team : '',
+    note: flags.note && flags.note !== true ? flags.note : '',
+  });
+  writeFileSync(DB, all.map((x) => JSON.stringify(x)).join('\n') + '\n');
+  console.log(`✓ 반응 기록 → ${id}  (${s.reactions.length}회, 평균 ${avg(s).toFixed(1)})`);
+}
+
+const avg = (s) => (s.reactions?.length ? s.reactions.reduce((a, r) => a + r.score, 0) / s.reactions.length : 0);
+
+// 랭킹: 현장 반응 평균 순 (반응 기록이 있는 멘트만)
+function cmdRank() {
+  const rows = load().filter((s) => s.reactions?.length).sort((a, b) => avg(b) - avg(a) || b.reactions.length - a.reactions.length);
+  if (!rows.length) return console.log('(반응 기록 없음 — react 명령으로 현장 반응을 남기세요)');
+  rows.forEach((s, i) => console.log(`${i + 1}. [${s.tier || '초안'}] ${s.title}  — 평균 ${avg(s).toFixed(1)} / ${s.reactions.length}회`));
+}
+
 function cmdTags() {
   const count = new Map();
   for (const s of load()) for (const t of s.tags || []) count.set(t, (count.get(t) || 0) + 1);
@@ -193,6 +222,8 @@ function help() {
   console.log(`투어 가이드 스토리 DB  (저장소: ${DB})
 
   add [--file x.json] [--replace]   stdin/파일의 JSON 한 건 저장 (같은 id면 --replace 필요)
+  react <id> --score 1~5 [--team X] [--note X]   현장 반응 기록
+  rank                               현장 반응 평균 순위
   list [--place X] [--tag X] [--status draft|ready|used] [--tier 초안|실전본|견본]
   search <키워드...>                 제목·본문·태그·장소 전체에서 AND 검색
   show <id>                          한 건 전체 출력
@@ -218,6 +249,8 @@ try {
     case 'show': cmdShow(flags); break;
     case 'hooks': cmdHooks(); break;
     case 'tags': cmdTags(); break;
+    case 'react': cmdReact(flags); break;
+    case 'rank': cmdRank(); break;
     default: help();
   }
 } catch (e) {

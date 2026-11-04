@@ -45,3 +45,16 @@ Playwright Chromium 이 있으면 PDF, 없으면 HTML 을 만든다(브라우저
 node stories/story.mjs list --tier 실전본
 node stories/print.mjs <id> --out stories/print/실전본/파일명.pdf
 ```
+
+## 작업 파이프라인 (6단계)
+1. 반응 순위 보기 — `node stories/story.mjs rank`
+2. 잘된 멘트 뜯어보기 — `reference/` (분석 틀: `reference/_견본분석-틀.md`)
+3. 사실 모으기 — `canon/팩트장부.md` (연속성 파일, 먼저 읽고 새 사실은 추가)
+4. 쓰기 (초안)
+5. 사람 냄새 점검 (AI 티 빼기 6가지 — 스킬 01-A)
+6. 출력·기록 — PDF, `tours/<날짜_지역>.md`, 현장 반응 `react`
+
+```
+node stories/story.mjs react <id> --score 1~5 [--team "C팀 50대 동기"] [--note "메모"]
+node stories/story.mjs rank
+```
