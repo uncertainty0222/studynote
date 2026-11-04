@@ -36,7 +36,7 @@ const T = {
     loading: '불러오는 중...', emptyTitle: '거래 내역이 없어요',
     emptySub: '위 버튼으로 첫 거래를 추가해보세요',
     husband: '남편', wife: '아내', husbandInitial: '남', wifeInitial: '아',
-    modalTitle: '거래 추가', whoLabel: '누가 지불했나요?',
+    modalTitle: '거래 추가', whoLabel: '들어온 돈인가요, 나간 돈인가요?',
     amountLabel: '금액 (₫)', amountPlaceholder: '예: 50,000',
     memoLabel: '내용', memoPlaceholder: '예: 마트 장보기, 식사비 등',
     dateLabel: '날짜', saving: '저장 중...', save: '저장',
@@ -67,7 +67,7 @@ const T = {
     loading: 'Đang tải...', emptyTitle: 'Chưa có giao dịch nào',
     emptySub: 'Nhấn nút trên để thêm giao dịch đầu tiên',
     husband: 'Chồng', wife: 'Vợ', husbandInitial: 'C', wifeInitial: 'V',
-    modalTitle: 'Thêm giao dịch', whoLabel: 'Ai đã trả tiền?',
+    modalTitle: 'Thêm giao dịch', whoLabel: 'Tiền vào hay tiền ra?',
     amountLabel: 'Số tiền (₫)', amountPlaceholder: 'Ví dụ: 50,000',
     memoLabel: 'Nội dung', memoPlaceholder: 'Ví dụ: đi chợ, ăn uống...',
     dateLabel: 'Ngày', saving: 'Đang lưu...', save: 'Lưu',
@@ -657,10 +657,11 @@ export default function Home() {
                 <div className="grid grid-cols-2 gap-2">
                   {(['husband', 'wife'] as const).map(p => (
                     <button key={p} type="button" onClick={() => setPayer(p)}
-                      className={`py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                      className={`py-2 rounded-lg transition-colors ${
                         payer === p ? (p === 'husband' ? 'bg-blue-600 text-white' : 'bg-rose-500 text-white') : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}>
-                      {p === 'husband' ? t.husband : t.wife}
+                      <span className="block text-base font-black leading-tight">{p === 'husband' ? 'IN' : 'OUT'}</span>
+                      <span className="block text-[11px] opacity-75 leading-tight">{p === 'husband' ? t.husband : t.wife}</span>
                     </button>
                   ))}
                 </div>
