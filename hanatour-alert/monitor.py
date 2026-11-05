@@ -110,7 +110,8 @@ def main():
 
     log(f"패키지 {len(groups)}건, 새 일감 {len(todo)}건")
     for g in todo:
-        for msg in messages.all_messages(g, products):
+        added = bool(seen and g.codes & seen)
+        for msg in messages.all_messages(g, products, added):
             if dry:
                 print(msg, "\n---")
             else:

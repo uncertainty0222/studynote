@@ -47,6 +47,7 @@ class Product:
     days: list
     nights: int | None = None  # "3박 5일"의 3
     flights: list = None  # [가는편 Leg, ..., 오는편 Leg]
+    price: int = 0  # 성인 1인 상품가(원)
 
 
 def parse(html):
@@ -84,7 +85,10 @@ def parse(html):
         days.append(Day(n, date, meals, shops, cities, places))
     m = re.search(r"(\d+)\s*박\s*\d+\s*일", text)
     nights = int(m.group(1)) if m else None
-    return Product(code, shopping, days, nights, _flights(soup))
+    price_el = soup.select_one("div.sche_price span.data")
+    m = re.search(r"\d[\d,]*", price_el.get_text()) if price_el else None
+    price = int(m.group().replace(",", "")) if m else 0  # "29,900원~" 처럼 범위면 첫 금액
+    return Product(code, shopping, days, nights, _flights(soup), price)
 
 
 # 방문지 카드와 같은 형식으로 나오지만 장소가 아닌 것(간식·식사·안내)

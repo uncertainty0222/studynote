@@ -3,7 +3,7 @@
   1) 굵은 요약(상품명·해시태그 3개, 기간, 총인원)
   2) 예약번호별 인원·항공(가는편/오는편)
   3) 손님 명단 - 고객정보 화면 연동 후 추가 예정
-  4) 일정 요약(일차별 방문지·식사, 쇼핑, 묶인 행사 간 차이)
+  4) 일정 요약(상품가가 가장 비싼 행사 하나의 일차별 방문지·식사, 쇼핑)
   5) 쇼핑샵 예약 문구, 식당 예약 문구
 **…** 는 굵게 표시할 줄(텔레그램에서 굵게, 카카오는 기호만 지움).
 """
@@ -29,9 +29,11 @@ def _md(date_label):
 
 
 def _base_tour(group, products):
+    """일정 요약 기준 행사: 일정표가 있는 행사 중 상품가가 가장 비싼 것."""
     mains = [t for t in _mains(group) if t.code in products]
     with_days = [t for t in mains if products[t.code].days]
-    return (with_days or mains or [None])[0]
+    pool = with_days or mains
+    return max(pool, key=lambda t: products[t.code].price) if pool else None
 
 
 def _base_product(group, products):
@@ -52,14 +54,15 @@ def _shop(n):
     return "확인 불가" if n is None else ("없음" if n == 0 else f"{n}회")
 
 
-def summary_message(group):
+def summary_message(group, products, added=False):
     mains = _mains(group) or group.tours
     start = min(t.start for t in group.tours)
     end = max(t.end for t in group.tours)
     a, c, i = (sum(getattr(t, k) for t in mains) for k in ("adult", "child", "infant"))
+    title_tour = _base_tour(group, products) or mains[0]
     return "\n".join([
-        "🔔 새 일감",
-        f"**[패키지] {short_title(mains[0].title, tags=3)}**",
+        "🔔 일감 변경 (예약 추가)" if added else "🔔 새 일감",
+        f"**[패키지] {short_title(title_tour.title, tags=3)}**",
         f"**기간 {start:%m/%d}~{end:%m/%d} · 총 {a + c + i}명 (성인 {a}, 아동 {c}, 유아 {i})**",
     ])
 
@@ -89,12 +92,6 @@ def bookings_message(group, products):
     return "\n".join(lines)
 
 
-def _same_meal(a, b):
-    """'불포함'과 '기내-불포함(유료제공)'처럼 표기만 다른 경우는 같은 식사로 본다."""
-    norm = lambda v: "불포함" if v and "불포함" in v else v
-    return norm(a) == norm(b)
-
-
 def _meal_text(meals):
     return " / ".join(f"{k} {v}" for k, v in meals.items())
 
@@ -105,6 +102,8 @@ def schedule_message(group, products):
         return "**일정 요약**\n상품페이지를 읽지 못했습니다."
     base = products[base_tour.code]
     lines = [f"**일정 요약** · 쇼핑 {_shop(base.shopping)}"]
+    if len(_mains(group)) > 1:
+        lines.append(f"(기준 {base_tour.code}, 상품가가 가장 높은 일정)")
     if not base.days:
         lines.append("일정표: 페이지에 없음")
     # 출발지가 여러 곳이면(인천·부산 등) 첫날 출발지와 마지막 날 도착지를 합쳐 보여 준다.
@@ -127,21 +126,6 @@ def schedule_message(group, products):
         if d.meals:
             lines.append(f"  🍽 {_meal_text(d.meals)}")
 
-    diffs = []
-    for t in _mains(group):
-        if t is base_tour or t.code not in products:
-            continue
-        other = products[t.code]
-        if other.shopping != base.shopping:
-            diffs.append(f"{t.code} 쇼핑 {_shop(other.shopping)} (기준 {_shop(base.shopping)})")
-        bm = {d.n: d.meals for d in base.days}
-        for d in other.days:
-            for kind in ("조식", "중식", "석식"):
-                if not _same_meal(bm.get(d.n, {}).get(kind), d.meals.get(kind)):
-                    diffs.append(f"{t.code} {d.n}일차 {kind}: {d.meals.get(kind, '없음')}"
-                                 f" (기준 {bm.get(d.n, {}).get(kind, '없음')})")
-    if diffs:
-        lines += ["", f"[차이] 기준 {base_tour.code}"] + [f"- {x}" for x in diffs]
     return "\n".join(lines)
 
 
@@ -187,10 +171,11 @@ def restaurant_messages(group, products):
     return out
 
 
-def all_messages(group, products):
-    """보낼 순서대로 메시지 목록"""
+def all_messages(group, products, added=False):
+    """보낼 순서대로 메시지 목록. added: 이미 알린 팀에 예약이 추가된 경우"""
     return (
-        [summary_message(group), bookings_message(group, products), schedule_message(group, products)]
+        [summary_message(group, products, added), bookings_message(group, products),
+         schedule_message(group, products)]
         + shop_messages(group, products)
         + restaurant_messages(group, products)
     )
