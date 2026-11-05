@@ -13,10 +13,12 @@ import sys
 import time
 import traceback
 from pathlib import Path
+from urllib.parse import urljoin
 
 from playwright.sync_api import sync_playwright
 
 import creds
+import customers
 import discover
 import notify
 import messages
@@ -51,7 +53,7 @@ def log(msg):
 
 
 def fetch(corp, uid, pw, want_products):
-    """메인 화면 HTML과, want_products(그룹 → 행사코드 목록)에 해당하는 상품페이지 HTML을 가져온다."""
+    """메인 화면을 분석하고, want_products 가 고른 행사들의 손님 명단과 상품페이지를 읽는다."""
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
@@ -60,6 +62,16 @@ def fetch(corp, uid, pw, want_products):
         main_html = page.content()
         groups = parse_main.parse(main_html)
         targets = want_products(groups)
+        # 손님 명단(고객정보 화면)을 먼저 읽는다. HAS 로그인 상태에서만 열린다.
+        people = {}
+        for t in targets:
+            if not t.customer_path:
+                continue
+            try:
+                page.goto(urljoin(discover.URL, t.customer_path), wait_until="networkidle")
+                people[t.code] = customers.parse(page.content())
+            except Exception as e:
+                log(f"고객정보 실패 {t.code}: {type(e).__name__}")
         products = {}
         for t in targets:
             if not t.product_url:
@@ -71,7 +83,7 @@ def fetch(corp, uid, pw, want_products):
             except Exception as e:
                 log(f"상품페이지 실패 {t.code}: {type(e).__name__}")
         browser.close()
-    return groups, products
+    return groups, products, people
 
 
 def main():
@@ -90,7 +102,7 @@ def main():
     # PC가 절전에서 깨어난 직후처럼 인터넷이 아직 안 붙었을 때(net::ERR_...)는 잠시 기다렸다 다시 시도한다.
     for attempt in range(1, NET_RETRIES + 1):
         try:
-            groups, products = fetch(corp, uid, pw, want)
+            groups, products, people = fetch(corp, uid, pw, want)
             break
         except Exception as e:
             if "net::ERR_" not in str(e) or attempt == NET_RETRIES:
@@ -111,7 +123,7 @@ def main():
     log(f"패키지 {len(groups)}건, 새 일감 {len(todo)}건")
     for g in todo:
         added = bool(seen and g.codes & seen)
-        for msg in messages.all_messages(g, products, added):
+        for msg in messages.all_messages(g, products, added, people):
             if dry:
                 print(msg, "\n---")
             else:

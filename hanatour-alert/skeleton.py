@@ -5,7 +5,7 @@
   - 글자는 종류만 남긴다: 한글 → 가, 숫자 → 0, 영문 → A (길이·구두점은 유지)
     예) 홍길동 → 가가가, 1958.03.12 → 0000.00.00, HONG/GILDONG → AAAA/AAAAAAA
   - 항목 이름(성별, 생년월일 등)과 남/여 같은 짧은 표시는 알아볼 수 있게 남긴다.
-  - 스크립트, 입력값(value), 링크 주소의 숫자도 같은 방식으로 가린다.
+  - 모든 속성 값(value, id, data-* 등 화면에 안 보이는 값 포함)과 링크 주소의 숫자도 가린다.
 
 사용:
     python skeleton.py dumps\\auto_customer_XXXX.html
@@ -26,6 +26,11 @@ KEEP = {
 }
 
 
+# 값을 그대로 둬도 되는 구조용 속성
+STRUCTURE_ATTRS = {"class", "scope", "colspan", "rowspan", "type", "rel", "data-customer-field",
+                   "http-equiv", "charset", "lang"}
+
+
 def mask(text):
     if text.strip() in KEEP:
         return text
@@ -44,12 +49,14 @@ def main(path):
     for node in soup.find_all(string=True):
         node.replace_with(mask(str(node)))
     for el in soup.find_all(True):
-        for attr in ("value", "title", "alt", "placeholder", "data-value"):
-            if el.has_attr(attr):
-                el[attr] = mask(el[attr])
-        for attr in ("href", "onclick", "src"):
-            if el.has_attr(attr):
-                el[attr] = re.sub(r"[0-9]", "0", el[attr])
+        # 화면에 안 보이는 속성(data-unmasked-value 등)에도 실제 값이 들어 있다.
+        # 구조를 나타내는 몇 가지를 빼고 모든 속성 값을 가린다.
+        for attr, val in list(el.attrs.items()):
+            if attr in STRUCTURE_ATTRS:
+                continue
+            if isinstance(val, list):
+                val = " ".join(val)
+            el[attr] = mask(val) if attr not in ("href", "src") else re.sub(r"[0-9]", "0", val)
     out = src.with_name(src.stem + ".skeleton.html")
     out.write_text(str(soup), encoding="utf-8")
     print("저장:", out)
