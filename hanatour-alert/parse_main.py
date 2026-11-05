@@ -36,6 +36,7 @@ class Tour:
     requests: int
     product_url: str
     schedule_path: str
+    customer_path: str = ""
 
     @property
     def pax(self):
@@ -105,6 +106,7 @@ def _parse_tour(wid, hei, scope):
         requests=_int(_text(req.find("span"))) if req else 0,
         product_url=m.group(1).replace("&amp;", "&") if m else "",
         schedule_path=sched["href"] if sched else "",
+        customer_path=req["href"] if req else "",
     )
 
 

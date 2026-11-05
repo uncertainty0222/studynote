@@ -3,12 +3,22 @@
 
 규칙:
   - 나이 많은 순으로 나열, 나이는 행사 시작일 기준 만 나이
-  - HAS 고객정보 화면에서 첫 번째로 나온 사람에게 ★ (예약자일 가능성이 높음)
+  - 예약자에게 ★: 화면에서 이름 옆에 빨간 * 가 붙은 사람, 없으면 첫 번째로 나온 사람
   - 생일이 행사 시작일 앞뒤 15일 안이면 🎂 날짜 표시
-고객정보 화면을 읽는 parse() 는 화면 구조를 확인한 뒤 추가한다.
+
+고객정보 화면(customer.hnt) 구조(2026-11 기준):
+  ul.personList > li                     손님 1명
+    span[data-customer-field=resKname]   이름 (화면 글자는 가려져 있고 data-unmasked-value 에 원래 값)
+    span[data-customer-field=birthday]   생년월일 "YYYY.MM.DD"
+    span[data-customer-field=sex]        "남" / "여"
+    sup.c_red                            예약자 표시(*)
+  전화번호(hpNo)는 읽지 않는다.
 """
+import re
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
+
+from bs4 import BeautifulSoup
 
 BIRTHDAY_WINDOW = 15  # 행사 시작일 앞뒤 일수
 
@@ -19,6 +29,29 @@ class Customer:
     gender: str     # "남" / "여" / ""
     birth: date | None
     order: int      # HAS 화면에 나온 순서(0부터)
+    booker: bool = False
+
+
+def _field(li, name):
+    el = li.select_one(f'[data-customer-field="{name}"]')
+    if not el:
+        return ""
+    return (el.get("data-unmasked-value") or el.get_text()).strip()
+
+
+def parse(html):
+    soup = BeautifulSoup(html, "html.parser")
+    people = []
+    for n, li in enumerate(soup.select("ul.personList > li")):
+        name = _field(li, "resKname")
+        if not name:
+            continue
+        m = re.fullmatch(r"(\d{4})\.(\d{2})\.(\d{2})", _field(li, "birthday"))
+        birth = date(*map(int, m.groups())) if m else None
+        people.append(Customer(name, _field(li, "sex"), birth, n, bool(li.select_one("sup.c_red"))))
+    if people and not any(p.booker for p in people):
+        people[0].booker = True
+    return people
 
 
 def age_on(birth, day):
@@ -42,7 +75,7 @@ def format_list(code, customers, start):
     lines = [f"**{code}**"]
     ordered = sorted(customers, key=lambda c: (c.birth or date.max, c.order))
     for n, c in enumerate(ordered, 1):
-        star = "★" if c.order == 0 else ""
+        star = "★" if c.booker else ""
         parts = [f"{star}{c.name}"]
         if c.gender:
             parts.append(c.gender)

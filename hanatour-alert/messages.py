@@ -2,7 +2,7 @@
 패키지 정보로 알림 메시지들을 만든다. 보내는 순서:
   1) 굵은 요약(상품명·해시태그 3개, 기간, 총인원)
   2) 예약번호별 인원·항공(가는편/오는편)
-  3) 손님 명단 - 고객정보 화면 연동 후 추가 예정
+  3) 손님 명단(예약번호별, 나이 많은 순, ★ 예약자, 🎂 행사 전후 생일)
   4) 일정 요약(상품가가 가장 비싼 행사 하나의 일차별 방문지·식사, 쇼핑)
   5) 쇼핑샵 예약 문구, 식당 예약 문구
 **…** 는 굵게 표시할 줄(텔레그램에서 굵게, 카카오는 기호만 지움).
@@ -10,6 +10,7 @@
 import re
 from datetime import timedelta
 
+import customers as customer_list
 from parse_main import short_title
 
 SHOP_TIME = "9시 30분"
@@ -92,6 +93,15 @@ def bookings_message(group, products):
     return "\n".join(lines)
 
 
+def customers_message(group, people):
+    """people: {행사코드: [Customer, ...]}. 명단을 하나도 못 읽었으면 None."""
+    blocks = [customer_list.format_list(t.code, people[t.code], t.start)
+              for t in group.tours if people.get(t.code)]
+    if not blocks:
+        return None
+    return "**손님 명단** (나이 많은 순, ★ 예약자)\n" + "\n".join(blocks)
+
+
 def _meal_text(meals):
     return " / ".join(f"{k} {v}" for k, v in meals.items())
 
@@ -171,11 +181,14 @@ def restaurant_messages(group, products):
     return out
 
 
-def all_messages(group, products, added=False):
-    """보낼 순서대로 메시지 목록. added: 이미 알린 팀에 예약이 추가된 경우"""
+def all_messages(group, products, added=False, people=None):
+    """보낼 순서대로 메시지 목록. added: 이미 알린 팀에 예약이 추가된 경우
+    people: {행사코드: [Customer]} 고객정보 화면에서 읽은 손님 명단"""
+    roster = customers_message(group, people or {})
     return (
-        [summary_message(group, products, added), bookings_message(group, products),
-         schedule_message(group, products)]
+        [summary_message(group, products, added), bookings_message(group, products)]
+        + ([roster] if roster else [])
+        + [schedule_message(group, products)]
         + shop_messages(group, products)
         + restaurant_messages(group, products)
     )
