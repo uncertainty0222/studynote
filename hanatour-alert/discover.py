@@ -105,15 +105,23 @@ def collect_all(page):
         "a[onclick*='m.hanatour.com']",
         "els => els.map(e => (e.getAttribute('onclick').match(/'(https:[^']+)'/) || [])[1])",
     )
-    schedules, products = {}, {}
+    customer_links = page.eval_on_selector_all(
+        "a[href*='/customer/customer.hnt?pkgCode=']", "els => els.map(e => e.href)"
+    )
+    schedules, products, customers = {}, {}, {}
     for url in links:
         code = re.search(r"pkgCode=(\w+)", url).group(1)
         schedules.setdefault(code, url)
+    for url in customer_links:
+        code = re.search(r"pkgCode=(\w+)", url).group(1)
+        customers.setdefault(code, url)
     for url in filter(None, pages):
         code = re.search(r"pkgCd=(\w+)", url).group(1)
         products.setdefault(code, url.replace("&amp;", "&"))
     targets = [(f"auto_schedule_{c}", u) for c, u in schedules.items()]
     targets += [(f"auto_product_{c}", u) for c, u in products.items()]
+    # 고객정보(손님 명단). 실제 개인정보이므로 그대로 공유하지 말고 skeleton.py 로 가린 사본을 쓴다.
+    targets += [(f"auto_customer_{c}", u) for c, u in customers.items()]
     for name, url in targets:
         try:
             page.goto(url, wait_until="networkidle")
