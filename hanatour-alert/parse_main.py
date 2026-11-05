@@ -123,7 +123,20 @@ def parse(html):
             tours.append(_parse_tour(wid, hei, wid.parent))
         g = Group(sorted(tours, key=lambda t: (t.start, t.code)))
         groups.setdefault(g.codes, g)
-    return sorted(groups.values(), key=lambda g: g.tours[0].start)
+    return merge_by_date(sorted(groups.values(), key=lambda g: g.tours[0].start))
+
+
+def merge_by_date(groups):
+    """공동행사로 묶이지 않았어도 출발일이 같거나 하루 차이인 패키지는 한 팀으로 합친다.
+    (대부분 3박4일·4박5일이라 출발일이 하루 이내면 같은 팀으로 진행된다.)"""
+    merged = []
+    for g in groups:
+        start = min(t.start for t in g.tours)
+        if merged and (start - merged[-1][0]).days <= 1:
+            merged[-1][1].tours = sorted(merged[-1][1].tours + g.tours, key=lambda t: (t.start, t.code))
+        else:
+            merged.append([start, Group(list(g.tours))])
+    return [g for _, g in merged]
 
 
 def brief(g):
