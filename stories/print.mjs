@@ -3,6 +3,10 @@
 //
 //   node stories/print.mjs <id> [<id> ...] [--out stories/print/파일명.pdf] [--title 문서제목]
 //
+// 이야기에 "layout": {"inlineHook": true, "onePage": true} 가 있으면
+//   inlineHook: 훅을 박스 없이 대본 첫 문단으로 녹인다
+//   onePage:    1쪽(제목+대본)이 A4 한 장에 들어가도록 대본 글자 크기를 자동으로 줄인다(최소 9.5pt)
+//
 // PDF 변환은 Playwright Chromium 을 쓴다 (없으면 HTML 만 만들고 브라우저 인쇄 안내).
 // 한글 폰트: Noto Sans KR → Noto Sans CJK KR → WenQuanYi Zen Hei 순으로 시스템 폰트 사용.
 
@@ -32,17 +36,17 @@ const marks = (html) => html.replace(/\[각색(\d+)\]/g, '<sup class="mark">각�
 function storyHtml(s, n) {
   const emb = s.embellishments || [];
   return `
-<section class="story">
+<section class="story${s.layout?.onePage ? ' one-page' : ''}">
   <header>
     <div class="no">STORY ${n} · ${esc(s.tier || '초안')}</div>
     <h1>${esc(s.title)}</h1>
     <div class="meta">${esc(s.place)}${s.region ? ` · ${esc(s.region)}` : ''}${s.tags?.length ? ` · ${s.tags.map((t) => '#' + esc(t)).join(' ')}` : ''}</div>
   </header>
 
-  <div class="hook"><span class="lbl">훅 · 첫 15초</span>${marks(esc(s.hook))}</div>
+  ${s.layout?.inlineHook ? '' : `<div class="hook"><span class="lbl">훅 · 첫 15초</span>${marks(esc(s.hook))}</div>`}
 
   <h2>현장 대본</h2>
-  <div class="script">${marks(paras(s.story))}</div>
+  <div class="script">${s.layout?.inlineHook ? marks(paras(s.hook)) : ''}${marks(paras(s.story))}</div>
   ${s.impact ? `<div class="impact"><span class="lbl">강한 인상 한 문장</span>${esc(s.impact)}</div>` : ''}
 
   <div class="guide-only">
@@ -120,8 +124,26 @@ async function toPdf(htmlPath, pdfPath) {
   }
   if (!pw) return false;
   const browser = await pw.chromium.launch();
-  const pg = await browser.newPage();
+  // 본문 폭 = A4 210mm − 좌우 여백 30mm = 180mm
+  const pg = await browser.newPage({ viewport: { width: Math.round(180 / 25.4 * 96), height: 1200 } });
   await pg.goto(pathToFileURL(htmlPath).href);
+  await pg.emulateMedia({ media: 'print' });
+  await pg.evaluate(() => document.fonts.ready);
+  // onePage: 첫 쪽(가이드 전용 앞부분)이 A4 본문 높이(297−32mm)를 넘으면 대본 글자를 줄인다
+  await pg.evaluate(() => {
+    const limit = (265 / 25.4) * 96 - 4;
+    for (const sec of document.querySelectorAll('section.one-page')) {
+      const script = sec.querySelector('.script');
+      const guide = sec.querySelector('.guide-only');
+      const h = () => guide.getBoundingClientRect().top - sec.getBoundingClientRect().top;
+      let pt = 12;
+      while (h() > limit && pt > 9.5) {
+        pt -= 0.25;
+        script.style.fontSize = pt + 'pt';
+        script.style.lineHeight = pt < 11 ? '1.7' : '1.85';
+      }
+    }
+  });
   await pg.pdf({ path: pdfPath, format: 'A4', printBackground: true, preferCSSPageSize: true });
   await browser.close();
   return true;

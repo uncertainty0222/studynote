@@ -34,6 +34,7 @@ node stories/story.mjs tags
 node stories/print.mjs <id> [<id> ...] [--out stories/print/파일명.pdf]
 ```
 이야기마다 1쪽: 훅·현장 대본(각색 표시)·강한 인상 / 2쪽: 각색 노트·신뢰 포인트·행동 유도·사실 검증·다음 꼭지(가이드 전용).
+이야기에 `"layout": {"inlineHook": true, "onePage": true}` 를 넣으면 훅을 박스 없이 대본 첫 문단으로 녹이고, 대본이 A4 한 장에 들어가도록 글자 크기를 자동으로 줄인다(최소 9.5pt).
 Playwright Chromium 이 있으면 PDF, 없으면 HTML 을 만든다(브라우저에서 인쇄).
 
 ## 멘트 등급 (tier)
