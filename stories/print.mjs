@@ -96,7 +96,7 @@ function page(title, stories) {
   .impact { border-top: 1px dashed #bbb; border-bottom: 1px dashed #bbb; padding: 8px 2px; margin: 10px 0 4px; font-size: 12pt; font-weight: 700; }
   .guide-only { break-before: page; }
   .guide-only h2:first-child { margin-top: 0; }
-  table { width: 100%; border-collapse: collapse; font-size: 9pt; line-height: 1.5; margin: 4px 0 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; line-height: 1.42; margin: 4px 0 6px; }
   th, td { border: 1px solid #ccc; padding: 5px 6px; vertical-align: top; text-align: left; }
   th { background: #f2f2f2; font-weight: 700; }
   td.k { white-space: nowrap; font-weight: 700; }
