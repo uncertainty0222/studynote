@@ -26,7 +26,7 @@ function parseFlags(argv) {
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const paras = (s) => esc(s).split(/\n{2,}/).map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+const paras = (s) => esc(s).split(/\n{2,}/).map((p) => `<p${/^\[주\d+\]/.test(p) ? ' class="note"' : ''}>${p.replace(/\n/g, '<br>')}</p>`).join('');
 const marks = (html) => html.replace(/\[각색(\d+)\]/g, '<sup class="mark">각색$1</sup>');
 
 function storyHtml(s, n) {
@@ -91,6 +91,7 @@ function page(title, stories) {
   .hook { background: #fbf6e6; border: 1px solid #e8dcb0; border-radius: 6px; padding: 9px 12px; font-size: 13pt; font-weight: 700; line-height: 1.45; }
   .script { font-size: 12pt; line-height: 1.85; }
   .script p { margin: 0 0 9px; }
+  .script p.note { font-size: 8.5pt; line-height: 1.45; color: #555; border-top: 1px solid #ddd; padding-top: 4px; margin: 4px 0 0; }
   sup.mark { font-size: 7pt; color: #a33; border: 1px solid #a33; border-radius: 3px; padding: 0 3px; margin-left: 2px; font-weight: 700; vertical-align: super; }
   .impact { border-top: 1px dashed #bbb; border-bottom: 1px dashed #bbb; padding: 8px 2px; margin: 10px 0 4px; font-size: 12pt; font-weight: 700; }
   .guide-only { break-before: page; }
