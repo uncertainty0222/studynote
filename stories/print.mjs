@@ -61,6 +61,8 @@ function storyHtml(s, n) {
     </table>` : '<p>각색 없음</p>'}
 
     ${s.emotion ? `<h3>감동 포인트</h3><div>${paras(s.emotion)}</div>` : ''}
+    ${s.laugh ? `<h3>웃음 포인트</h3><div>${paras(s.laugh)}</div>` : ''}
+    ${s.score ? `<h3>점수표</h3><p>${esc(s.score)}</p>` : ''}
     ${s.trust ? `<h3>신뢰 포인트 <small>각색 없음</small></h3><p>${esc(s.trust)}</p>` : ''}
     ${s.action ? `<h3>행동 유도 · 매출 연결</h3><div>${paras(s.action)}</div>` : ''}
     ${s.appendix ? `<h3>부록</h3><div>${paras(s.appendix)}</div>` : ''}
