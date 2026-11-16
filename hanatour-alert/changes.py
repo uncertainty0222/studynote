@@ -23,7 +23,11 @@ class TeamChange:
 
 def snapshot(groups):
     return {
-        t.code: {"start": t.start.isoformat(), "end": t.end.isoformat(), "pax": t.pax, "title": t.title}
+        t.code: {
+            "start": t.start.isoformat(), "end": t.end.isoformat(), "pax": t.pax,
+            "adult": t.adult, "child": t.child, "infant": t.infant, "title": t.title,
+            "flight": f"{t.flight_from} {t.flight_no}".strip(),
+        }
         for g in groups for t in g.tours
     }
 
@@ -48,7 +52,16 @@ def code_start(code, info):
 
 
 def _pax(info):
-    return f"{info['pax']}명" if info else "인원 미상"
+    """빠진 예약을 알아볼 수 있게 지난번에 알던 인원 구성과 항공편을 붙인다."""
+    if not info:
+        return "인원 미상(이전 기록 없음)"
+    text = f"{info['pax']}명"
+    if "adult" in info:
+        kinds = [f"성인 {info['adult']}"] + [f"{k} {info[key]}" for k, key in (("아동", "child"), ("유아", "infant")) if info[key]]
+        text += f" ({', '.join(kinds)})"
+    if info.get("flight"):
+        text += f" · {info['flight']}"
+    return text
 
 
 def diff(prev, groups, today):
