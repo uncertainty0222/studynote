@@ -5,6 +5,7 @@
     python monitor.py          평소 실행(작업 스케줄러가 오전 9시, 오후 5시에 실행)
     python monitor.py --dry    보내지 않고 화면에만 출력, 확인한 행사로 기록하지도 않음
     python monitor.py --all    지금 있는 모든 패키지를 새 일감처럼 처리(전송 테스트용)
+    python monitor.py --init-checklist   지금 배정된 팀을 예약 체크·현황판에만 등록(처음 한 번)
 
 처음 실행하면 지금 있는 행사들을 "이미 본 것"으로 기록만 하고 시작 알림을 보낸다.
 """
@@ -19,6 +20,7 @@ from urllib.parse import urljoin
 from playwright.sync_api import sync_playwright
 
 import changes
+import checklist
 import creds
 import customers
 import discover
@@ -26,6 +28,7 @@ import notify
 import messages
 import parse_main
 import parse_product
+import telegram
 
 HERE = Path(__file__).parent
 SEEN_FILE = HERE / "seen_codes.json"   # 예전 버전의 기록(행사코드만). state.json 이 없을 때만 읽는다.
@@ -92,6 +95,8 @@ def fetch(corp, uid, pw, want_products):
 def main():
     dry = "--dry" in sys.argv
     send_all = "--all" in sys.argv
+    # 지금 배정된 팀들을 예약 체크(현황판)에만 등록하고 브리핑은 다시 보내지 않는다.
+    init_checklist = "--init-checklist" in sys.argv
     prev = changes.load(STATE_FILE, SEEN_FILE)
     first_run = prev is None and not send_all
     today = date.today()
@@ -99,7 +104,10 @@ def main():
 
     def want(groups):
         """알릴 팀을 정하고, 그 팀들의 행사만 손님 명단·상품페이지를 읽는다."""
-        if first_run:
+        if init_checklist:
+            plan["teams"] = [changes.TeamChange(g, new_team=True) for g in groups]
+            plan["cancelled"] = []
+        elif first_run:
             plan["teams"], plan["cancelled"] = [], []
         elif send_all:
             plan["teams"] = [changes.TeamChange(g, new_team=True) for g in groups]
@@ -132,6 +140,13 @@ def main():
         else:
             notify.send(msg)
 
+    if init_checklist:
+        for c in plan["teams"]:
+            checklist.update_team(c.group, products)
+        checklist.refresh_board()
+        log(f"예약 체크 등록: {len(plan['teams'])}팀")
+        return
+
     if first_run:
         text = f"하나투어 일감 알림을 시작합니다.\n현재 배정된 패키지 {len(groups)}건을 기록했습니다."
         log(text.replace("\n", " "))
@@ -148,6 +163,23 @@ def main():
     for team in cancelled:
         send(changes.cancel_message(team))
     save()
+    if not dry and telegram.configured():
+        update_checklist(teams, cancelled, products)
+
+
+def update_checklist(teams, cancelled, products):
+    """예약 체크: 바뀐 팀 등록/갱신, 빠진 팀 정리, 현황판 갱신, 오전 실행이면 D-3 독촉.
+    여기서 실패해도 일감 알림 자체는 이미 끝났으므로 기록만 남긴다."""
+    try:
+        for c in teams:
+            checklist.update_team(c.group, products)
+        for team in cancelled:
+            checklist.cancel_team(min(changes.code_start(code, info) for code, info in team))
+        checklist.refresh_board()
+        if time.localtime().tm_hour < 12:
+            checklist.remind()
+    except Exception as e:
+        log("예약 체크 갱신 실패: " + "".join(traceback.format_exception_only(e)).strip())
 
 
 if __name__ == "__main__":

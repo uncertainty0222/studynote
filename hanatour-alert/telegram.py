@@ -24,7 +24,9 @@ def configured():
 
 
 def _api(token, method, **params):
-    r = requests.post(f"https://api.telegram.org/bot{token}/{method}", data=params, timeout=20)
+    # getUpdates 는 서버가 최대 timeout 초까지 기다렸다 답하므로 그만큼 더 기다린다.
+    wait = 20 + int(params.get("timeout", 0))
+    r = requests.post(f"https://api.telegram.org/bot{token}/{method}", data=params, timeout=wait)
     data = r.json()
     if not data.get("ok"):
         raise RuntimeError(f"텔레그램 {method} 실패: {data}")
@@ -67,6 +69,45 @@ def send(text):
     conf = json.loads(CONF_FILE.read_text(encoding="utf-8"))
     for part in _chunks(text):
         _api(conf["token"], "sendMessage", chat_id=conf["chat_id"], text=_to_html(part), parse_mode="HTML")
+
+
+def _conf():
+    if not configured():
+        raise SystemExit("텔레그램 설정이 없습니다. 먼저 python telegram.py setup 을 성공시켜 주세요.")
+    return json.loads(CONF_FILE.read_text(encoding="utf-8"))
+
+
+def call(method, **params):
+    """설정된 봇·채팅으로 API 호출. reply_markup 등 dict 값은 JSON 으로 보낸다."""
+    conf = _conf()
+    params = {k: json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v
+              for k, v in params.items() if v is not None}
+    return _api(conf["token"], method, **params)
+
+
+def chat_id():
+    return _conf()["chat_id"]
+
+
+def keyboard(rows):
+    """[[(글자, 콜백데이터), ...], ...] → 인라인 버튼"""
+    return {"inline_keyboard": [[{"text": t, "callback_data": d} for t, d in row] for row in rows]}
+
+
+def send_message(text, buttons=None):
+    """메시지 하나(4000자 이하)를 보내고 message_id 를 돌려준다."""
+    res = call("sendMessage", chat_id=chat_id(), text=_to_html(text), parse_mode="HTML",
+               reply_markup=keyboard(buttons) if buttons else None)
+    return res["message_id"]
+
+
+def edit_message(message_id, text, buttons=None):
+    try:
+        call("editMessageText", chat_id=chat_id(), message_id=message_id, text=_to_html(text),
+             parse_mode="HTML", reply_markup=keyboard(buttons) if buttons else None)
+    except RuntimeError as e:
+        if "message is not modified" not in str(e):  # 내용이 같으면 텔레그램이 오류로 돌려준다
+            raise
 
 
 if __name__ == "__main__":

@@ -8,3 +8,8 @@ monitor.log
 monitor_console.log
 telegram.json
 state.json
+checklist.json
+checklist.lock
+checklist.tmp
+bot_offset.json
+bot.log

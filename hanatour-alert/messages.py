@@ -145,12 +145,12 @@ def schedule_message(group, products):
     return "\n".join(lines)
 
 
-def shop_messages(group, products):
-    """쇼핑이 있는 패키지면 문구 하나를 만든다(횟수와 관계없이 1개, 사용자가 고쳐서 쓴다).
+def shop_plan(group, products):
+    """쇼핑 예약 (날짜, 인원) 또는 쇼핑이 없으면 None.
     날짜: 일정표에 "쇼핑센터 방문"이 적힌 날, 없으면 "N박이면 N+1일차" 규칙."""
     base = _base_product(group, products)
     if not base or not base.shopping:
-        return []
+        return None
     mains = _mains(group)
     adult = sum(t.adult for t in mains)
     kids = sum(t.child + t.infant for t in mains)
@@ -160,11 +160,11 @@ def shop_messages(group, products):
         start = min(t.start for t in mains)
         shop_day = start + timedelta(days=base.nights)  # N박 → N+1일차
         dates = [f"{shop_day.month}월 {shop_day.day}일"]
-    date = ", ".join(dates) if dates else "(날짜 확인 필요)"
-    return [f"안녕하세요 이사님~\n{date} {pax} {SHOP_TIME} 예약 가능할까요?"]
+    return (", ".join(dates) if dates else "(날짜 확인 필요)"), pax
 
 
-def restaurant_messages(group, products):
+def restaurant_plans(group, products):
+    """식당(무제한 삼겹살) 예약 [(날짜, 인원수), ...]"""
     base = _base_product(group, products)
     if not base:
         return []
@@ -183,8 +183,26 @@ def restaurant_messages(group, products):
                 for d in products[t.code].days:
                     if _md(d.date) == _md(day.date) and RESTAURANT_KEY in d.meals.get(kind, ""):
                         pax += t.pax
-            out.append(f"안녕하세요 사장님~\n{_md(day.date)}에 {pax}명 {RESTAURANT_MENU} 예약 가능할까요?")
+            out.append((_md(day.date), pax))
     return out
+
+
+def shop_text(date, pax):
+    return f"안녕하세요 이사님~\n{date} {pax} {SHOP_TIME} 예약 가능할까요?"
+
+
+def restaurant_text(date, pax):
+    return f"안녕하세요 사장님~\n{date}에 {pax}명 {RESTAURANT_MENU} 예약 가능할까요?"
+
+
+def shop_messages(group, products):
+    """쇼핑이 있는 패키지면 문구 하나를 만든다(횟수와 관계없이 1개, 사용자가 고쳐서 쓴다)."""
+    plan = shop_plan(group, products)
+    return [shop_text(*plan)] if plan else []
+
+
+def restaurant_messages(group, products):
+    return [restaurant_text(d, p) for d, p in restaurant_plans(group, products)]
 
 
 def all_messages(group, products, change=None, people=None):
