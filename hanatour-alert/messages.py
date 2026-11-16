@@ -55,17 +55,23 @@ def _shop(n):
     return "확인 불가" if n is None else ("없음" if n == 0 else f"{n}회")
 
 
-def summary_message(group, products, added=False):
+def summary_message(group, products, change=None):
+    """change: changes.TeamChange. 없거나 새 팀이면 '새 일감', 아니면 '일감 변경'과 변경 내역."""
     mains = _mains(group) or group.tours
     start = min(t.start for t in group.tours)
     end = max(t.end for t in group.tours)
     a, c, i = (sum(getattr(t, k) for t in mains) for k in ("adult", "child", "infant"))
     title_tour = _base_tour(group, products) or mains[0]
-    return "\n".join([
-        "🔔 일감 변경 (예약 추가)" if added else "🔔 새 일감",
+    changed = change is not None and not change.new_team
+    before = f" (변경 전 {change.prev_total}명)" if changed and change.prev_total is not None else ""
+    lines = [
+        "🔔 일감 변경" if changed else "🔔 새 일감",
         f"**[패키지] {short_title(title_tour.title, tags=3)}**",
-        f"**기간 {start:%m/%d}~{end:%m/%d} · 총 {a + c + i}명 (성인 {a}, 아동 {c}, 유아 {i})**",
-    ])
+        f"**기간 {start:%m/%d}~{end:%m/%d} · 총 {a + c + i}명 (성인 {a}, 아동 {c}, 유아 {i})**{before}",
+    ]
+    if changed:
+        lines += [""] + change.lines
+    return "\n".join(lines)
 
 
 def bookings_message(group, products):
@@ -181,12 +187,12 @@ def restaurant_messages(group, products):
     return out
 
 
-def all_messages(group, products, added=False, people=None):
-    """보낼 순서대로 메시지 목록. added: 이미 알린 팀에 예약이 추가된 경우
+def all_messages(group, products, change=None, people=None):
+    """보낼 순서대로 메시지 목록. change: changes.TeamChange(새 일감/변경 내역)
     people: {행사코드: [Customer]} 고객정보 화면에서 읽은 손님 명단"""
     roster = customers_message(group, people or {})
     return (
-        [summary_message(group, products, added), bookings_message(group, products)]
+        [summary_message(group, products, change), bookings_message(group, products)]
         + ([roster] if roster else [])
         + [schedule_message(group, products)]
         + shop_messages(group, products)

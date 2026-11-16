@@ -1,6 +1,6 @@
 """
-새 일감 감시: 로그인 → 메인 화면 분석 → 처음 보는 행사코드가 있는 패키지만
-상품페이지를 읽어 브리핑·쇼핑샵·식당 예약 문구를 텔레그램·카카오톡(설정된 것 모두)으로 보낸다.
+새 일감·배정 변경 감시: 로그인 → 메인 화면 분석 → 지난 실행과 비교(changes.py)해서
+새 팀이나 바뀐 팀만 손님 명단·상품페이지를 읽어 브리핑·쇼핑샵·식당 예약 문구를 텔레그램·카카오톡(설정된 것 모두)으로 보낸다.
 
     python monitor.py          평소 실행(작업 스케줄러가 오전 9시, 오후 5시에 실행)
     python monitor.py --dry    보내지 않고 화면에만 출력, 확인한 행사로 기록하지도 않음
@@ -12,11 +12,13 @@ import json
 import sys
 import time
 import traceback
+from datetime import date
 from pathlib import Path
 from urllib.parse import urljoin
 
 from playwright.sync_api import sync_playwright
 
+import changes
 import creds
 import customers
 import discover
@@ -26,7 +28,8 @@ import parse_main
 import parse_product
 
 HERE = Path(__file__).parent
-SEEN_FILE = HERE / "seen_codes.json"
+SEEN_FILE = HERE / "seen_codes.json"   # 예전 버전의 기록(행사코드만). state.json 이 없을 때만 읽는다.
+STATE_FILE = HERE / "state.json"       # 지난 실행 때의 행사별 출발일·인원
 LOG_FILE = HERE / "monitor.log"
 NET_RETRIES = 4   # 인터넷 연결 오류 시 시도 횟수
 NET_WAIT = 60     # 다시 시도하기 전 대기(초)
@@ -89,16 +92,23 @@ def fetch(corp, uid, pw, want_products):
 def main():
     dry = "--dry" in sys.argv
     send_all = "--all" in sys.argv
-    seen = set(json.loads(SEEN_FILE.read_text(encoding="utf-8"))) if SEEN_FILE.exists() else None
-    first_run = seen is None and not send_all
+    prev = changes.load(STATE_FILE, SEEN_FILE)
+    first_run = prev is None and not send_all
+    today = date.today()
+    plan = {}
 
-    def new_groups(groups):
+    def want(groups):
+        """알릴 팀을 정하고, 그 팀들의 행사만 손님 명단·상품페이지를 읽는다."""
         if first_run:
-            return []
-        return [g for g in groups if send_all or not g.codes <= seen]
+            plan["teams"], plan["cancelled"] = [], []
+        elif send_all:
+            plan["teams"] = [changes.TeamChange(g, new_team=True) for g in groups]
+            plan["cancelled"] = []
+        else:
+            plan["teams"], plan["cancelled"] = changes.diff(prev, groups, today)
+        return [t for c in plan["teams"] for t in c.group.tours]
 
     corp, uid, pw = creds.load()
-    want = lambda gs: [t for g in new_groups(gs) for t in g.tours]
     # PC가 절전에서 깨어난 직후처럼 인터넷이 아직 안 붙었을 때(net::ERR_...)는 잠시 기다렸다 다시 시도한다.
     for attempt in range(1, NET_RETRIES + 1):
         try:
@@ -109,28 +119,35 @@ def main():
                 raise
             log(f"인터넷 연결 오류, {NET_WAIT}초 후 다시 시도 ({attempt}/{NET_RETRIES}): {str(e).splitlines()[0]}")
             time.sleep(NET_WAIT)
-    todo = new_groups(groups)
-    all_codes = set().union(*(g.codes for g in groups)) if groups else set()
+
+    def save():
+        # 전송이 끝난 뒤에 기록해야 실패 시 다음 실행에서 다시 보낸다.
+        if not dry:
+            STATE_FILE.write_text(json.dumps(changes.snapshot(groups), ensure_ascii=False, indent=1),
+                                  encoding="utf-8")
+
+    def send(msg):
+        if dry:
+            print(msg, "\n---")
+        else:
+            notify.send(msg)
 
     if first_run:
         text = f"하나투어 일감 알림을 시작합니다.\n현재 배정된 패키지 {len(groups)}건을 기록했습니다."
         log(text.replace("\n", " "))
-        if not dry:
-            notify.send(text)
-            SEEN_FILE.write_text(json.dumps(sorted(all_codes)), encoding="utf-8")
+        send(text)
+        save()
         return
 
-    log(f"패키지 {len(groups)}건, 새 일감 {len(todo)}건")
-    for g in todo:
-        added = bool(seen and g.codes & seen)
-        for msg in messages.all_messages(g, products, added, people):
-            if dry:
-                print(msg, "\n---")
-            else:
-                notify.send(msg)
-    if not dry:
-        # 전송이 끝난 뒤에 기록해야 실패 시 다음 실행에서 다시 보낸다.
-        SEEN_FILE.write_text(json.dumps(sorted(all_codes | (seen or set()))), encoding="utf-8")
+    teams, cancelled = plan["teams"], plan["cancelled"]
+    new = sum(c.new_team for c in teams)
+    log(f"패키지 {len(groups)}건, 새 일감 {new}건, 변경 {len(teams) - new}건, 취소 {len(cancelled)}건")
+    for c in teams:
+        for msg in messages.all_messages(c.group, products, c, people):
+            send(msg)
+    for team in cancelled:
+        send(changes.cancel_message(team))
+    save()
 
 
 if __name__ == "__main__":
