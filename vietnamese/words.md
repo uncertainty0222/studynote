@@ -11,3 +11,5 @@
 | bớt | 줄이다, 덜 하다 | (참고) | `Bớt nói lại đi.` 말 좀 줄여. 시장에서 `Bớt chút được không?` 좀 깎아 줄래요? |
 | đừng | ~하지 마 | S001 | `Đừng cãi nhau nữa.` 더 이상 싸우지 마 |
 | không ngờ | 생각도 못 했다, 뜻밖이다 | S002 | `Không ngờ em giận vậy.` 네가 그렇게 화낼 줄 몰랐어 |
+| trâu | 물소 → (게임) 단단하다·탱키하다 | S009 | `Thằng đó trâu quá.` 저 녀석 너무 단단해 |
+| trâu bò | `trâu`의 강조형, 힘이 무식하게 셈 | S009 | `Anivia trâu bò desu ne!` |
