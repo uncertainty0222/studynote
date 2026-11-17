@@ -132,6 +132,8 @@ def update_team(group, products):
     """팀을 등록하거나 갱신하고 체크 메시지를 새로 보낸다. 완료 표시는 유지하되,
     인원이나 날짜가 바뀐 항목은 다시 확인하도록 ⬜ 로 되돌린다."""
     start = min(t.start for t in group.tours)
+    if start < date.today():
+        return  # 이미 출발한 팀(진행 중·끝난 행사)은 예약 체크 대상이 아니다
     mains = [t for t in group.tours if t.end > t.start] or group.tours
     shop = messages.shop_plan(group, products)
     foods = messages.restaurant_plans(group, products)
@@ -184,9 +186,10 @@ def refresh_board(today=None):
     today = today or date.today()
     with _locked():
         state = load()
-        for key in [k for k in state["teams"] if date.fromisoformat(k) < today]:
-            state["teams"].pop(key)
+        past = [state["teams"].pop(k) for k in list(state["teams"]) if date.fromisoformat(k) < today]
         save(state)
+    for team in past:
+        _remove_message(team.get("msg"))
     text = board_text(state, today)
     if state.get("board"):
         try:
@@ -247,6 +250,17 @@ def handle_callback(query):
         # 독촉 메시지에서 누른 경우: 그 메시지는 처리 결과만 남긴다.
         _safe_edit(pressed, f"{icon} {_day(key)} 출발 팀 {name} 예약: {'✅ 완료' if it['done'] else '⬜ 미완료'}")
     refresh_board()
+
+
+def _remove_message(message_id):
+    """지난 팀의 체크 메시지를 지운다. 텔레그램은 봇이 보낸 지 48시간이 지난 메시지는
+    지우지 못하게 하므로, 그때는 버튼을 없애고 '지난 행사'로 바꿔 둔다."""
+    if not message_id:
+        return
+    try:
+        telegram.call("deleteMessage", chat_id=telegram.chat_id(), message_id=message_id)
+    except RuntimeError:
+        _safe_edit(message_id, "🕘 지난 행사입니다.")
 
 
 def _safe_edit(message_id, text, buttons=None):
