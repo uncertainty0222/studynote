@@ -3,6 +3,7 @@
 
   - checklist.json 에 팀별 예약 항목과 완료 여부를 저장한다. 팀은 출발일(YYYY-MM-DD)로 구분한다.
   - monitor.py 가 새 일감·변경을 알린 뒤 update_team() 으로 팀을 등록/갱신하고 체크 메시지를 보낸다.
+  - 항목: 쇼핑샵(쇼핑 횟수만큼 1번, 2번 …), 삼겹살 식당
   - 버튼을 누르면 bot.py 가 handle_callback() 으로 완료 여부를 바꾸고 현황판을 고친다.
   - 현황판은 대화방에 고정된 메시지 하나를 계속 고쳐 쓴다.
 """
@@ -20,7 +21,8 @@ HERE = Path(__file__).parent
 STATE_FILE = HERE / "checklist.json"
 LOCK_FILE = HERE / "checklist.lock"
 REMIND_DAYS = 3  # 출발 며칠 전부터 미완료 독촉
-ITEMS = {"shop": ("🛍", "쇼핑"), "food": ("🍖", "삼겹살")}
+# 예전 버전에서 만든 항목(이름이 저장돼 있지 않음)을 보여 줄 때 쓰는 이름
+LEGACY = {"shop": ("🛍", "쇼핑"), "food": ("🍖", "삼겹살")}
 WEEKDAY = "월화수목금토일"
 
 
@@ -72,33 +74,44 @@ def _find(state, start):
 
 # ---------- 메시지 모양 ----------
 
-def _item_line(team, key):
-    it = team["items"].get(key)
-    icon, name = ITEMS[key]
-    if not it:
-        return f"  {icon} {name} 없음"
+def _meta(key, it):
+    """(아이콘, 이름). 쇼핑샵은 shop1, shop2 … 처럼 횟수만큼 따로 체크한다."""
+    if it.get("name"):
+        return it["icon"], it["name"]
+    return LEGACY.get(key, ("•", key))
+
+
+def _item_line(key, it):
+    icon, name = _meta(key, it)
     mark = "✅" if it["done"] else "⬜"
     note = " (인원 변경 → 재확인)" if it.get("recheck") else ""
     return f"  {icon} {name} {it['label']}  {mark}{note}"
 
 
+def _item_lines(team):
+    items = team["items"]
+    lines = []
+    if not any(k.startswith("shop") for k in items):
+        lines.append("  🛍 쇼핑 없음")
+    lines += [_item_line(k, it) for k, it in items.items()]
+    if "food" not in items:
+        lines.append("  🍖 삼겹살 없음")
+    return lines
+
+
 def _buttons(key):
+    """항목마다 완료 토글 버튼 하나, 한 줄에 두 개씩"""
     team = load()["teams"].get(key)
-    if not team:
+    if not team or not team["items"]:
         return None
-    row1, row2 = [], []
-    for item, (icon, name) in ITEMS.items():
-        it = team["items"].get(item)
-        if not it:
-            continue
-        row1.append((f"{'✅' if it['done'] else '⬜'} {name} 예약", f"t|{key}|{item}"))
-        row2.append((f"📋 {name} 문자", f"c|{key}|{item}"))
-    return [row1, row2] if row1 else None
+    btns = [(f"{'✅' if it['done'] else '⬜'} {_meta(k, it)[1]} 예약", f"t|{key}|{k}")
+            for k, it in team["items"].items()]
+    return [btns[i:i + 2] for i in range(0, len(btns), 2)]
 
 
 def _check_text(key, team):
     head = f"**✅ 예약 체크 · {_day(key)} 출발 {team['pax']}명**\n{team['title']}"
-    return "\n".join([head] + [_item_line(team, k) for k in ITEMS])
+    return "\n".join([head] + _item_lines(team))
 
 
 def board_text(state, today):
@@ -109,7 +122,7 @@ def board_text(state, today):
     for key, team in teams:
         dday = (date.fromisoformat(key) - today).days
         lines += ["", f"**{_day(key)} 출발 · D-{dday} · {team['pax']}명**  {team['title']}"]
-        lines += [_item_line(team, k) for k in ITEMS]
+        lines += _item_lines(team)
     return "\n".join(lines)
 
 
@@ -123,14 +136,11 @@ def update_team(group, products):
     shop = messages.shop_plan(group, products)
     foods = messages.restaurant_plans(group, products)
     items = {}
-    if shop:
-        items["shop"] = {"label": f"{shop[0]} {shop[1]}", "text": messages.shop_text(*shop), "done": False}
+    for n, day in enumerate(messages.shop_visits(group, products), 1):
+        items[f"shop{n}"] = {"icon": "🛍", "name": f"{n}번 쇼핑샵", "label": f"{day} {shop[1]}", "done": False}
     if foods:
-        items["food"] = {
-            "label": ", ".join(f"{d} {p}명" for d, p in foods),
-            "text": "\n\n".join(messages.restaurant_text(d, p) for d, p in foods),
-            "done": False,
-        }
+        items["food"] = {"icon": "🍖", "name": "삼겹살",
+                         "label": ", ".join(f"{d} {p}명" for d, p in foods), "done": False}
     with _locked():
         state = load()
         old_key = _find(state, start)
@@ -205,32 +215,29 @@ def remind(today=None):
         if not (0 <= dday <= REMIND_DAYS) or not todo:
             continue
         lines = [f"**⏰ 예약 확인 필요 (D-{dday})**", f"{_day(key)} 출발 {team['pax']}명 · {team['title']}"]
-        lines += [_item_line(team, k) for k in todo]
-        buttons = [[(f"⬜ {ITEMS[k][1]} 예약 → 완료로 표시", f"t|{key}|{k}")] for k in todo]
+        lines += [_item_line(k, team["items"][k]) for k in todo]
+        buttons = [[(f"⬜ {_meta(k, team['items'][k])[1]} 예약 → 완료로 표시", f"t|{key}|{k}")] for k in todo]
         telegram.send_message("\n".join(lines), buttons)
 
 
 # ---------- bot.py 에서 부르는 것 ----------
 
 def handle_callback(query):
-    """버튼 누름 처리. data = t|팀|항목(완료 토글) 또는 c|팀|항목(예약 문자 다시 보내기)"""
-    action, key, item = (query.get("data") or "||").split("|")
+    """버튼 누름 처리. data = t|팀|항목 → 완료 여부를 바꾼다."""
+    action, key, item = ((query.get("data") or "") + "||").split("|")[:3]
     with _locked():
         state = load()
         team = state["teams"].get(key)
-        it = team["items"].get(item) if team else None
-        if it and action == "t":
+        it = team["items"].get(item) if team and action == "t" else None
+        if it:
             it["done"] = not it["done"]
             it.pop("recheck", None)
             save(state)
     if not it:
-        telegram.call("answerCallbackQuery", callback_query_id=query["id"], text="지난 행사이거나 바뀐 배정입니다.")
+        telegram.call("answerCallbackQuery", callback_query_id=query["id"],
+                      text="지난 행사, 바뀐 배정이거나 없어진 버튼입니다.")
         return
-    if action == "c":
-        telegram.call("answerCallbackQuery", callback_query_id=query["id"])
-        telegram.send_message(it["text"])
-        return
-    name = ITEMS[item][1]
+    icon, name = _meta(item, it)
     telegram.call("answerCallbackQuery", callback_query_id=query["id"],
                   text=f"{name} 예약 {'완료' if it['done'] else '미완료'}로 표시했습니다.")
     pressed = query.get("message", {}).get("message_id")
@@ -238,7 +245,7 @@ def handle_callback(query):
         _safe_edit(team["msg"], _check_text(key, team), _buttons(key))
     if pressed and pressed != team.get("msg"):
         # 독촉 메시지에서 누른 경우: 그 메시지는 처리 결과만 남긴다.
-        _safe_edit(pressed, f"{ITEMS[item][0]} {_day(key)} 출발 팀 {name} 예약: {'✅ 완료' if it['done'] else '⬜ 미완료'}")
+        _safe_edit(pressed, f"{icon} {_day(key)} 출발 팀 {name} 예약: {'✅ 완료' if it['done'] else '⬜ 미완료'}")
     refresh_board()
 
 

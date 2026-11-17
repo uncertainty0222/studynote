@@ -163,6 +163,18 @@ def shop_plan(group, products):
     return (", ".join(dates) if dates else "(날짜 확인 필요)"), pax
 
 
+def shop_visits(group, products):
+    """쇼핑샵별 날짜 목록(쇼핑 횟수만큼). 일정표에 "쇼핑센터 방문"이 적힌 날을 순서대로 쓰고,
+    모자라면 shop_plan 의 날짜(N박이면 N+1일차)로 채운다. 쇼핑이 없으면 []."""
+    plan = shop_plan(group, products)
+    if not plan:
+        return []
+    base = _base_product(group, products)
+    dates = [_md(d.date) for d in base.days for _ in range(d.shops)]
+    fallback = plan[0].split(", ")[0]
+    return [dates[i] if i < len(dates) else fallback for i in range(base.shopping)]
+
+
 def restaurant_plans(group, products):
     """식당(무제한 삼겹살) 예약 [(날짜, 인원수), ...]"""
     base = _base_product(group, products)
