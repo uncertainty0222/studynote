@@ -8,6 +8,8 @@
 인터넷이 끊기면 잠시 쉬었다가 다시 시도한다. 기록은 bot.log.
 """
 import json
+import socket
+import sys
 import time
 import traceback
 from pathlib import Path
@@ -18,6 +20,7 @@ import telegram
 HERE = Path(__file__).parent
 OFFSET_FILE = HERE / "bot_offset.json"
 LOG_FILE = HERE / "bot.log"
+SINGLE_PORT = 47321  # 이미 실행 중인지 확인하는 용도(이 PC 안에서만 쓰는 포트)
 
 
 def log(msg):
@@ -29,7 +32,22 @@ def log(msg):
         pass
 
 
+def already_running():
+    """봇이 두 개 켜지면 텔레그램이 409 Conflict 로 거절하므로, 하나만 켜지게 한다.
+    포트를 잡아 두는 방식이라 프로그램이 꺼지면 자동으로 풀린다."""
+    global _guard
+    _guard = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        _guard.bind(("127.0.0.1", SINGLE_PORT))
+        return False
+    except OSError:
+        return True
+
+
 def main():
+    if already_running():
+        print("봇이 이미 실행 중입니다(작업 스케줄러 HanatourBot). 이 창은 종료합니다.")
+        sys.exit(0)
     offset = json.loads(OFFSET_FILE.read_text()) if OFFSET_FILE.exists() else None
     log("봇 시작")
     while True:
