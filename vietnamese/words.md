@@ -13,3 +13,5 @@
 | không ngờ | 생각도 못 했다, 뜻밖이다 | S002 | `Không ngờ em giận vậy.` 네가 그렇게 화낼 줄 몰랐어 |
 | trâu | 물소 → (게임) 단단하다·탱키하다 | S009 | `Thằng đó trâu quá.` 저 녀석 너무 단단해 |
 | trâu bò | `trâu`의 강조형, 힘이 무식하게 셈 | S009 | `Anivia trâu bò desu ne!` |
+| chó má | 개 같은 (강한 욕) | S005 | `lũ chó má` 개 같은 놈들 |
+| không thèm | ~할 생각도 안 하다 (경멸조) | S005 | `Nó không thèm trả lời.` 걔는 대답할 생각도 안 해 |
