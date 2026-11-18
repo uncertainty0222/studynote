@@ -755,7 +755,7 @@ Rules:
     .map((c, i) => `${i}\t${yymmdd(c.date)}\t${c.members.length > 1 ? `x${c.members.length}` : ""}\t${c.title}`)
     .join("\n");
   const krwPer = await krwRates(); // 돈 수치의 원화 환산용 (실패하면 환산 생략)
-  const client = new Anthropic();
+  const client = new Anthropic({ apiKey: apiKey() });
   // AI의 검토(thinking) 토큰도 출력 요금이라, 짧은 기간은 낮은 강도로 충분하다 (주간·1년·3년은 중간)
   const ask = async (effort: "low" | "medium") => {
     // 출력이 길 수 있어 스트리밍으로 받는다 (HTTP 타임아웃 방지)
@@ -927,8 +927,17 @@ function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
+// Railway 변수에 붙여 넣다 섞인 따옴표·공백·줄바꿈을 걷어 낸다
+function apiKey() {
+  return (process.env.ANTHROPIC_API_KEY ?? "").trim().replace(/^["']|["']$/g, "").trim();
+}
+
 function describeError(e: unknown): string {
-  if (e instanceof Anthropic.AuthenticationError) return "ANTHROPIC_API_KEY가 올바르지 않음";
+  if (e instanceof Anthropic.AuthenticationError) {
+    // 키 값은 드러내지 않고 형식만 알려 준다 (Anthropic 키는 sk-ant- 로 시작한다)
+    const k = apiKey();
+    return `ANTHROPIC_API_KEY가 올바르지 않음 (401, 키 형식: ${k.startsWith("sk-ant-") ? "sk-ant-로 시작" : "sk-ant-로 시작하지 않음"}, ${k.length}자)`;
+  }
   if (e instanceof Anthropic.RateLimitError) return "요청 한도 초과, 잠시 후 다시 시도";
   if (e instanceof Anthropic.APIError) return `API 오류 ${e.status}: ${e.message}`;
   return e instanceof Error ? e.message : String(e);
