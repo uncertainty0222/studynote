@@ -117,15 +117,16 @@ def main():
         return [t for c in plan["teams"] for t in c.group.tours]
 
     corp, uid, pw = creds.load()
-    # PC가 절전에서 깨어난 직후처럼 인터넷이 아직 안 붙었을 때(net::ERR_...)는 잠시 기다렸다 다시 시도한다.
     for attempt in range(1, NET_RETRIES + 1):
         try:
             groups, products, people = fetch(corp, uid, pw, want)
             break
         except Exception as e:
-            if "net::ERR_" not in str(e) or attempt == NET_RETRIES:
+            # 인터넷 끊김, 로그인 화면 대신 점검 안내 등이 잠깐 뜬 경우는 기다렸다 다시 시도한다.
+            retryable = "net::ERR_" in str(e) or "로그인 화면이 아닙니다" in str(e)
+            if not retryable or attempt == NET_RETRIES:
                 raise
-            log(f"인터넷 연결 오류, {NET_WAIT}초 후 다시 시도 ({attempt}/{NET_RETRIES}): {str(e).splitlines()[0]}")
+            log(f"접속 문제, {NET_WAIT}초 후 다시 시도 ({attempt}/{NET_RETRIES}): {str(e).splitlines()[0]}")
             time.sleep(NET_WAIT)
 
     def save():

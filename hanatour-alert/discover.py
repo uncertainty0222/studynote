@@ -37,6 +37,8 @@ def login(page, corp, uid, pw):
         messages.append(d.message)
         d.accept()
 
+    if not _wait_login_form(page):
+        return  # 이미 로그인된 상태로 메인 화면이 열렸다
     page.on("dialog", on_dialog)
     page.evaluate(
         """([corp, uid, pw]) => {
@@ -56,6 +58,30 @@ def login(page, corp, uid, pw):
     finally:
         page.remove_listener("dialog", on_dialog)
     page.wait_for_load_state("networkidle")
+
+
+def _wait_login_form(page):
+    """로그인 폼이 뜰 때까지 기다린다. 이미 메인이면 False.
+    점검 안내 등 다른 화면이 뜨면 한 번 새로 고쳐 보고, 그래도 아니면 화면을 dumps/ 에 남기고 오류를 낸다.
+    (로그인 전 화면이라 고객 정보는 들어 있지 않다.)"""
+    for attempt in range(2):
+        try:
+            page.wait_for_selector("#loginFrm", state="attached", timeout=15000)
+            return True
+        except Exception:
+            if "/main" in page.url:
+                return False
+            if attempt == 0:
+                page.reload(wait_until="networkidle")
+    OUT.mkdir(exist_ok=True)
+    stem = OUT / f"login_unexpected_{time.strftime('%m%d_%H%M')}"
+    Path(f"{stem}.html").write_text(page.content(), encoding="utf-8")
+    try:
+        page.screenshot(path=f"{stem}.png", full_page=True)
+    except Exception:
+        pass
+    raise RuntimeError(f"로그인 화면이 아닙니다(주소 {page.url}, 제목 '{page.title()}'). "
+                       f"점검 중이거나 화면이 바뀌었을 수 있습니다. 화면 저장: {stem.name}.png")
 
 
 def save(page, name):
