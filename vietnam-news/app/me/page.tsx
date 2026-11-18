@@ -42,7 +42,9 @@ export default async function MePage() {
           </div>
           <div className="flex justify-between gap-4 px-4 py-3">
             <dt className="text-zinc-500">PRO 멤버십</dt>
-            <dd className="font-medium">{proActive ? `${fmtDate(m.premiumUntil!)}까지` : m.pending ? "승인 대기 중" : "이용 안 함"}</dd>
+            <dd className="font-medium">
+              {m.admin ? "운영자 · 기간 제한 없음" : proActive ? `${fmtDate(m.premiumUntil!)}까지` : m.pending ? "승인 대기 중" : "이용 안 함"}
+            </dd>
           </div>
         </dl>
 

@@ -20,6 +20,8 @@ export async function getAccess(): Promise<FullAccess> {
       member = null; // DB 장애 때는 비회원처럼 보여 준다 (뉴스는 계속 보이게)
     }
   }
+  // 운영자(ADMIN_KAKAO_IDS)는 기간 없이 항상 PRO
+  if (member?.admin) return { premium: true, expiresAt: null, loginEnabled: enabled, member, byCode: byCode.premium };
   const memberActive = member?.premiumUntil != null && member.premiumUntil > Date.now();
   // 코드와 멤버십이 둘 다 있으면 더 늦게 끝나는 쪽을 보여 준다 (코드 만료일이 없으면 무기한)
   const premium = byCode.premium || memberActive;
