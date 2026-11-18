@@ -65,6 +65,8 @@ def main():
             # 설정된 내 채팅에서 온 것만 처리한다.
             if not query or query.get("from", {}).get("id") != telegram.chat_id():
                 continue
+            pressed_at = time.strftime("%m/%d %H:%M:%S", time.localtime(query.get("message", {}).get("date", 0)))
+            log(f"버튼: {query.get('data')} (메시지 {query.get('message', {}).get('message_id')}, 메시지 시각 {pressed_at})")
             try:
                 checklist.handle_callback(query)
             except Exception:

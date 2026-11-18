@@ -237,12 +237,10 @@ def handle_callback(query):
             it.pop("recheck", None)
             save(state)
     if not it:
-        telegram.call("answerCallbackQuery", callback_query_id=query["id"],
-                      text="지난 행사, 바뀐 배정이거나 없어진 버튼입니다.")
+        _answer(query, "지난 행사, 바뀐 배정이거나 없어진 버튼입니다.")
         return
     icon, name = _meta(item, it)
-    telegram.call("answerCallbackQuery", callback_query_id=query["id"],
-                  text=f"{name} 예약 {'완료' if it['done'] else '미완료'}로 표시했습니다.")
+    _answer(query, f"{name} 예약 {'완료' if it['done'] else '미완료'}로 표시했습니다.")
     pressed = query.get("message", {}).get("message_id")
     if team.get("msg"):
         _safe_edit(team["msg"], _check_text(key, team), _buttons(key))
@@ -250,6 +248,15 @@ def handle_callback(query):
         # 독촉 메시지에서 누른 경우: 그 메시지는 처리 결과만 남긴다.
         _safe_edit(pressed, f"{icon} {_day(key)} 출발 팀 {name} 예약: {'✅ 완료' if it['done'] else '⬜ 미완료'}")
     refresh_board()
+
+
+def _answer(query, text):
+    """버튼을 누른 쪽에 짧은 안내를 띄운다. PC가 잠들어 있다 깨어나 늦게 처리하면 텔레그램이
+    'query is too old' 로 거절하는데, 그래도 체크 표시와 현황판은 고쳐야 하므로 실패를 무시한다."""
+    try:
+        telegram.call("answerCallbackQuery", callback_query_id=query["id"], text=text)
+    except RuntimeError:
+        pass
 
 
 def _remove_message(message_id):
