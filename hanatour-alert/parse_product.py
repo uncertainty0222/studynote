@@ -34,6 +34,8 @@ class Leg:
     arr_time: str
     next_day: bool  # 도착이 +1일
     flight: str     # "BX0781"
+    dep_date: str = ""  # "10/26(월)" (출발 현지 날짜)
+    arr_date: str = ""
 
     def __str__(self):
         plus = "+1" if self.next_day else ""
@@ -115,6 +117,11 @@ def _places(dd):
     return names
 
 
+def _text_of(el, selector):
+    found = el.select_one(selector)
+    return found.get_text(strip=True) if found else ""
+
+
 def _flights(soup):
     """일정표 안의 항공 구간: div.route_detail ul.path > li(출발), li(도착)"""
     legs = []
@@ -135,6 +142,8 @@ def _flights(soup):
             arr_time=arr.select_one(".start_time strong").get_text(strip=True),
             next_day="+1" in arr_spot,
             flight=flight.group() if flight else "",
+            dep_date=_text_of(dep, ".start_time span"),
+            arr_date=_text_of(arr, ".start_time span"),
         ))
     return legs
 

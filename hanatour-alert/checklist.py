@@ -5,13 +5,16 @@
   - monitor.py 가 새 일감·변경을 알린 뒤 update_team() 으로 팀을 등록/갱신하고 체크 메시지를 보낸다.
   - 항목: 쇼핑샵(쇼핑 횟수만큼 1번, 2번 …), 삼겹살 식당
   - 버튼을 누르면 bot.py 가 handle_callback() 으로 완료 여부를 바꾸고 현황판을 고친다.
-  - 현황판은 대화방에 고정된 메시지 하나를 계속 고쳐 쓴다.
+  - 현황판은 대화방에 고정된 메시지 하나를 계속 고쳐 쓴다. 첫 줄(고정 메시지 바에 보이는 줄)에
+    오늘 미팅(입국)·샌딩(귀국) 항공편을 띄운다. 팀은 마지막 샌딩 날까지 현황판에 남는다.
 """
 import json
 import os
+import re
 import time
 from contextlib import contextmanager
-from datetime import date, datetime
+from dataclasses import asdict
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import messages
@@ -114,16 +117,104 @@ def _check_text(key, team):
     return "\n".join([head] + _item_lines(team))
 
 
+# ---------- 오늘 일정(미팅·샌딩) ----------
+
+def _label_date(label, ref):
+    """'11/22(일)' → date. 연도는 ref(출발일) 기준, 달이 작으면 다음 해."""
+    m, d = map(int, re.findall(r"\d+", label)[:2])
+    return date(ref.year + (m < ref.month), m, d)
+
+
+def _sending_day(booking, start, end):
+    """샌딩(공항 배웅) 날: 귀국편 출발 날짜. 새벽(06시 전) 출발이면 전날 밤에 공항으로 가므로 하루 앞당긴다."""
+    out = booking.get("out")
+    if not out or not out.get("dep_date"):
+        return end - timedelta(days=1)
+    day = _label_date(out["dep_date"], start)
+    return day - timedelta(days=1) if int(out["dep_time"][:2]) < 6 else day
+
+
+def _plus(leg):
+    return "+1" if leg.get("next_day") else ""
+
+
+def _meeting(team, key):
+    """오늘 미팅(입국) 줄: 도착 시각 순. 각 줄 = (정렬키, 자세한 줄, 짧은 표기, 인원)"""
+    rows = []
+    for b in team.get("flights", []):
+        leg = b.get("in")
+        if not leg:
+            continue
+        sort = (bool(leg.get("next_day")), leg["arr_time"])
+        rows.append((sort, f"{leg['arr_time']}{_plus(leg)} 도착 {leg['flight']} ({leg['dep']} {leg['dep_time']} 출발) · {b['pax']}명",
+                     f"{leg['flight']} {leg['arr_time']}{_plus(leg)}", b["pax"]))
+    return sorted(rows)
+
+
+def _sending(team, key, day):
+    """오늘 샌딩(귀국) 줄: 출발 시각 순. 자정 넘어 출발하면 (+1)"""
+    start = date.fromisoformat(key)
+    rows = []
+    for b in team.get("flights", []):
+        leg = b.get("out")
+        if not leg or _sending_day(b, start, date.fromisoformat(team["end"])) != day:
+            continue
+        nxt = "+1" if _label_date(leg["dep_date"], start) > day else ""
+        rows.append(((nxt, leg["dep_time"]), f"{leg['dep_time']}{nxt} 출발 {leg['flight']} ({leg['dep']} → {leg['arr']}) · {b['pax']}명",
+                     f"{leg['flight']} {leg['dep_time']}{nxt}", b["pax"]))
+    return sorted(rows)
+
+
+def today_events(state, today):
+    """[(제목 한 줄, 자세한 줄들)] — 오늘 미팅·샌딩이 있는 팀마다"""
+    out = []
+    for key, team in sorted(state["teams"].items()):
+        if key == today.isoformat():
+            rows = _meeting(team, key)
+            if rows:
+                out.append((f"✈️ 오늘 미팅 {_day(key)} · {team['pax']}명 | " + " · ".join(r[2] for r in rows),
+                            [f"  {r[1]}" for r in rows]))
+        if team.get("end"):
+            rows = _sending(team, key, today)
+            if rows:
+                out.append((f"🛫 오늘 샌딩 {_day(today.isoformat())} · {sum(r[3] for r in rows)}명 | "
+                            + " · ".join(r[2] for r in rows), [f"  {r[1]}" for r in rows]))
+    return out
+
+
 def board_text(state, today):
-    lines = [f"**📋 행사 예약 현황** ({datetime.now():%m/%d %H:%M} 갱신)"]
-    teams = sorted((k, t) for k, t in state["teams"].items() if date.fromisoformat(k) >= today)
-    if not teams:
-        lines += ["", "다가오는 행사가 없습니다."]
-    for key, team in teams:
+    """첫 줄은 대화창 위 고정 메시지 바에 그대로 보인다. 오늘 미팅·샌딩이 있으면 그것을 첫 줄에 둔다."""
+    events = today_events(state, today)
+    head = " / ".join(e[0] for e in events) if events else "📋 행사 예약 현황"
+    lines = [f"**{head}**", f"({datetime.now():%m/%d %H:%M} 갱신)"]
+    for title, rows in events:
+        lines += ["", f"**{title.split(' | ')[0]}**"] + rows
+    ongoing = sorted((k, t) for k, t in state["teams"].items() if date.fromisoformat(k) < today)
+    for key, team in ongoing:
+        lines += ["", f"**{_day(key)} 출발 · 진행 중 · {team['pax']}명**  {team['title']}"]
+        sends = sorted({_sending_day(b, date.fromisoformat(key), date.fromisoformat(team['end']))
+                        for b in team.get("flights", []) if team.get("end")})
+        if sends:
+            lines.append("  🛫 샌딩 " + ", ".join(_day(d.isoformat()) for d in sends))
+    upcoming = sorted((k, t) for k, t in state["teams"].items() if date.fromisoformat(k) >= today)
+    if events:  # 첫 줄이 오늘 일정일 때만 현황 제목을 따로 단다
+        lines += ["", "**📋 행사 예약 현황**"]
+    if not upcoming:
+        lines.append("다가오는 행사가 없습니다.")
+    for key, team in upcoming:
         dday = (date.fromisoformat(key) - today).days
         lines += ["", f"**{_day(key)} 출발 · D-{dday} · {team['pax']}명**  {team['title']}"]
         lines += _item_lines(team)
     return "\n".join(lines)
+
+
+def _until(key, team):
+    """현황판에 남겨 둘 마지막 날: 마지막 샌딩 날(없으면 출발일)"""
+    start = date.fromisoformat(key)
+    if not team.get("end"):
+        return start
+    end = date.fromisoformat(team["end"])
+    return max([start] + [_sending_day(b, start, end) for b in team.get("flights", [])])
 
 
 # ---------- monitor.py 에서 부르는 것 ----------
@@ -158,6 +249,8 @@ def update_team(group, products):
         state["teams"][key] = {
             "pax": sum(t.pax for t in mains),
             "title": messages.short_title(mains[0].title),
+            "end": max(t.end for t in mains).isoformat(),
+            "flights": _flights(mains, products),
             "items": items,
             "msg": (old or {}).get("msg"),
         }
@@ -169,6 +262,19 @@ def update_team(group, products):
         state = load()
         state["teams"][key]["msg"] = msg
         save(state)
+
+
+def _flights(mains, products):
+    """예약별 가는편(in)·오는편(out). 상품페이지 일정표의 항공 구간을 쓴다."""
+    out = []
+    for t in mains:
+        legs = products[t.code].flights if t.code in products and products[t.code].flights else []
+        out.append({
+            "code": t.code, "pax": t.pax,
+            "in": asdict(legs[0]) if legs else None,
+            "out": asdict(legs[-1]) if len(legs) > 1 else None,
+        })
+    return out
 
 
 def cancel_team(start):
@@ -186,7 +292,7 @@ def refresh_board(today=None):
     today = today or date.today()
     with _locked():
         state = load()
-        past = [state["teams"].pop(k) for k in list(state["teams"]) if date.fromisoformat(k) < today]
+        past = [state["teams"].pop(k) for k, t in list(state["teams"].items()) if _until(k, t) < today]
         save(state)
     for team in past:
         _remove_message(team.get("msg"))
@@ -210,9 +316,13 @@ def refresh_board(today=None):
 
 
 def remind(today=None):
-    """출발 D-3 ~ D-0 인데 아직 ⬜ 인 예약을 알림음과 함께 알린다."""
+    """오전 실행 때: 오늘 미팅·샌딩 안내, 그리고 출발 D-3 ~ D-0 인데 아직 ⬜ 인 예약 독촉."""
     today = today or date.today()
-    for key, team in sorted(load()["teams"].items()):
+    state = load()
+    # 오늘 미팅·샌딩이 있으면 알림음과 함께 먼저 알린다(고정 현황판 고치기는 알림음이 없다).
+    for title, rows in today_events(state, today):
+        telegram.send_message("\n".join([f"**{title.split(' | ')[0]}**"] + rows))
+    for key, team in sorted(state["teams"].items()):
         dday = (date.fromisoformat(key) - today).days
         todo = [k for k, it in team["items"].items() if not it["done"]]
         if not (0 <= dday <= REMIND_DAYS) or not todo:
