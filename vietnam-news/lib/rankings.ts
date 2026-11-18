@@ -936,7 +936,9 @@ function describeError(e: unknown): string {
   if (e instanceof Anthropic.AuthenticationError) {
     // 키 값은 드러내지 않고 형식만 알려 준다 (Anthropic 키는 sk-ant- 로 시작한다)
     const k = apiKey();
-    return `ANTHROPIC_API_KEY가 올바르지 않음 (401, 키 형식: ${k.startsWith("sk-ant-") ? "sk-ant-로 시작" : "sk-ant-로 시작하지 않음"}, ${k.length}자)`;
+    // 키 종류 부분만 (예: sk-ant-api03 = API 키, sk-ant-oat01 = Claude 구독용 토큰). 비밀 부분은 보여 주지 않는다
+    const kind = /^sk-ant-[a-z]+\d*/.exec(k)?.[0] ?? (k.startsWith("sk-ant-") ? "sk-ant-(알 수 없는 종류)" : "sk-ant-로 시작하지 않음");
+    return `ANTHROPIC_API_KEY가 올바르지 않음 (401, 키 종류: ${kind}, ${k.length}자)`;
   }
   if (e instanceof Anthropic.RateLimitError) return "요청 한도 초과, 잠시 후 다시 시도";
   if (e instanceof Anthropic.APIError) return `API 오류 ${e.status}: ${e.message}`;
