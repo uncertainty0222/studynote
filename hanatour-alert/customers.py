@@ -2,7 +2,7 @@
 손님 명단 메시지.
 
 규칙:
-  - 나이 많은 순으로 나열, 나이는 행사 시작일 기준 만 나이
+  - 나이 많은 순으로 나열, 나이는 세는 나이(행사 시작 연도 - 출생 연도 + 1)
   - 예약자에게 ★: 화면에서 이름 옆에 빨간 * 가 붙은 사람, 없으면 첫 번째로 나온 사람
   - 생일이 행사 시작일 앞뒤 15일 안이면 🎂 날짜 표시
 
@@ -55,8 +55,8 @@ def parse(html):
 
 
 def age_on(birth, day):
-    """day 기준 만 나이"""
-    return day.year - birth.year - ((day.month, day.day) < (birth.month, birth.day))
+    """세는 나이: day 의 연도 - 출생 연도 + 1 (생일 지남 여부와 관계없음)"""
+    return day.year - birth.year + 1
 
 
 def birthday_near(birth, start):
