@@ -100,7 +100,8 @@ def main():
             pressed_at = time.strftime("%m/%d %H:%M:%S", time.localtime(query.get("message", {}).get("date", 0)))
             log(f"버튼: {query.get('data')} (메시지 {query.get('message', {}).get('message_id')}, 메시지 시각 {pressed_at})")
             try:
-                checklist.handle_callback(query)
+                if not commands.handle_callback(query):
+                    checklist.handle_callback(query)
             except Exception:
                 log("버튼 처리 오류: " + traceback.format_exc().splitlines()[-1])
 

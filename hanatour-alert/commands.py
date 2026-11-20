@@ -1,7 +1,7 @@
 """
 텔레그램 명령(휴대폰에서 PC의 하스 알리미 관리). bot.py 가 받아서 handle() 로 넘긴다.
 
-    /list    (/일감)      지금 일감 목록(진행 중·대기 중). 행사코드를 누르면 그 팀 상세 정보
+    /list    (/일감)      지금 일감 목록(진행 중·대기 중). [N번 상세] 버튼을 누르면 그 팀 상세 정보
     /status  (/상태)      마지막 일감 확인 결과, 다음 실행 예정, 봇 상태, 설치된 버전
     /run     (/실행)      지금 바로 일감 확인(monitor.py) 실행
     /update  (/업데이트)  GitHub 에서 최신 코드를 받아 적용하고 봇을 다시 켠다
@@ -57,8 +57,8 @@ def handle(text, restart):
     raw = (text or "").strip().split()[0].split("@")[0]
     cmd = raw.lower()
     if cmd in ("/list", "/일감"):
-        telegram.send_message(list_text())
-    elif re.fullmatch(r"/A[A-Z]{2}\w{9,}", raw):  # 목록에서 누른 행사코드
+        telegram.send_message(*list_message())
+    elif re.fullmatch(r"/A[A-Z]{2}\w{9,}", raw):  # 행사코드를 직접 보낸 경우
         code = raw[1:]
         _in_background(lambda: show_detail(code))
     elif cmd in ("/status", "/상태"):
@@ -117,10 +117,25 @@ def _teams(state):
     return teams
 
 
-def list_text():
+def _shopping(start):
+    """쇼핑 횟수 표시. 예약 체크(checklist.json)에 기록된 쇼핑샵 수를 쓴다."""
+    path = HERE / "checklist.json"
+    if not path.exists():
+        return ""
+    for key, team in json.loads(path.read_text(encoding="utf-8")).get("teams", {}).items():
+        if abs((date.fromisoformat(key) - start).days) <= 1:
+            shops = [k for k in team.get("items", {}) if k.startswith("shop")]
+            if shops == ["shop"]:  # 예전 형식(횟수 기록 없음)
+                return " · 쇼핑 있음"
+            return f" · 쇼핑 {len(shops)}회" if shops else " · 노쇼핑"
+    return ""
+
+
+def list_message():
+    """(글, 버튼). 팀마다 출발일·인원·쇼핑·투어 제목, 아래 [N번 상세] 버튼."""
     path = HERE / "state.json"
     if not path.exists():
-        return "아직 일감 기록이 없습니다. 정기 확인이 한 번 끝난 뒤 다시 보내 주세요."
+        return "아직 일감 기록이 없습니다. 정기 확인이 한 번 끝난 뒤 다시 보내 주세요.", None
     today = date.today()
     teams = [t for t in _teams(json.loads(path.read_text(encoding="utf-8"))) if t["end"] >= today]
     ongoing = [t for t in teams if t["start"] <= today]
@@ -128,22 +143,36 @@ def list_text():
     updated = datetime.fromtimestamp(path.stat().st_mtime)
     lines = [f"**지금 일감** ({updated:%m/%d %H:%M} 확인 기준)",
              f"진행 중 {len(ongoing)}건 · 대기 중 {len(waiting)}건"]
-    n = 0
+    buttons, n = [], 0
     for label, group in (("진행 중", ongoing), ("대기 중", waiting)):
         if not group:
             continue
         lines += ["", f"**{label}**"]
         for t in group:
             n += 1
-            more = f" 외 {len(t['codes']) - 1}건" if len(t["codes"]) > 1 else ""
             when = f"{_day(t['start'])} 출발" if label == "대기 중" else f"{_day(t['start'])}~{_day(t['end'])}"
-            lines.append(f"{n}. /{t['codes'][0]}{more} · {when} · {t['pax']}명")
+            lines.append(f"{n}. {when} · {t['pax']}명{_shopping(t['start'])}")
             lines.append(f"   {messages.short_title(t['title'])}")
+            buttons.append((f"📄 {n}번 상세", f"d|{t['codes'][0]}"))
     if not teams:
         lines += ["", "진행 중이거나 대기 중인 일감이 없습니다."]
-    else:
-        lines += ["", "행사코드를 누르면 그 팀의 상세 정보(인원·항공·명단·일정)를 보내 드립니다."]
-    return "\n".join(lines)
+        return "\n".join(lines), None
+    lines += ["", "아래 버튼을 누르면 그 팀의 상세 정보(인원·항공·명단·일정)를 보내 드립니다."]
+    return "\n".join(lines), [buttons[i:i + 3] for i in range(0, len(buttons), 3)]
+
+
+def handle_callback(query):
+    """[N번 상세] 버튼. 처리했으면 True(그 외 버튼은 checklist 가 처리)."""
+    data = query.get("data") or ""
+    if not data.startswith("d|"):
+        return False
+    try:
+        telegram.call("answerCallbackQuery", callback_query_id=query["id"], text="상세 정보를 불러옵니다")
+    except Exception:
+        pass
+    code = data[2:]
+    _in_background(lambda: show_detail(code))
+    return True
 
 
 def show_detail(code):
