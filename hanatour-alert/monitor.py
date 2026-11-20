@@ -6,6 +6,7 @@
     python monitor.py --dry    보내지 않고 화면에만 출력, 확인한 행사로 기록하지도 않음
     python monitor.py --all    지금 있는 모든 패키지를 새 일감처럼 처리(전송 테스트용)
     python monitor.py --init-checklist   지금 배정된 팀을 예약 체크·현황판에만 등록(처음 한 번)
+    python monitor.py --show 행사코드    그 행사가 속한 팀의 상세 정보를 지금 읽어 보냄(텔레그램 /일감 에서 사용)
 
 처음 실행하면 지금 있는 행사들을 "이미 본 것"으로 기록만 하고 시작 알림을 보낸다.
 """
@@ -97,6 +98,8 @@ def main():
     send_all = "--all" in sys.argv
     # 지금 배정된 팀들을 예약 체크(현황판)에만 등록하고 브리핑은 다시 보내지 않는다.
     init_checklist = "--init-checklist" in sys.argv
+    # --show 행사코드: 그 행사가 속한 팀의 상세 정보만 지금 HAS 에서 읽어 보낸다(기록은 바꾸지 않음).
+    show = sys.argv[sys.argv.index("--show") + 1] if "--show" in sys.argv else None
     prev = changes.load(STATE_FILE, SEEN_FILE)
     first_run = prev is None and not send_all
     today = date.today()
@@ -104,7 +107,10 @@ def main():
 
     def want(groups):
         """알릴 팀을 정하고, 그 팀들의 행사만 손님 명단·상품페이지를 읽는다."""
-        if init_checklist:
+        if show:
+            plan["teams"] = [changes.TeamChange(g, new_team=True) for g in groups if show in g.codes]
+            plan["cancelled"] = []
+        elif init_checklist:
             plan["teams"] = [changes.TeamChange(g, new_team=True) for g in groups]
             plan["cancelled"] = []
         elif first_run:
@@ -140,6 +146,16 @@ def main():
             print(msg, "\n---")
         else:
             notify.send(msg)
+
+    if show:
+        if not plan["teams"]:
+            send(f"{show} 행사가 지금 HAS 화면에 없습니다(끝났거나 배정에서 빠졌을 수 있음).")
+        for c in plan["teams"]:
+            msgs = messages.all_messages(c.group, products, None, people)
+            msgs[0] = "📄 일감 상세" + msgs[0][msgs[0].index("\n"):]  # 첫 줄 "🔔 새 일감" 대신
+            for msg in msgs:
+                send(msg)
+        return
 
     if init_checklist:
         for c in plan["teams"]:
