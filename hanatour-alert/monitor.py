@@ -29,6 +29,7 @@ import notify
 import messages
 import parse_main
 import parse_product
+import sent_log
 import telegram
 
 HERE = Path(__file__).parent
@@ -144,8 +145,16 @@ def main():
     def send(msg):
         if dry:
             print(msg, "\n---")
-        else:
-            notify.send(msg)
+            return []
+        return notify.send(msg)
+
+    def send_team(group, msgs):
+        """팀 상세 알림을 보내고, 첫 메시지 번호를 기억한다(/list 의 상세 버튼이 여기로 안내)."""
+        ids = []
+        for msg in msgs:
+            ids += send(msg)
+        if not dry:
+            sent_log.record(group.codes, ids)
 
     if show:
         if not plan["teams"]:
@@ -153,8 +162,7 @@ def main():
         for c in plan["teams"]:
             msgs = messages.all_messages(c.group, products, None, people)
             msgs[0] = "📄 일감 상세" + msgs[0][msgs[0].index("\n"):]  # 첫 줄 "🔔 새 일감" 대신
-            for msg in msgs:
-                send(msg)
+            send_team(c.group, msgs)
         return
 
     if init_checklist:
@@ -175,8 +183,7 @@ def main():
     new = sum(c.new_team for c in teams)
     log(f"패키지 {len(groups)}건, 새 일감 {new}건, 변경 {len(teams) - new}건, 취소 {len(cancelled)}건")
     for c in teams:
-        for msg in messages.all_messages(c.group, products, c, people):
-            send(msg)
+        send_team(c.group, messages.all_messages(c.group, products, c, people))
     for team in cancelled:
         send(changes.cancel_message(team))
     save()

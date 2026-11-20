@@ -1,7 +1,8 @@
 """
 텔레그램 명령(휴대폰에서 PC의 하스 알리미 관리). bot.py 가 받아서 handle() 로 넘긴다.
 
-    /list    (/일감)      지금 일감 목록(진행 중·대기 중). [N번 상세] 버튼을 누르면 그 팀 상세 정보
+    /list    (/일감)      지금 일감 목록(진행 중·대기 중). [N번 상세] 버튼을 누르면 예전에 받은
+                          그 팀 알림으로 이동하는 답장을 보낸다(기록이 없으면 HAS 에서 새로 읽음)
     /status  (/상태)      마지막 일감 확인 결과, 다음 실행 예정, 봇 상태, 설치된 버전
     /run     (/실행)      지금 바로 일감 확인(monitor.py) 실행
     /update  (/업데이트)  GitHub 에서 최신 코드를 받아 적용하고 봇을 다시 켠다
@@ -25,6 +26,7 @@ from pathlib import Path
 import requests
 
 import messages
+import sent_log
 import telegram
 
 HERE = Path(__file__).parent
@@ -157,22 +159,47 @@ def list_message():
     if not teams:
         lines += ["", "진행 중이거나 대기 중인 일감이 없습니다."]
         return "\n".join(lines), None
-    lines += ["", "아래 버튼을 누르면 그 팀의 상세 정보(인원·항공·명단·일정)를 보내 드립니다."]
+    lines += ["", "아래 버튼을 누르면 그 팀 상세 알림(인원·항공·명단·일정)으로 안내합니다."]
     return "\n".join(lines), [buttons[i:i + 3] for i in range(0, len(buttons), 3)]
 
 
 def handle_callback(query):
-    """[N번 상세] 버튼. 처리했으면 True(그 외 버튼은 checklist 가 처리)."""
+    """[N번 상세] 버튼(d|코드)과 [HAS 에서 새로 불러오기](r|코드). 처리했으면 True
+    (그 외 버튼은 checklist 가 처리)."""
     data = query.get("data") or ""
-    if not data.startswith("d|"):
+    if not data.startswith(("d|", "r|")):
         return False
+    code = data[2:]
     try:
-        telegram.call("answerCallbackQuery", callback_query_id=query["id"], text="상세 정보를 불러옵니다")
+        telegram.call("answerCallbackQuery", callback_query_id=query["id"])
     except Exception:
         pass
-    code = data[2:]
+    if data.startswith("d|") and jump_to_detail(code):
+        return True
     _in_background(lambda: show_detail(code))
     return True
+
+
+def jump_to_detail(code):
+    """예전에 보낸 상세 알림에 답장을 단다. 텔레그램에서 인용 부분을 누르면 그 알림으로 이동한다.
+    기록이 없거나 원래 알림이 지워졌으면 False(→ HAS 에서 새로 불러온다)."""
+    first = sent_log.first_message(code)
+    if not first:
+        return False
+    start = _start_of(code)
+    when = f"{_day(start)} 출발 팀 " if start else ""
+    try:
+        telegram.send_message(f"⬆️ {when}상세 정보는 위 인용을 누르면 이동합니다.",
+                              [[("🔄 HAS 에서 최신으로 다시 불러오기", f"r|{code}")]], reply_to=first)
+        return True
+    except RuntimeError:
+        return False
+
+
+def _start_of(code):
+    path = HERE / "state.json"
+    info = json.loads(path.read_text(encoding="utf-8")).get(code) if path.exists() else None
+    return date.fromisoformat(info["start"]) if info else None
 
 
 def show_detail(code):

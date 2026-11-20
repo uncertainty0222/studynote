@@ -67,8 +67,11 @@ def send(text):
     if not configured():
         raise SystemExit("텔레그램 설정이 없습니다. 먼저 python telegram.py setup 을 성공시켜 주세요.")
     conf = json.loads(CONF_FILE.read_text(encoding="utf-8"))
+    ids = []
     for part in _chunks(text):
-        _api(conf["token"], "sendMessage", chat_id=conf["chat_id"], text=_to_html(part), parse_mode="HTML")
+        res = _api(conf["token"], "sendMessage", chat_id=conf["chat_id"], text=_to_html(part), parse_mode="HTML")
+        ids.append(res["message_id"])
+    return ids  # 보낸 메시지 번호(나중에 '이 메시지로 이동' 답장에 쓴다)
 
 
 def _conf():
@@ -94,10 +97,13 @@ def keyboard(rows):
     return {"inline_keyboard": [[{"text": t, "callback_data": d} for t, d in row] for row in rows]}
 
 
-def send_message(text, buttons=None):
-    """메시지 하나(4000자 이하)를 보내고 message_id 를 돌려준다."""
+def send_message(text, buttons=None, reply_to=None):
+    """메시지 하나(4000자 이하)를 보내고 message_id 를 돌려준다.
+    reply_to: 이 메시지에 답장(인용)으로 보낸다. 인용을 누르면 원래 메시지로 이동한다.
+    원래 메시지가 지워졌으면 텔레그램이 오류를 낸다(RuntimeError)."""
     res = call("sendMessage", chat_id=chat_id(), text=_to_html(text), parse_mode="HTML",
-               reply_markup=keyboard(buttons) if buttons else None)
+               reply_markup=keyboard(buttons) if buttons else None,
+               reply_parameters={"message_id": reply_to} if reply_to else None)
     return res["message_id"]
 
 
