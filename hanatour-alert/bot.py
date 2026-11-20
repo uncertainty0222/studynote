@@ -4,17 +4,22 @@
     pythonw bot.py      창 없이 실행(작업 스케줄러용)
     python bot.py       확인용으로 직접 실행(Ctrl+C 로 종료)
 
+버튼(예약 체크)과 명령(/status, /run, /update — commands.py)을 처리한다.
+
 텔레그램 서버에 새 버튼 누름이 있는지 묻고(최대 50초 대기), 오면 checklist.handle_callback() 으로 처리한다.
 인터넷이 끊기면 잠시 쉬었다가 다시 시도한다. 기록은 bot.log.
 """
 import json
+import os
 import socket
+import subprocess
 import sys
 import time
 import traceback
 from pathlib import Path
 
 import checklist
+import commands
 import telegram
 
 HERE = Path(__file__).parent
@@ -44,16 +49,35 @@ def already_running():
         return True
 
 
+def restart():
+    """/update 뒤 새 코드로 다시 켠다: 실행 중 표시(포트)를 풀고, 같은 파이썬으로 새 봇을 띄운 뒤 끝낸다."""
+    log("업데이트로 다시 시작")
+    _guard.close()
+    cmd = [sys.executable, str(HERE / "bot.py")]
+    if sys.platform == "win32":
+        # 창 없이, 지금 프로세스와 분리. 작업 스케줄러가 지금 프로세스와 함께 정리하지 않도록
+        # 작업(job)에서도 떼어 낸다(허용되지 않으면 떼지 않고 실행).
+        base = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        try:
+            subprocess.Popen(cmd, cwd=HERE, creationflags=base | 0x01000000)  # CREATE_BREAKAWAY_FROM_JOB
+        except OSError:
+            subprocess.Popen(cmd, cwd=HERE, creationflags=base)
+    else:
+        subprocess.Popen(cmd, cwd=HERE, start_new_session=True)
+    os._exit(0)
+
+
 def main():
     if already_running():
         print("봇이 이미 실행 중입니다(작업 스케줄러 HanatourBot). 이 창은 종료합니다.")
         sys.exit(0)
     offset = json.loads(OFFSET_FILE.read_text()) if OFFSET_FILE.exists() else None
     log("봇 시작")
+    commands.register_menu()
     while True:
         try:
             updates = telegram.call("getUpdates", offset=offset, timeout=50,
-                                    allowed_updates=["callback_query"])
+                                    allowed_updates=["callback_query", "message"])
         except Exception as e:
             log(f"연결 오류, 30초 후 다시 시도: {str(e)[:150]}")
             time.sleep(30)
@@ -61,6 +85,14 @@ def main():
         for u in updates:
             offset = u["update_id"] + 1
             OFFSET_FILE.write_text(json.dumps(offset))
+            msg = u.get("message")
+            if msg and msg.get("chat", {}).get("id") == telegram.chat_id() and (msg.get("text") or "").startswith("/"):
+                log(f"명령: {msg['text'][:30]}")
+                try:
+                    commands.handle(msg["text"], restart)
+                except Exception:
+                    log("명령 처리 오류: " + traceback.format_exc().splitlines()[-1])
+                continue
             query = u.get("callback_query")
             # 설정된 내 채팅에서 온 것만 처리한다.
             if not query or query.get("from", {}).get("id") != telegram.chat_id():
