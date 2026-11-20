@@ -4,7 +4,7 @@
   2) 예약번호별 인원·항공(가는편/오는편)
   3) 손님 명단(예약번호별, 나이 많은 순, ★ 예약자, 🎂 행사 전후 생일)
   4) 일정 요약(상품가가 가장 비싼 행사 하나의 일차별 방문지·식사, 쇼핑)
-  5) 쇼핑샵 예약 문구, 식당 예약 문구
+  5) 쇼핑샵 예약 문구 (식당 예약 문구는 보내지 않음. 삼겹살 날짜·인원은 일정 요약과 예약 체크에 있음)
 **…** 는 굵게 표시할 줄(텔레그램에서 굵게, 카카오는 기호만 지움).
 """
 import re
@@ -14,8 +14,7 @@ import customers as customer_list
 from parse_main import short_title
 
 SHOP_TIME = "9시 30분"
-RESTAURANT_MENU = "무제한 삼겹살"   # 이 메뉴가 있는 날 식당 예약 문구를 만든다
-RESTAURANT_KEY = "삼겹살"
+RESTAURANT_KEY = "삼겹살"   # 이 메뉴가 있는 날을 예약 체크(식당) 항목으로 만든다
 
 
 def _mains(group):
@@ -203,18 +202,10 @@ def shop_text(date, pax):
     return f"안녕하세요 이사님~\n{date} {pax} {SHOP_TIME} 예약 가능할까요?"
 
 
-def restaurant_text(date, pax):
-    return f"안녕하세요 사장님~\n{date}에 {pax}명 {RESTAURANT_MENU} 예약 가능할까요?"
-
-
 def shop_messages(group, products):
     """쇼핑이 있는 패키지면 문구 하나를 만든다(횟수와 관계없이 1개, 사용자가 고쳐서 쓴다)."""
     plan = shop_plan(group, products)
     return [shop_text(*plan)] if plan else []
-
-
-def restaurant_messages(group, products):
-    return [restaurant_text(d, p) for d, p in restaurant_plans(group, products)]
 
 
 def all_messages(group, products, change=None, people=None):
@@ -226,5 +217,4 @@ def all_messages(group, products, change=None, people=None):
         + ([roster] if roster else [])
         + [schedule_message(group, products)]
         + shop_messages(group, products)
-        + restaurant_messages(group, products)
     )

@@ -1,7 +1,7 @@
 """
 텔레그램 명령(휴대폰에서 PC의 하스 알리미 관리). bot.py 가 받아서 handle() 로 넘긴다.
 
-    /list    (/일감)      지금 일감 목록(진행 중·대기 중). [N번 상세] 버튼을 누르면 예전에 받은
+    /list    (/일감)      출발 전(대기 중) 일감 목록. [N번 상세] 버튼을 누르면 예전에 받은
                           그 팀 알림으로 이동하는 답장을 보낸다(기록이 없으면 HAS 에서 새로 읽음)
     /status  (/상태)      마지막 일감 확인 결과, 다음 실행 예정, 봇 상태, 설치된 버전
     /run     (/실행)      지금 바로 일감 확인(monitor.py) 실행
@@ -38,7 +38,7 @@ STARTED = time.strftime("%m/%d %H:%M")
 
 # 텔레그램 입력창의 "/" 메뉴에 보이는 명령(영문만 가능)
 MENU = [
-    {"command": "list", "description": "지금 일감 목록"},
+    {"command": "list", "description": "대기 중인 일감 목록"},
     {"command": "status", "description": "상태 확인"},
     {"command": "run", "description": "지금 일감 확인"},
     {"command": "update", "description": "최신 코드로 업데이트"},
@@ -70,7 +70,7 @@ def handle(text, restart):
     elif cmd in ("/update", "/업데이트"):
         _in_background(lambda: update(restart))
     elif cmd in ("/start", "/help", "/도움말"):
-        telegram.send_message("**하스 알리미 명령**\n/list 지금 일감 목록\n/status 상태 확인\n"
+        telegram.send_message("**하스 알리미 명령**\n/list 대기 중인 일감 목록\n/status 상태 확인\n"
                               "/run 지금 일감 확인\n/update 최신 코드로 업데이트")
 
 
@@ -134,31 +134,22 @@ def _shopping(start):
 
 
 def list_message():
-    """(글, 버튼). 팀마다 출발일·인원·쇼핑·투어 제목, 아래 [N번 상세] 버튼."""
+    """(글, 버튼). 출발 전(대기 중) 팀만: 출발일·인원·쇼핑·투어 제목, 아래 [N번 상세] 버튼."""
     path = HERE / "state.json"
     if not path.exists():
         return "아직 일감 기록이 없습니다. 정기 확인이 한 번 끝난 뒤 다시 보내 주세요.", None
     today = date.today()
-    teams = [t for t in _teams(json.loads(path.read_text(encoding="utf-8"))) if t["end"] >= today]
-    ongoing = [t for t in teams if t["start"] <= today]
-    waiting = [t for t in teams if t["start"] > today]
+    waiting = [t for t in _teams(json.loads(path.read_text(encoding="utf-8"))) if t["start"] > today]
     updated = datetime.fromtimestamp(path.stat().st_mtime)
-    lines = [f"**지금 일감** ({updated:%m/%d %H:%M} 확인 기준)",
-             f"진행 중 {len(ongoing)}건 · 대기 중 {len(waiting)}건"]
-    buttons, n = [], 0
-    for label, group in (("진행 중", ongoing), ("대기 중", waiting)):
-        if not group:
-            continue
-        lines += ["", f"**{label}**"]
-        for t in group:
-            n += 1
-            when = f"{_day(t['start'])} 출발" if label == "대기 중" else f"{_day(t['start'])}~{_day(t['end'])}"
-            lines.append(f"{n}. {when} · {t['pax']}명{_shopping(t['start'])}")
-            lines.append(f"   {messages.short_title(t['title'])}")
-            buttons.append((f"📄 {n}번 상세", f"d|{t['codes'][0]}"))
-    if not teams:
-        lines += ["", "진행 중이거나 대기 중인 일감이 없습니다."]
+    lines = [f"**대기 중인 일감 {len(waiting)}건** ({updated:%m/%d %H:%M} 확인 기준)"]
+    if not waiting:
+        lines += ["", "출발 전인 일감이 없습니다."]
         return "\n".join(lines), None
+    buttons = []
+    for n, t in enumerate(waiting, 1):
+        lines += ["", f"{n}. {_day(t['start'])} 출발 · {t['pax']}명{_shopping(t['start'])}",
+                  f"   {messages.short_title(t['title'])}"]
+        buttons.append((f"📄 {n}번 상세", f"d|{t['codes'][0]}"))
     lines += ["", "아래 버튼을 누르면 그 팀 상세 알림(인원·항공·명단·일정)으로 안내합니다."]
     return "\n".join(lines), [buttons[i:i + 3] for i in range(0, len(buttons), 3)]
 
