@@ -45,8 +45,11 @@ def setup():
 
 
 def _to_html(text):
-    """**굵게** 표시를 텔레그램 HTML 로 바꾸고 나머지는 이스케이프한다."""
-    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", html.escape(text, quote=False))
+    """**굵게** 와 [[글자|주소]] 링크를 텔레그램 HTML 로 바꾸고 나머지는 이스케이프한다."""
+    out = html.escape(text, quote=False)
+    out = re.sub(r"\[\[(.+?)\|(.+?)\]\]",
+                 lambda m: f'<a href="{html.escape(html.unescape(m.group(2)), quote=True)}">{m.group(1)}</a>', out)
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", out)
 
 
 def _chunks(text):
@@ -69,7 +72,8 @@ def send(text):
     conf = json.loads(CONF_FILE.read_text(encoding="utf-8"))
     ids = []
     for part in _chunks(text):
-        res = _api(conf["token"], "sendMessage", chat_id=conf["chat_id"], text=_to_html(part), parse_mode="HTML")
+        res = _api(conf["token"], "sendMessage", chat_id=conf["chat_id"], text=_to_html(part), parse_mode="HTML",
+                   link_preview_options=json.dumps({"is_disabled": True}))  # 링크 미리보기 카드 끄기
         ids.append(res["message_id"])
     return ids  # 보낸 메시지 번호(나중에 '이 메시지로 이동' 답장에 쓴다)
 
@@ -102,6 +106,7 @@ def send_message(text, buttons=None, reply_to=None):
     reply_to: 이 메시지에 답장(인용)으로 보낸다. 인용을 누르면 원래 메시지로 이동한다.
     원래 메시지가 지워졌으면 텔레그램이 오류를 낸다(RuntimeError)."""
     res = call("sendMessage", chat_id=chat_id(), text=_to_html(text), parse_mode="HTML",
+               link_preview_options={"is_disabled": True},
                reply_markup=keyboard(buttons) if buttons else None,
                reply_parameters={"message_id": reply_to} if reply_to else None)
     return res["message_id"]

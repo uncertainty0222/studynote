@@ -1,4 +1,6 @@
 """설정된 알림 채널(텔레그램, 카카오톡 나에게 보내기) 모두로 보낸다."""
+import re
+
 import kakao
 import telegram
 
@@ -11,7 +13,8 @@ def send(text):
         ids = telegram.send(text)
         sent = True
     if kakao.TOKEN_FILE.exists():
-        kakao.send(text.replace("**", ""))  # 카카오 텍스트는 굵게 표시를 지원하지 않는다
+        # 카카오 텍스트는 굵게·링크 표시를 지원하지 않는다
+        kakao.send(re.sub(r"\[\[(.+?)\|(.+?)\]\]", r"\1: \2", text.replace("**", "")))
         sent = True
     if not sent:
         raise RuntimeError("알림 채널이 없습니다. python telegram.py setup 을 실행하세요.")

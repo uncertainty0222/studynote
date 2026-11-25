@@ -6,6 +6,7 @@
   4) 일정 요약(상품가가 가장 비싼 행사 하나의 일차별 방문지·식사, 쇼핑)
 예약 문자(쇼핑샵·식당)는 보내지 않는다. 쇼핑·삼겹살 날짜와 인원은 일정 요약과 예약 체크에 있다.
 **…** 는 굵게 표시할 줄(텔레그램에서 굵게, 카카오는 기호만 지움).
+[[글자|주소]] 는 링크(텔레그램에서 글자를 누르면 주소로 이동, 카카오는 "글자: 주소").
 """
 import re
 from datetime import timedelta
@@ -140,6 +141,12 @@ def schedule_message(group, products):
         if d.meals:
             lines.append(f"  🍽 {_meal_text(d.meals)}")
 
+    # 하나투어 상품 상세 페이지 링크. [[글자|주소]] 는 텔레그램에서 누를 수 있는 링크가 된다.
+    if base_tour.product_url:
+        lines += ["", f"🔗 [[하나투어 상품 상세 페이지 보기|{base_tour.product_url}]]"]
+    others = [t for t in _mains(group) if t is not base_tour and t.product_url]
+    if others:
+        lines.append("   다른 예약 상품: " + " · ".join(f"[[{t.code}|{t.product_url}]]" for t in others))
     return "\n".join(lines)
 
 
