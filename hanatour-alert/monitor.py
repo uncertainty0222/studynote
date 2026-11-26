@@ -121,7 +121,11 @@ def main():
             plan["cancelled"] = []
         else:
             plan["teams"], plan["cancelled"] = changes.diff(prev, groups, today)
-        return [t for c in plan["teams"] for t in c.group.tours]
+        # 예전 버전에서 예약 체크에 등록돼 호텔 정보가 없는 팀도 상품페이지를 읽어 조용히 채운다.
+        changed = {id(c.group) for c in plan["teams"]}
+        plan["backfill"] = [g for g in groups if id(g) not in changed and telegram.configured()
+                            and checklist.needs_refresh(min(t.start for t in g.tours), today)]
+        return [t for c in plan["teams"] for t in c.group.tours] + [t for g in plan["backfill"] for t in g.tours]
 
     corp, uid, pw = creds.load()
     for attempt in range(1, NET_RETRIES + 1):
@@ -188,15 +192,17 @@ def main():
         send(changes.cancel_message(team))
     save()
     if not dry and telegram.configured():
-        update_checklist(teams, cancelled, products)
+        update_checklist(teams, cancelled, products, plan.get("backfill", []))
 
 
-def update_checklist(teams, cancelled, products):
+def update_checklist(teams, cancelled, products, backfill=()):
     """예약 체크: 바뀐 팀 등록/갱신, 빠진 팀 정리, 현황판 갱신, 오전 실행이면 D-3 독촉.
     여기서 실패해도 일감 알림 자체는 이미 끝났으므로 기록만 남긴다."""
     try:
         for c in teams:
             checklist.update_team(c.group, products)
+        for g in backfill:
+            checklist.update_team(g, products, resend=False)
         for team in cancelled:
             checklist.cancel_team(min(changes.code_start(code, info) for code, info in team))
         checklist.refresh_board()

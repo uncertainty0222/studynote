@@ -9,7 +9,7 @@
 [[글자|주소]] 는 링크(텔레그램에서 글자를 누르면 주소로 이동, 카카오는 "글자: 주소").
 """
 import re
-from datetime import timedelta
+from datetime import date, timedelta
 
 import customers as customer_list
 from parse_main import short_title
@@ -73,10 +73,32 @@ def summary_message(group, products, change=None):
     return "\n".join(lines)
 
 
-def bookings_message(group, products):
-    lines = ["**예약별 인원 · 항공**"]
+def _arrival_key(t, products):
+    """도착(현지 착륙) 시각 정렬 키. 상품페이지 가는편이 있으면 그 도착 날짜·시각,
+    없으면 메인 화면 항공("CXR(23:55+1)"). 부가 행사·항공 없음은 맨 뒤."""
+    legs = products[t.code].flights if t.code in products and products[t.code].flights else []
+    if legs and legs[0].arr_time:
+        leg = legs[0]
+        m = re.match(r"(\d+)/(\d+)", leg.arr_date or "")
+        day = date(t.start.year + (int(m.group(1)) < t.start.month), int(m.group(1)), int(m.group(2))) if m \
+            else t.start + timedelta(days=leg.next_day)
+        return (0, day, leg.arr_time)
+    m = re.search(r"(\d{1,2}:\d{2})(\+1)?", t.flight_to or "")
+    if m:
+        return (0, t.start + timedelta(days=bool(m.group(2))), m.group(1).zfill(5))
+    return (1, t.start, "")
+
+
+def by_arrival(group, products):
+    """팀의 행사들을 먼저 도착하는 비행기 순서로(부가 행사는 뒤로)."""
     mains = _mains(group)
-    for t in group.tours:
+    return sorted(group.tours, key=lambda t: (t not in mains, _arrival_key(t, products)))
+
+
+def bookings_message(group, products):
+    lines = ["**예약별 인원 · 항공** (먼저 도착하는 순)"]
+    mains = _mains(group)
+    for t in by_arrival(group, products):
         req = f" · 요청사항 {t.requests}건" if t.requests else ""
         if t not in mains:
             lines.append(f"**{t.code}** · {_pax(t)}{req}")
@@ -98,10 +120,11 @@ def bookings_message(group, products):
     return "\n".join(lines)
 
 
-def customers_message(group, people):
-    """people: {행사코드: [Customer, ...]}. 명단을 하나도 못 읽었으면 None."""
+def customers_message(group, people, products=None):
+    """people: {행사코드: [Customer, ...]}. 명단을 하나도 못 읽었으면 None.
+    예약별 인원·항공과 같은 순서(먼저 도착하는 비행기 순)로 보여 준다."""
     blocks = [customer_list.format_list(t.code, people[t.code], t.start)
-              for t in group.tours if people.get(t.code)]
+              for t in by_arrival(group, products or {}) if people.get(t.code)]
     if not blocks:
         return None
     return "**손님 명단** (나이 많은 순, ★ 예약자)\n" + "\n".join(blocks)
@@ -207,7 +230,7 @@ def restaurant_plans(group, products):
 def all_messages(group, products, change=None, people=None):
     """보낼 순서대로 메시지 목록. change: changes.TeamChange(새 일감/변경 내역)
     people: {행사코드: [Customer]} 고객정보 화면에서 읽은 손님 명단"""
-    roster = customers_message(group, people or {})
+    roster = customers_message(group, people or {}, products)
     return (
         [summary_message(group, products, change), bookings_message(group, products)]
         + ([roster] if roster else [])

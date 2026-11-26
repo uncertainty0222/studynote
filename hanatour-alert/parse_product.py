@@ -24,6 +24,7 @@ class Day:
     shops: int = 0  # 이 날 일정에 적힌 "쇼핑센터" 방문 수
     cities: str = ""  # "나트랑, 달랏"
     places: str = ""  # "달랏 기차역, 다딴라 폭포, ..." (선택관광·간식 제외 방문지)
+    hotel: str = ""  # 그날 묵는 호텔(한글 이름, "N성급" 제외). 기내숙박·숙박 없음은 빈 값
 
 
 @dataclass
@@ -84,7 +85,7 @@ def parse(html):
         places = ", ".join(_places(dd)) if dd else ""
         body = dd.get_text(" ", strip=True) if dd else ""
         shops = len(re.findall(r"쇼핑\s*센터\s*방문", body))
-        days.append(Day(n, date, meals, shops, cities, places))
+        days.append(Day(n, date, meals, shops, cities, places, _hotel(dd)))
     m = re.search(r"(\d+)\s*박\s*\d+\s*일", text)
     nights = int(m.group(1)) if m else None
     price_el = soup.select_one("div.sche_price span.data")
@@ -115,6 +116,30 @@ def _places(dd):
         if name and name not in names:
             names.append(name)
     return names
+
+
+def _hotel(dd):
+    """<div class="schedule"><span class="hotel">호텔 확정</span><a><strong>나트랑 호라이즌 호텔 5성급</strong>…"""
+    if not dd:
+        return ""
+    for box in dd.select("div.schedule"):
+        if not box.select_one("span.hotel"):
+            continue
+        name = box.select_one("strong")
+        name = name.get_text(" ", strip=True) if name else ""
+        if not name or "숙박" in name:  # 기내숙박, 숙박 없음
+            return ""
+        return re.sub(r"\s*\d성급\s*$", "", name)
+    return ""
+
+
+def hotel_route(product):
+    """묵는 호텔을 일정 순서대로, 연속 중복 없이: ['나트랑 호라이즌 호텔', '사이공 달라트 호텔', ...]"""
+    route = []
+    for d in product.days:
+        if d.hotel and (not route or route[-1] != d.hotel):
+            route.append(d.hotel)
+    return route
 
 
 def _text_of(el, selector):

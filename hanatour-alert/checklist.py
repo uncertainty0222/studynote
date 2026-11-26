@@ -18,6 +18,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import messages
+import parse_product
 import telegram
 
 HERE = Path(__file__).parent
@@ -165,6 +166,32 @@ def _sending(team, key, day):
     return sorted(rows)
 
 
+def _hotel_lines(team):
+    """호텔: 팀 전체가 같으면 한 줄, 예약마다 다르면 가는편 항공으로 구분해 여러 줄."""
+    routes = [h for h in team.get("hotels", []) if h["route"]]
+    if not routes:
+        return []
+    if len({tuple(h["route"]) for h in routes}) == 1:
+        return ["  🏨 " + " - ".join(routes[0]["route"])]
+    flight = {b["code"]: (b.get("in") or {}).get("flight", "") for b in team.get("flights", [])}
+    pax = {b["code"]: b["pax"] for b in team.get("flights", [])}
+    land = {b["code"]: (bool((b.get("in") or {}).get("next_day")), (b.get("in") or {}).get("arr_time", "99"))
+            for b in team.get("flights", [])}
+    routes.sort(key=lambda h: land.get(h["code"], (True, "99")))  # 위 항공편과 같은 도착 순서
+    return [f"  🏨 {flight.get(h['code']) or h['code']}({pax.get(h['code'], '?')}명): " + " - ".join(h["route"])
+            for h in routes]
+
+
+def needs_refresh(start, today=None):
+    """출발 전 팀인데 호텔 정보가 없으면(예전 버전에서 등록) True → monitor 가 상품페이지를 다시 읽는다."""
+    today = today or date.today()
+    if start < today:
+        return False
+    state = load()
+    key = _find(state, start)
+    return bool(key) and "hotels" not in state["teams"][key]
+
+
 def today_events(state, today):
     """[(제목 한 줄, 자세한 줄들)] — 오늘 미팅·샌딩이 있는 팀마다"""
     out = []
@@ -173,7 +200,7 @@ def today_events(state, today):
             rows = _meeting(team, key)
             if rows:
                 out.append((f"✈️ 오늘 미팅 {_day(key)} · {team['pax']}명 | " + " · ".join(r[2] for r in rows),
-                            [f"  {r[1]}" for r in rows]))
+                            [f"  {r[1]}" for r in rows] + _hotel_lines(team)))
         if team.get("end"):
             rows = _sending(team, key, today)
             if rows:
@@ -219,9 +246,10 @@ def _until(key, team):
 
 # ---------- monitor.py 에서 부르는 것 ----------
 
-def update_team(group, products):
+def update_team(group, products, resend=True):
     """팀을 등록하거나 갱신하고 체크 메시지를 새로 보낸다. 완료 표시는 유지하되,
-    인원이나 날짜가 바뀐 항목은 다시 확인하도록 ⬜ 로 되돌린다."""
+    인원이나 날짜가 바뀐 항목은 다시 확인하도록 ⬜ 로 되돌린다.
+    resend=False: 저장된 정보(항공·호텔 등)만 고치고 체크 메시지는 다시 보내지 않는다."""
     start = min(t.start for t in group.tours)
     if start < date.today():
         return  # 이미 출발한 팀(진행 중·끝난 행사)은 예약 체크 대상이 아니다
@@ -251,10 +279,15 @@ def update_team(group, products):
             "title": messages.short_title(mains[0].title),
             "end": max(t.end for t in mains).isoformat(),
             "flights": _flights(mains, products),
+            "hotels": [{"code": t.code, "route": parse_product.hotel_route(products[t.code])}
+                       for t in mains if t.code in products],
             "items": items,
             "msg": (old or {}).get("msg"),
         }
         save(state)
+    if not resend and old and old.get("msg"):
+        _safe_edit(old["msg"], _check_text(key, state["teams"][key]), _buttons(key))
+        return
     if old and old.get("msg"):
         _safe_edit(old["msg"], "↪️ 배정이 바뀌어 아래 새 체크 메시지로 대신합니다.")
     msg = telegram.send_message(_check_text(key, state["teams"][key]), _buttons(key))
