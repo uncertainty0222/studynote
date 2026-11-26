@@ -22,7 +22,9 @@ function getRecognition(): Recognition | null {
   return C ? new C() : null;
 }
 
-export default function VoiceEntry({ onSaved }: { onSaved: () => void }) {
+export default function VoiceEntry({ onSaved, role }: { onSaved: () => void; role: 'husband' | 'wife' }) {
+  const vi = role === 'wife';
+  const example = vi ? 'Mua sữa cho Mango 650 nghìn' : '나나한테 투어비로 백오십만 동 줬어';
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>('listening');
   const [text, setText] = useState('');
@@ -54,7 +56,7 @@ export default function VoiceEntry({ onSaved }: { onSaved: () => void }) {
     recRef.current = rec;
     textRef.current = '';
     setText('');
-    rec.lang = 'ko-KR';
+    rec.lang = vi ? 'vi-VN' : 'ko-KR';
     rec.interimResults = true;
     rec.continuous = false;
     rec.onresult = e => {
@@ -111,9 +113,9 @@ export default function VoiceEntry({ onSaved }: { onSaved: () => void }) {
                 <button onClick={() => recRef.current?.stop()} className="w-20 h-20 rounded-full bg-rose-500 text-white mx-auto flex items-center justify-center animate-pulse" aria-label="말하기 끝">
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3" /><path d="M5 10a7 7 0 0 0 14 0M12 17v4" /></svg>
                 </button>
-                <p className="text-sm text-gray-500 mt-3">듣고 있어요… 말이 끝나면 자동으로 올라가요</p>
+                <p className="text-sm text-gray-500 mt-3">{vi ? 'Đang nghe… nói xong sẽ tự động ghi' : '듣고 있어요… 말이 끝나면 자동으로 올라가요'}</p>
                 <p className="text-sm text-gray-900 mt-2 min-h-[1.5rem]">{text}</p>
-                <p className="text-[11px] text-gray-400 mt-2">예: “나나한테 투어비로 백오십만 동 줬어”</p>
+                <p className="text-[11px] text-gray-400 mt-2">{vi ? 'Ví dụ' : '예'}: “{example}”</p>
               </div>
             )}
 
@@ -121,11 +123,11 @@ export default function VoiceEntry({ onSaved }: { onSaved: () => void }) {
               <div>
                 {phase === 'error' && <p className="text-sm text-rose-600 bg-rose-50 rounded-lg px-3 py-2 mb-3">{message}</p>}
                 <textarea autoFocus value={text} onChange={e => setText(e.target.value)} rows={3}
-                  placeholder="키보드의 🎤 버튼을 눌러 말하거나 적어주세요. 예: 나나한테 투어비로 백오십만 동 줬어"
+                  placeholder={vi ? `Bấm 🎤 trên bàn phím để nói hoặc gõ. Ví dụ: ${example}` : `키보드의 🎤 버튼을 눌러 말하거나 적어주세요. 예: ${example}`}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                 <div className="flex gap-2 mt-2">
-                  <button onClick={() => submit(text)} disabled={!text.trim()} className="flex-1 bg-indigo-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-lg">올리기</button>
-                  {speechSupported() && <button onClick={listen} className="px-4 bg-gray-100 text-gray-700 text-sm rounded-lg">다시 말하기</button>}
+                  <button onClick={() => submit(text)} disabled={!text.trim()} className="flex-1 bg-indigo-600 disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-lg">{vi ? 'Ghi lại' : '올리기'}</button>
+                  {speechSupported() && <button onClick={listen} className="px-4 bg-gray-100 text-gray-700 text-sm rounded-lg">{vi ? 'Nói lại' : '다시 말하기'}</button>}
                 </div>
               </div>
             )}
@@ -133,7 +135,7 @@ export default function VoiceEntry({ onSaved }: { onSaved: () => void }) {
             {phase === 'sending' && (
               <div className="text-center py-6">
                 <p className="text-sm text-gray-900">“{text}”</p>
-                <p className="text-sm text-gray-500 mt-3">정리해서 올리는 중…</p>
+                <p className="text-sm text-gray-500 mt-3">{vi ? 'Đang ghi…' : '정리해서 올리는 중…'}</p>
               </div>
             )}
 
@@ -141,13 +143,13 @@ export default function VoiceEntry({ onSaved }: { onSaved: () => void }) {
               <div className="text-center py-6">
                 <p className="text-3xl">✓</p>
                 <p className="text-sm text-gray-900 mt-2">{message}</p>
-                <p className="text-[11px] text-gray-400 mt-1">나나가 확인하면 반영돼요 · Chờ Nana xác nhận</p>
+                <p className="text-[11px] text-gray-400 mt-1">{vi ? 'Chờ Inhwa xác nhận · 인화가 확인하면 반영돼요' : '나나가 확인하면 반영돼요 · Chờ Nana xác nhận'}</p>
               </div>
             )}
 
             <div className="border-t border-gray-100 mt-4 pt-3">
-              <button onClick={() => setShowSiri(v => !v)} className="text-xs text-indigo-500">{showSiri ? '▲' : '▼'} 시리로 기록하기 설정 (앱 안 열고 “시리야, 나나금고”)</button>
-              {showSiri && <SiriSetup />}
+              <button onClick={() => setShowSiri(v => !v)} className="text-xs text-indigo-500">{showSiri ? '▲' : '▼'} {vi ? 'Ghi bằng Siri (không cần mở app)' : '시리로 기록하기 설정 (앱 안 열고 “시리야, 나나금고”)'}</button>
+              {showSiri && <SiriSetup vi={vi} />}
             </div>
           </div>
         </div>
@@ -156,7 +158,7 @@ export default function VoiceEntry({ onSaved }: { onSaved: () => void }) {
   );
 }
 
-function SiriSetup() {
+function SiriSetup({ vi }: { vi: boolean }) {
   const [token, setToken] = useState('');
   const [copied, setCopied] = useState('');
   const url = typeof window !== 'undefined' ? `${window.location.origin}/api/voice?format=text` : '';
@@ -170,35 +172,47 @@ function SiriSetup() {
   };
 
   async function rotate() {
-    if (!confirm('새 키를 만들면 지금 쓰는 단축어는 멈춰요. 계속할까요?')) return;
+    if (!confirm(vi ? 'Tạo khóa mới thì phím tắt cũ sẽ ngừng hoạt động. Tiếp tục?' : '새 키를 만들면 지금 쓰는 단축어는 멈춰요. 계속할까요?')) return;
     const d = await fetch('/api/voice/token', { method: 'POST' }).then(r => r.json());
     setToken(d.token ?? '');
   }
 
   return (
     <div className="mt-2 text-xs text-gray-600 space-y-2">
-      <ol className="list-decimal pl-4 space-y-1">
-        <li><b>단축어</b> 앱 → <b>+</b> → 이름을 <b>나나금고</b>로</li>
-        <li><b>텍스트 받아쓰기</b> 추가 (언어: 한국어)</li>
-        <li><b>URL 콘텐츠 가져오기</b> 추가 → URL은 아래 주소, 방법 <b>POST</b></li>
-        <li>헤더 추가: 키 <b>Authorization</b>, 값 <b>Bearer 키</b> (아래 값 그대로)</li>
-        <li>요청 본문 <b>JSON</b> → 키 <b>text</b>, 값은 <b>받아쓴 텍스트</b></li>
-        <li><b>알림 보기</b> 추가 → 내용은 <b>URL의 콘텐츠</b></li>
-        <li>이제 “<b>시리야, 나나금고</b>” 하고 바로 말하면 끝</li>
-      </ol>
+      {vi ? (
+        <ol className="list-decimal pl-4 space-y-1">
+          <li>Mở app <b>Phím tắt</b> (Shortcuts) → <b>+</b> → đặt tên <b>Két Nana</b></li>
+          <li>Thêm <b>Đọc chính tả văn bản</b> (Dictate Text), ngôn ngữ <b>Tiếng Việt</b></li>
+          <li>Thêm <b>Nhận nội dung của URL</b> (Get Contents of URL) → URL ở dưới, phương thức <b>POST</b></li>
+          <li>Thêm tiêu đề (Header): khóa <b>Authorization</b>, giá trị <b>Bearer …</b> (chép nguyên giá trị bên dưới)</li>
+          <li>Nội dung yêu cầu (Request Body) <b>JSON</b> → khóa <b>text</b>, giá trị là <b>Văn bản đã đọc</b></li>
+          <li>Thêm <b>Hiển thị thông báo</b> (Show Notification) → nội dung là <b>nội dung của URL</b></li>
+          <li>Xong! Nói “<b>Hey Siri, Két Nana</b>” rồi nói luôn</li>
+        </ol>
+      ) : (
+        <ol className="list-decimal pl-4 space-y-1">
+          <li><b>단축어</b> 앱 → <b>+</b> → 이름을 <b>나나금고</b>로</li>
+          <li><b>텍스트 받아쓰기</b> 추가 (언어: <b>한국어</b>)</li>
+          <li><b>URL 콘텐츠 가져오기</b> 추가 → URL은 아래 주소, 방법 <b>POST</b></li>
+          <li>헤더 추가: 키 <b>Authorization</b>, 값 <b>Bearer 키</b> (아래 값 그대로)</li>
+          <li>요청 본문 <b>JSON</b> → 키 <b>text</b>, 값은 <b>받아쓴 텍스트</b></li>
+          <li><b>알림 보기</b> 추가 → 내용은 <b>URL의 콘텐츠</b></li>
+          <li>이제 “<b>시리야, 나나금고</b>” 하고 바로 말하면 끝</li>
+        </ol>
+      )}
       <div className="bg-gray-50 rounded-lg p-2 space-y-1.5">
         <div className="flex items-center gap-2">
-          <span className="text-gray-400 w-10 flex-shrink-0">주소</span>
+          <span className="text-gray-400 w-10 flex-shrink-0">{vi ? 'URL' : '주소'}</span>
           <code className="flex-1 truncate text-gray-800">{url}</code>
-          <button onClick={() => copy('url', url)} className="text-indigo-500 flex-shrink-0">{copied === 'url' ? '복사됨' : '복사'}</button>
+          <button onClick={() => copy('url', url)} className="text-indigo-500 flex-shrink-0">{copied === 'url' ? (vi ? 'Đã chép' : '복사됨') : (vi ? 'Chép' : '복사')}</button>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-gray-400 w-10 flex-shrink-0">헤더값</span>
+          <span className="text-gray-400 w-10 flex-shrink-0">Header</span>
           <code className="flex-1 truncate text-gray-800">{token ? `Bearer ${token}` : '...'}</code>
-          <button onClick={() => copy('token', `Bearer ${token}`)} disabled={!token} className="text-indigo-500 flex-shrink-0">{copied === 'token' ? '복사됨' : '복사'}</button>
+          <button onClick={() => copy('token', `Bearer ${token}`)} disabled={!token} className="text-indigo-500 flex-shrink-0">{copied === 'token' ? (vi ? 'Đã chép' : '복사됨') : (vi ? 'Chép' : '복사')}</button>
         </div>
       </div>
-      <p className="text-[11px] text-gray-400">이 키는 비밀번호처럼 다뤄주세요. 노출됐다면 <button onClick={rotate} className="underline">새 키 만들기</button></p>
+      <p className="text-[11px] text-gray-400">{vi ? 'Giữ khóa này như mật khẩu. Nếu bị lộ, ' : '이 키는 비밀번호처럼 다뤄주세요. 노출됐다면 '}<button onClick={rotate} className="underline">{vi ? 'tạo khóa mới' : '새 키 만들기'}</button></p>
     </div>
   );
 }

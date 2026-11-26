@@ -427,7 +427,7 @@ export default function Home() {
         {activeTab === 'couple' && <>
         {/* 말로 기록 + 거래 추가 */}
         <div className="flex justify-center gap-2 flex-wrap">
-          <VoiceEntry onSaved={fetchData} />
+          <VoiceEntry onSaved={fetchData} role={user.role} />
           <button
             onClick={() => { setShowForm(true); setFormError(''); }}
             className="flex items-center gap-2.5 px-7 py-3 bg-rose-500 text-white rounded-full shadow-sm active:brightness-90 transition-all"
