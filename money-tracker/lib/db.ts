@@ -212,6 +212,13 @@ export async function getUserByUsername(username: string): Promise<User | null> 
   return rows[0] ?? null;
 }
 
+export async function getUserByRole(role: 'husband' | 'wife'): Promise<User | null> {
+  await initDb();
+  const sql = getSql();
+  const rows = await sql<User[]>`SELECT * FROM users WHERE role = ${role} ORDER BY id LIMIT 1`;
+  return rows[0] ?? null;
+}
+
 export async function getUserById(id: number): Promise<User | null> {
   await initDb();
   const sql = getSql();

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import PersonalTab from './_components/PersonalTab';
+import VoiceEntry from './_components/VoiceEntry';
 
 interface User { id: number; role: 'husband' | 'wife'; name: string; username: string; }
 interface Transaction {
@@ -424,8 +425,9 @@ export default function Home() {
 
         {/* ── Couple Tab (가계부 + 장보기 통합) ── */}
         {activeTab === 'couple' && <>
-        {/* 거래 추가 버튼 */}
-        <div className="flex justify-center">
+        {/* 말로 기록 + 거래 추가 */}
+        <div className="flex justify-center gap-2 flex-wrap">
+          <VoiceEntry onSaved={fetchData} />
           <button
             onClick={() => { setShowForm(true); setFormError(''); }}
             className="flex items-center gap-2.5 px-7 py-3 bg-rose-500 text-white rounded-full shadow-sm active:brightness-90 transition-all"
