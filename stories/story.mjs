@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const DB = process.env.STORY_DB || join(dirname(fileURLToPath(import.meta.url)), 'stories.jsonl');
-const TIERS = ['초안', '실전본', '견본'];
+const TIERS = ['초안', '견본'];
 const CRED = { fact: '사실', disputed: '논쟁', legend: '전설/야사' };
 
 // ── 공통 유틸 ────────────────────────────────────────────────
@@ -224,7 +224,7 @@ function help() {
   add [--file x.json] [--replace]   stdin/파일의 JSON 한 건 저장 (같은 id면 --replace 필요)
   react <id> --score 1~5 [--team X] [--note X]   현장 반응 기록
   rank                               현장 반응 평균 순위
-  list [--place X] [--tag X] [--status draft|ready|used] [--tier 초안|실전본|견본]
+  list [--place X] [--tag X] [--status draft|ready|used] [--tier 초안|견본]
   search <키워드...>                 제목·본문·태그·장소 전체에서 AND 검색
   show <id>                          한 건 전체 출력
   hooks                              아직 이야기로 만들지 않은 '다음 꼭지' 목록
@@ -232,7 +232,7 @@ function help() {
 
 JSON 필드: title, place, hook, story, facts[{claim,status,source}] 필수
            region, tags[], action, sales, related[{title,teaser}], sources[], status, id 선택
-           tier: 초안(대화로 만든 것, 기본값) | 실전본(가이드가 자기 목소리로 다듬은 것) | 견본(남이 만든 교본)
+           tier: 초안(우리가 만든 멘트, 기본값) | 견본(남에게 받은 멘트)
            emotion: 감동 포인트(가이드 전용)
            embellishments[{line,type,fact,source,comeback}] — 대본 속 각색과 실제 팩트 (line·fact 필수)
 facts.status: fact(출처 필수) | disputed | legend`);

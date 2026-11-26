@@ -38,14 +38,9 @@ node stories/print.mjs <id> [<id> ...] [--out stories/print/파일명.pdf]
 Playwright Chromium 이 있으면 PDF, 없으면 HTML 을 만든다(브라우저에서 인쇄).
 
 ## 멘트 등급 (tier)
-- **초안**: 대화로 즉흥적으로 만든 멘트 (기본값) → `print/초안/`
-- **실전본**: 가이드가 자기 목소리로 다듬은 멘트 → `print/실전본/`
-- **견본**: 다른 사람이 만든, 교본으로 삼는 멘트 → `print/견본/`, 원문·분석 `reference/`
-
-```
-node stories/story.mjs list --tier 실전본
-node stories/print.mjs <id> --out stories/print/실전본/파일명.pdf
-```
+- **초안**: 우리가 만든 멘트 전부 (기본값) → `print/초안/`
+- **견본**: 다른 사람에게 받은 멘트(교본) → `print/견본/`, 원문·분석 `reference/`
+- 같은 제목이 생기면 번호를 붙인다 (예: 길어야 몇 년 2)
 
 ## 작업 파이프라인 (6단계)
 1. 반응 순위 보기 — `node stories/story.mjs rank`
